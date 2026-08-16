@@ -28,7 +28,8 @@ export default function Header() {
   const primaryColor = settings.visual.primaryColor || '#991B1B';
   const secondaryColor = settings.visual.secondaryColor || '#111111';
   const logoSrc = settings.basic.logo || '/logo-oficial.png';
-  const siteTagline = settings.basic.siteTagline || 'Jornalismo • Informação • Entretenimento';
+  const siteName = settings.basic.siteName || 'RBN';
+  const siteTagline = settings.basic.siteTagline || 'Rede Brasileira de Notícias';
 
   const handleSearch = (event?: React.FormEvent) => {
     event?.preventDefault();
@@ -62,10 +63,10 @@ export default function Header() {
       <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-[0_1px_0_rgba(17,17,17,0.04)]">
         <div className="mx-auto max-w-7xl px-3 py-1 sm:px-4">
           <div className="flex items-center justify-between gap-2">
-            <Link href="/" className="flex shrink-0 items-center justify-center" aria-label="RBN - Página inicial">
+            <Link href="/" className="flex shrink-0 items-center justify-center" aria-label={`${siteName} - Página inicial`}>
               <Image
                 src={logoSrc}
-                alt="RBN"
+                alt={siteName}
                 width={180}
                 height={72}
                 priority

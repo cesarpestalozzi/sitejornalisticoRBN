@@ -17,6 +17,7 @@ export default function Footer() {
   }, [getSettings]);
 
   const logoSrc = settings.basic.footerLogo || settings.basic.logo || '/logo-oficial.png';
+  const siteName = settings.basic.siteName || 'RBN';
   const footerBackground = settings.visual.footerBackgroundColor || '#111111';
   const footerText = settings.visual.footerTextColor || '#FFFFFF';
 
@@ -25,10 +26,10 @@ export default function Footer() {
       <div className="text-white" style={{ backgroundColor: footerBackground, color: footerText }}>
         <div className="mx-auto flex max-w-[1600px] flex-col gap-3 px-4 py-5 sm:px-6 md:flex-row md:items-end md:justify-between lg:px-10">
           <div className="flex items-center gap-3 sm:gap-4">
-            <Link href="/" className="flex items-center justify-center" aria-label="RBN - Página inicial">
+            <Link href="/" className="flex items-center justify-center" aria-label={`${siteName} - Página inicial`}>
               <Image
                 src={logoSrc}
-                alt="RBN"
+                alt={siteName}
                 width={48}
                 height={48}
                 className="h-10 w-10 rounded-full border border-white/20 bg-white/5 object-cover shadow-sm sm:h-11 sm:w-11"
@@ -41,7 +42,7 @@ export default function Footer() {
             className="pb-1 text-lg font-medium transition hover:opacity-90 sm:text-2xl lg:text-[28px] lg:leading-none"
             style={{ color: footerText }}
           >
-            RBN
+            {siteName}
           </a>
         </div>
 

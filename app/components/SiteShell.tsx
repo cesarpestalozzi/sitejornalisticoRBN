@@ -5,11 +5,13 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Footer from './Footer';
+import { useSettings } from '@/app/lib/settings';
 
 const COOKIE_KEY = 'pz_news_cookie_consent';
 
 export default function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { getSettings } = useSettings();
   const isAdminRoute = pathname?.startsWith('/admin') ?? false;
   const [cookieConsent, setCookieConsent] = useState<'accepted' | 'rejected' | null>(null);
 
@@ -21,6 +23,11 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
     }
     setCookieConsent(null);
   }, []);
+
+  useEffect(() => {
+    const { siteName, siteTagline } = getSettings().basic;
+    document.title = `${siteName || 'RBN'} | ${siteTagline || 'Rede Brasileira de Notícias'}`;
+  }, [pathname, getSettings]);
 
   const acceptCookies = () => {
     window.localStorage.setItem(COOKIE_KEY, 'accepted');
