@@ -80,7 +80,7 @@ export default function AdminArticles() {
         <div className="sticky top-0 z-20 border-b border-gray-200 bg-white">
           <div className="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Artigos do AO PONTO BR</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Artigos do RBN</h1>
               <p className="mt-1 text-sm text-gray-600">Gerencie, pesquise e publique notícias do portal.</p>
             </div>
 

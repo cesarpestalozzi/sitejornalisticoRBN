@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -30,29 +30,29 @@ export default function NewArticlePage() {
   const brazilianLocations = [
     'Acre',
     'Alagoas',
-    'Amapá',
+    'AmapÃ¡',
     'Amazonas',
     'Bahia',
-    'Ceará',
+    'CearÃ¡',
     'Distrito Federal',
-    'Espírito Santo',
-    'Goiás',
-    'Maranhão',
+    'EspÃ­rito Santo',
+    'GoiÃ¡s',
+    'MaranhÃ£o',
     'Mato Grosso',
     'Mato Grosso do Sul',
     'Minas Gerais',
-    'Pará',
-    'Paraíba',
-    'Paraná',
+    'ParÃ¡',
+    'ParaÃ­ba',
+    'ParanÃ¡',
     'Pernambuco',
-    'Piauí',
+    'PiauÃ­',
     'Rio de Janeiro',
     'Rio Grande do Norte',
     'Rio Grande do Sul',
-    'Rondônia',
+    'RondÃ´nia',
     'Roraima',
     'Santa Catarina',
-    'São Paulo',
+    'SÃ£o Paulo',
     'Sergipe',
     'Tocantins',
   ];
@@ -67,7 +67,7 @@ export default function NewArticlePage() {
     excerpt: '',
     content: '',
     author: defaultAuthor,
-    location: 'São Paulo',
+    location: 'SÃ£o Paulo',
     featured: false,
   });
 
@@ -107,27 +107,27 @@ export default function NewArticlePage() {
 
   const handlePublish = (publishStatus: 'rascunho' | 'agendado' | 'publicado') => {
     if (!currentUser || !canCreateArticle(currentUser)) {
-      window.alert('Sem permissão para criar matérias.');
+      window.alert('Sem permissÃ£o para criar matÃ©rias.');
       return;
     }
 
     if (!formData.title.trim()) {
-      window.alert('Preencha o título da notícia.');
+      window.alert('Preencha o tÃ­tulo da notÃ­cia.');
       return;
     }
 
     if (!plainContent.trim()) {
-      window.alert('Preencha o conteúdo da notícia.');
+      window.alert('Preencha o conteÃºdo da notÃ­cia.');
       return;
     }
 
     if (publishStatus === 'agendado' && (!scheduledDate || !scheduledTime)) {
-      window.alert('Defina a data e o horário do agendamento.');
+      window.alert('Defina a data e o horÃ¡rio do agendamento.');
       return;
     }
 
     if ((publishStatus === 'publicado' || publishStatus === 'agendado') && !canPublishArticle(currentUser, formData.author)) {
-      window.alert('Seu perfil não pode publicar esta matéria.');
+      window.alert('Seu perfil nÃ£o pode publicar esta matÃ©ria.');
       return;
     }
 
@@ -149,14 +149,14 @@ export default function NewArticlePage() {
         scheduledTime: publishStatus === 'agendado' ? scheduledTime : undefined,
       });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Sem permissão para publicar esta matéria.');
+      window.alert(error instanceof Error ? error.message : 'Sem permissÃ£o para publicar esta matÃ©ria.');
       return;
     }
 
     const messages = {
       rascunho: 'Rascunho salvo com sucesso.',
-      agendado: `Publicação agendada para ${scheduledDate} às ${scheduledTime}.`,
-      publicado: 'Notícia publicada com sucesso no AO PONTO BR.',
+      agendado: `PublicaÃ§Ã£o agendada para ${scheduledDate} Ã s ${scheduledTime}.`,
+      publicado: 'NotÃ­cia publicada com sucesso no RBN.',
     };
 
     setFeedbackMessage(messages[publishStatus]);
@@ -183,7 +183,7 @@ export default function NewArticlePage() {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Novo artigo</h1>
-                <p className="text-sm text-gray-600">Crie uma notícia completa para o AO PONTO BR.</p>
+                <p className="text-sm text-gray-600">Crie uma notÃ­cia completa para o RBN.</p>
               </div>
             </div>
           </div>
@@ -201,16 +201,16 @@ export default function NewArticlePage() {
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">Informações principais</h2>
-                    <p className="text-sm text-gray-500">Defina título, autoria, categoria e resumo.</p>
+                    <h2 className="text-lg font-bold text-gray-900">InformaÃ§Ãµes principais</h2>
+                    <p className="text-sm text-gray-500">Defina tÃ­tulo, autoria, categoria e resumo.</p>
                   </div>
                   <div className="rounded-full bg-[#FF796C]/10 px-4 py-2 text-sm font-semibold text-[#FF796C]">{wordCount} palavras</div>
                 </div>
 
                 <div className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-900">Título</label>
-                    <input type="text" name="title" value={formData.title} onChange={handleFieldChange} placeholder="Digite o título da notícia" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">TÃ­tulo</label>
+                    <input type="text" name="title" value={formData.title} onChange={handleFieldChange} placeholder="Digite o tÃ­tulo da notÃ­cia" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
 
                   <div>
@@ -255,7 +255,7 @@ export default function NewArticlePage() {
                     <textarea name="excerpt" value={formData.excerpt} onChange={handleFieldChange} rows={4} placeholder="Escreva um resumo para listagens e cards" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicação</label>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicaÃ§Ã£o</label>
                     <select name="location" value={formData.location} onChange={handleFieldChange} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
                       {brazilianLocations.map((location) => (
                         <option key={location} value={location}>{location}</option>
@@ -268,8 +268,8 @@ export default function NewArticlePage() {
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">Conteúdo da notícia</h2>
-                    <p className="text-sm text-gray-500">Use a barra para títulos, negrito, listas, citações e links.</p>
+                    <h2 className="text-lg font-bold text-gray-900">ConteÃºdo da notÃ­cia</h2>
+                    <p className="text-sm text-gray-500">Use a barra para tÃ­tulos, negrito, listas, citaÃ§Ãµes e links.</p>
                   </div>
                   <div className="text-right text-sm text-gray-500">
                     <p>{wordCount} palavras</p>
@@ -297,36 +297,36 @@ export default function NewArticlePage() {
             <aside className="space-y-6">
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <div className="mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Mídia da matéria</h2>
-                  <p className="mt-1 text-sm text-gray-500">Adicione várias imagens e vídeos, escolha a imagem principal e edite antes de publicar.</p>
+                  <h2 className="text-lg font-bold text-gray-900">MÃ­dia da matÃ©ria</h2>
+                  <p className="mt-1 text-sm text-gray-500">Adicione vÃ¡rias imagens e vÃ­deos, escolha a imagem principal e edite antes de publicar.</p>
                 </div>
                 <ArticleMediaManager
                   initialImages={mediaState.images}
                   initialVideos={mediaState.videos}
                   initialPrimaryImage={mediaState.primaryImage}
-                  title={formData.title || 'A notícia'}
+                  title={formData.title || 'A notÃ­cia'}
                   onChange={handleMediaChange}
                 />
               </section>
 
               <section className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">Configurações de destaque</h2>
+                <h2 className="text-lg font-bold text-gray-900">ConfiguraÃ§Ãµes de destaque</h2>
                 <label className="mt-4 flex items-start gap-3">
                   <input type="checkbox" name="featured" checked={formData.featured} onChange={handleFieldChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]" />
                   <span>
                     <span className="block font-semibold text-gray-900">Exibir no hero da home</span>
-                    <span className="text-sm text-gray-500">Artigos marcados como destaque aparecem no topo da página inicial.</span>
+                    <span className="text-sm text-gray-500">Artigos marcados como destaque aparecem no topo da pÃ¡gina inicial.</span>
                   </span>
                 </label>
               </section>
 
               <section className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">Publicação</h2>
+                <h2 className="text-lg font-bold text-gray-900">PublicaÃ§Ã£o</h2>
                 <div className="mt-4 space-y-3">
                 {canPublishArticle(currentUser, formData.author) ? (
                   <button type="button" onClick={() => handlePublish('publicado')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#2a2a2a]">
                     <Send className="h-4 w-4" />
-                    Publicar notícia
+                    Publicar notÃ­cia
                   </button>
                 ) : null}
                 <button type="button" onClick={() => handlePublish('rascunho')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">
@@ -336,7 +336,7 @@ export default function NewArticlePage() {
                 {canPublishArticle(currentUser, formData.author) ? (
                   <button type="button" onClick={() => setShowScheduleFields((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
                     <CalendarClock className="h-4 w-4" />
-                    Agendar publicação
+                    Agendar publicaÃ§Ã£o
                   </button>
                 ) : null}
               </div>
@@ -357,3 +357,4 @@ export default function NewArticlePage() {
     </div>
   );
 }
+

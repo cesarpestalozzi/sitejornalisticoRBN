@@ -11,7 +11,7 @@ interface BreakingNewsItem {
 
 export default function BreakingNews() {
   const [breakingNews, setBreakingNews] = useState<BreakingNewsItem[]>([
-    { id: '1', title: 'Últimas informações sobre economia global chegam ao AO PONTO BR', timestamp: new Date() }
+    { id: '1', title: 'Últimas informações sobre economia global chegam à RBN', timestamp: new Date() }
   ]);
 
   return (

@@ -16,7 +16,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">1. Introdução</h2>
               <p className="text-gray-700 leading-relaxed">
-                O AO PONTO BR ("Portal", "nós", "nosso") respeita a privacidade de seus usuários e visitantes. 
+                A RBN ("Portal", "nós", "nosso") respeita a privacidade de seus usuários e visitantes. 
                 Esta Política de Privacidade explica como coletamos, usamos, divulgamos e salvaguardamos suas informações.
               </p>
             </section>
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">6. Links para Terceiros</h2>
               <p className="text-gray-700 leading-relaxed">
-                O AO PONTO BR pode conter links para sites de terceiros. Não somos responsáveis pela privacidade 
+                A RBN pode conter links para sites de terceiros. Não somos responsáveis pela privacidade 
                 desses sites. Recomendamos revisar suas políticas de privacidade.
               </p>
             </section>
@@ -90,7 +90,7 @@ export default function PrivacyPage() {
                 Se tiver dúvidas sobre esta Política de Privacidade, entre em contato conosco em:
               </p>
               <p className="text-gray-700 leading-relaxed">
-                E-mail: privacidade@pznews.com.br<br />
+                E-mail: privacidade@rbn.com.br<br />
                 Endereço: São Paulo, SP
               </p>
             </section>

@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { getCurrentAdminUser, isAdmin } from '@/app/lib/adminPermissions';
 
 /**
- * Sistema de Configurações - AO PONTO BR
+ * Sistema de Configurações - RBN
  * Gerencia todas as configurações do portal de forma centralizada
  * Integrado com localStorage para persistência
  */
@@ -125,9 +125,9 @@ export interface SiteSettings {
 // Configurações padrão
 export const defaultSettings: SiteSettings = {
   basic: {
-    siteName: 'AO PONTO BR',
-    siteTagline: 'Jornalismo • Informação • Entretenimento',
-    description: 'Portal de notícias profissional com cobertura completa de política, economia, tecnologia e entretenimento.',
+    siteName: 'RBN',
+    siteTagline: 'Rede Brasileira de Notícias',
+    description: 'Portal de notícias com cobertura completa de política, economia, cultura, Brasil e mundo.',
     logo: '/logo-oficial.png',
     footerLogo: '/logo-oficial.png',
     favicon: '/favicon.ico',
@@ -140,10 +140,10 @@ export const defaultSettings: SiteSettings = {
     ],
   },
   seo: {
-    metaDescription: 'AO PONTO BR - Portal de notícias completo com análise profissional e conteúdo atualizado em tempo real.',
-    metaKeywords: ['notícias', 'jornalismo', 'política', 'economia', 'tecnologia', 'entretenimento'],
+    metaDescription: 'RBN - Rede Brasileira de Notícias com análise, contexto e informação em tempo real.',
+    metaKeywords: ['notícias', 'jornalismo', 'política', 'economia', 'brasil', 'mundo', 'entretenimento'],
     ogImage: '/og-image.png',
-    twitterHandle: '@pznews',
+    twitterHandle: '@rbn',
     googleAnalyticsId: 'G-XXXXXXXXXX',
     googleSearchConsoleId: '',
   },
@@ -173,25 +173,25 @@ export const defaultSettings: SiteSettings = {
     encryptSensitiveData: true,
   },
   email: {
-    senderEmail: 'noreply@pznews.com.br',
-    senderName: 'AO PONTO BR',
+    senderEmail: 'noreply@rbn.com.br',
+    senderName: 'RBN',
     smtpHost: 'smtp.gmail.com',
     smtpPort: 587,
     enableNotifications: true,
-    notificationEmail: 'admin@pznews.com.br',
+    notificationEmail: 'admin@rbn.com.br',
   },
   commercial: {
-    email: 'comercial@pznews.com.br',
+    email: 'comercial@rbn.com.br',
     whatsapp: '5511999999999',
-    instagram: '@pznews',
+    instagram: '@rbn',
   },
   social: {
-    facebook: 'https://facebook.com/pznews',
-    twitter: 'https://twitter.com/pznews',
-    instagram: 'https://instagram.com/pznews',
-    linkedin: 'https://linkedin.com/company/pznews',
-    youtube: 'https://youtube.com/@pznews',
-    tiktok: 'https://tiktok.com/@pznews',
+    facebook: 'https://facebook.com/rbn',
+    twitter: 'https://twitter.com/rbn',
+    instagram: 'https://instagram.com/rbn',
+    linkedin: 'https://linkedin.com/company/rbn',
+    youtube: 'https://youtube.com/@rbn',
+    tiktok: 'https://tiktok.com/@rbn',
   },
   content: {
     postsPerPage: 20,

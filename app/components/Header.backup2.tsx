@@ -39,7 +39,7 @@ export default function Header() {
                 <span className="text-white font-bold text-lg">PZ</span>
               </div>
               <div className="hidden sm:block">
-                <h1 className="font-bold text-lg text-gray-900">AO PONTO BR</h1>
+                <h1 className="font-bold text-lg text-gray-900">RBN</h1>
                 <p className="text-xs text-gray-500">Jornalismo • Informação • Entretenimento</p>
               </div>
             </Link>

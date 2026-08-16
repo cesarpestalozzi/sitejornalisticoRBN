@@ -4,9 +4,9 @@ import { AdminRole, ROLE_LEVELS, getCurrentAdminUser, getDefaultPermissionsForRo
 export type UserRole = AdminRole;
 export type UserStatus = 'ativo' | 'inativo';
 
-export const DEFAULT_PASSWORD = '12345678';
-export const ADMIN_LOGIN = 'PZNEWS54078879837';
-export const ADMIN_EMAIL = 'admin@pznews.com.br';
+export const DEFAULT_PASSWORD = '123456';
+export const ADMIN_LOGIN = 'RBN54078879837';
+export const ADMIN_EMAIL = 'admin@rbn.com.br';
 
 export function normalizeCpf(value: string) {
   return (value ?? '').replace(/\D/g, '');
@@ -32,7 +32,7 @@ export function maskCpf(value?: string | null) {
 
 export function buildUserLogin(cpf?: string | null) {
   const digits = normalizeCpf(cpf ?? '');
-  return digits ? `PZNEWS${digits}` : '';
+  return digits ? `RBN${digits}` : '';
 }
 
 export interface User {
@@ -134,14 +134,14 @@ function getMockUsers(): User[] {
     {
       id: '1',
       name: 'César Pestalozzi',
-      email: 'admin@pznews.com.br',
+      email: 'admin@rbn.com.br',
       cpf: '54078879837',
       login: ADMIN_LOGIN,
       passwordHash: hashPassword(DEFAULT_PASSWORD),
       role: 'admin',
       roleLevel: 1,
       permissions: getDefaultPermissionsForRole('admin'),
-      bio: 'Administrador principal do AO PONTO BR e responsável pela operação editorial.',
+      bio: 'Administrador principal da RBN e responsável pela operação editorial.',
       avatar: createAvatar('César Pestalozzi', '#991B1B'),
       status: 'ativo',
       joinDate: '2026-01-15',
@@ -154,7 +154,7 @@ function getMockUsers(): User[] {
     {
       id: '2',
       name: 'Maria Santos',
-      email: 'maria@pznews.com.br',
+      email: 'maria@rbn.com.br',
       cpf: '98765432100',
       login: buildUserLogin('98765432100'),
       passwordHash: hashPassword(DEFAULT_PASSWORD),
@@ -174,7 +174,7 @@ function getMockUsers(): User[] {
     {
       id: '3',
       name: 'Carlos Oliveira',
-      email: 'carlos@pznews.com.br',
+      email: 'carlos@rbn.com.br',
       cpf: '11122233344',
       login: buildUserLogin('11122233344'),
       passwordHash: hashPassword(DEFAULT_PASSWORD),

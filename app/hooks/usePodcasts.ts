@@ -27,7 +27,7 @@ function getDefaultEpisodes(): PodcastEpisode[] {
   return [
     {
       id: 'podcast-1',
-      title: 'AO PONTO BR em Foco: EUA e o novo cenário global',
+      title: 'RBN em Foco: EUA e o novo cenário global',
       description: 'Análise do impacto das decisões internacionais sobre a economia e o mercado brasileiro.',
       image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80',
       audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',

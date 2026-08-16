@@ -243,7 +243,7 @@ export default function UsersPage() {
         <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
           <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Usuários do AO PONTO BR</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Usuários do RBN</h1>
               <p className="mt-2 text-gray-600">Gerencie perfis, avatares, status e especializações da equipe.</p>
             </div>
             <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-6 py-3 font-semibold text-white transition hover:bg-[#2a2a2a]">

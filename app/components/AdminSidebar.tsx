@@ -54,10 +54,10 @@ export default function AdminSidebar() {
     <>
       <div className="sticky top-0 z-50 flex items-center justify-between bg-gray-900 p-4 text-white md:hidden">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#991B1B] text-sm font-bold">AO</div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#991B1B] text-sm font-bold">R</div>
           <div>
-            <p className="font-bold">AO PONTO BR</p>
-            <p className="text-xs text-gray-400">AO.BR • Administração</p>
+            <p className="font-bold">RBN</p>
+            <p className="text-xs text-gray-400">Rede Brasileira de Notícias</p>
           </div>
         </div>
         <button type="button" onClick={() => setIsOpen((current) => !current)}>
@@ -72,10 +72,10 @@ export default function AdminSidebar() {
       >
         <div className="border-b border-gray-800 p-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#991B1B] font-bold">AO</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#991B1B] font-bold">R</div>
             <div>
-              <h1 className="text-sm font-bold">AO PONTO BR</h1>
-              <p className="text-xs text-gray-400">AO.BR • Painel administrativo</p>
+                <h1 className="text-sm font-bold">RBN</h1>
+                <p className="text-xs text-gray-400">Rede Brasileira de Notícias</p>
             </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center shadow-[0_8px_20px_rgba(0,0,0,0.12)]">

@@ -62,7 +62,7 @@ export default function AdminLogin() {
 
     const cleanIdentifier = identifier.trim();
     const loginCandidate = cleanIdentifier.toUpperCase();
-    const credential = cleanIdentifier.startsWith('PZNEWS') ? loginCandidate : buildUserLogin(normalizeCpf(cleanIdentifier));
+    const credential = cleanIdentifier.startsWith('RBN') ? loginCandidate : buildUserLogin(normalizeCpf(cleanIdentifier));
     const user = users.find(
       (item) => item.login.toUpperCase() === credential || normalizeCpf(item.cpf) === normalizeCpf(cleanIdentifier)
     );
@@ -86,7 +86,7 @@ export default function AdminLogin() {
       return;
     }
 
-    setError('Identificação ou senha inválidos. Use o login PZNEWS + CPF e a senha cadastrada.');
+    setError('Identificação ou senha inválidos. Use o login RBN + CPF e a senha cadastrada.');
     setLoading(false);
   };
 
@@ -95,10 +95,10 @@ export default function AdminLogin() {
       <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-[#991B1B] rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">AO</span>
+            <span className="text-white font-bold text-2xl">R</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">AO PONTO BR</h1>
-          <p className="text-gray-600 text-sm mt-1">AO.BR • Painel Administrativo</p>
+          <h1 className="text-2xl font-bold text-gray-900">RBN</h1>
+          <p className="text-gray-600 text-sm mt-1">Rede Brasileira de Notícias • Painel Administrativo</p>
         </div>
 
         {error && (

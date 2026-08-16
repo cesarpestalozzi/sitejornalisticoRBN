@@ -1,4 +1,4 @@
-// AO PONTO BR - Mock Data for Development
+// RBN - Mock Data for Development
 
 import { Article, NewsCard, Category, Podcast, VideoContent } from '@/app/types';
 
@@ -102,7 +102,7 @@ export const newsGrid = {
 export const podcasts: Podcast[] = [
   {
     id: 'podcast-1',
-    title: 'AO PONTO BR em Foco: EUA e o novo cenário global',
+    title: 'RBN em Foco: EUA e o novo cenário global',
     episode: 118,
     season: 1,
     description: 'Análise do impacto das decisões internacionais sobre a economia e o mercado brasileiro.',

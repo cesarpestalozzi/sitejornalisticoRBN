@@ -11,7 +11,7 @@ const principles = [
     icon: BadgeCheck,
     title: 'Independência editorial',
     description:
-      'O AO PONTO BR busca preservar sua independência na produção e publicação de conteúdo jornalístico, mantendo critérios editoriais próprios e transparentes.',
+      'A RBN busca preservar sua independência na produção e publicação de conteúdo jornalístico, mantendo critérios editoriais próprios e transparentes.',
   },
   {
     icon: BookOpenText,
@@ -51,7 +51,7 @@ export default function QuemSomosPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
       <div className="mb-10 border-b border-gray-200 pb-8">
-        <p className="mb-4 text-xs font-medium uppercase tracking-[0.24em] text-[#991B1B]">AO PONTO BR</p>
+        <p className="mb-4 text-xs font-medium uppercase tracking-[0.24em] text-[#991B1B]">RBN</p>
         <h1 className="max-w-4xl text-4xl font-light leading-none tracking-[-0.06em] text-gray-900 sm:text-5xl lg:text-7xl">
           Quem Somos
         </h1>
@@ -61,7 +61,7 @@ export default function QuemSomosPage() {
         <div className="space-y-12">
           <section className="space-y-6">
             <p className="text-xl font-light leading-relaxed text-gray-700 sm:text-2xl">
-              O <span className="font-medium text-gray-900">AO PONTO BR</span> é um portal jornalístico digital criado para levar informação de forma <span className="font-medium text-gray-900">clara, responsável e acessível</span> aos leitores.
+              O <span className="font-medium text-gray-900">RBN</span> é um portal jornalístico digital criado para levar informação de forma <span className="font-medium text-gray-900">clara, responsável e acessível</span> aos leitores.
             </p>
 
             <div className="grid gap-6 md:grid-cols-2">
@@ -117,7 +117,7 @@ export default function QuemSomosPage() {
               <div className="rounded-full bg-[#991B1B]/10 p-2 text-[#991B1B]">
                 <Globe2 className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">O Que Você Encontra no AO PONTO BR</h2>
+              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">O Que Você Encontra na RBN</h2>
             </div>
 
             <p className="max-w-3xl text-base leading-8 text-gray-700">
@@ -145,7 +145,7 @@ export default function QuemSomosPage() {
               <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Nossa História</h2>
             </div>
             <p className="text-base leading-8 text-gray-700">
-              O <span className="font-medium text-gray-900">AO PONTO BR foi fundado em 2026</span>, com a proposta de construir uma nova experiência de jornalismo digital.
+              O <span className="font-medium text-gray-900">RBN foi fundado em 2026</span>, com a proposta de construir uma nova experiência de jornalismo digital.
             </p>
             <p className="mt-4 text-base leading-8 text-gray-700">
               Desde o início, o projeto tem como pilares a qualidade da informação, a inovação e o respeito ao leitor. O portal está em constante evolução, buscando aprimorar seus processos, ampliar sua cobertura e desenvolver novas formas de apresentar informação jornalística.
@@ -154,7 +154,7 @@ export default function QuemSomosPage() {
 
           <section className="rounded-[28px] border border-gray-200 bg-[#F8F8F8] p-6 sm:p-8">
             <p className="text-base leading-8 text-gray-700">
-              À medida que o AO PONTO BR cresce, nosso compromisso permanece o mesmo: <span className="font-medium text-gray-900">produzir informação relevante, responsável e útil para nossos leitores.</span>
+              À medida que o RBN cresce, nosso compromisso permanece o mesmo: <span className="font-medium text-gray-900">produzir informação relevante, responsável e útil para nossos leitores.</span>
             </p>
           </section>
 
@@ -167,15 +167,15 @@ export default function QuemSomosPage() {
               Por isso, buscamos manter uma relação baseada em <span className="font-medium text-white">confiança, transparência e responsabilidade</span>. Valorizamos sugestões, críticas e apontamentos que possam contribuir para o aprimoramento do nosso jornalismo.
             </p>
             <p className="mt-6 text-base leading-8 text-gray-200">
-              O AO PONTO BR acredita que informação de qualidade é essencial para uma sociedade mais consciente, participativa e preparada para tomar decisões.
+              O RBN acredita que informação de qualidade é essencial para uma sociedade mais consciente, participativa e preparada para tomar decisões.
             </p>
-            <p className="mt-8 text-xl font-light tracking-[-0.04em] text-white">AO PONTO BR — Informação que importa.</p>
+            <p className="mt-8 text-xl font-light tracking-[-0.04em] text-white">RBN — Informação que importa.</p>
           </section>
         </div>
 
         <aside className="lg:pt-14">
           <div className="sticky top-8 rounded-[26px] border border-gray-200 bg-[#F8F8F8] p-6">
-            <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.22em] text-[#991B1B]">AO PONTO BR</p>
+            <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.22em] text-[#991B1B]">RBN</p>
             <h3 className="text-3xl font-light tracking-[-0.05em] text-gray-900">Jornalismo com rigor</h3>
             <div className="mt-6 space-y-5 border-t border-gray-200 pt-5 text-sm leading-7 text-gray-700">
               <p>Informar com responsabilidade.</p>

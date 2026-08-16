@@ -62,10 +62,10 @@ export default function Header() {
       <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-[0_1px_0_rgba(17,17,17,0.04)]">
         <div className="mx-auto max-w-7xl px-3 py-1 sm:px-4">
           <div className="flex items-center justify-between gap-2">
-            <Link href="/" className="flex shrink-0 items-center justify-center" aria-label="AO PONTO BR - Página inicial">
+            <Link href="/" className="flex shrink-0 items-center justify-center" aria-label="RBN - Página inicial">
               <Image
                 src={logoSrc}
-                alt="AO PONTO BR"
+                alt="RBN"
                 width={160}
                 height={56}
                 priority

@@ -38,9 +38,9 @@ export default function AdvertisementsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState(initialFormData);
   const [commercialData, setCommercialData] = useState({
-    email: 'comercial@pznews.com.br',
+    email: 'comercial@rbn.com.br',
     whatsapp: '5511999999999',
-    instagram: '@pznews',
+    instagram: '@rbn',
   });
   const [showAdsOnHomepage, setShowAdsOnHomepage] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -48,9 +48,9 @@ export default function AdvertisementsPage() {
   useEffect(() => {
     const settings = getSettings();
     setCommercialData({
-      email: settings.commercial?.email || 'comercial@pznews.com.br',
+      email: settings.commercial?.email || 'comercial@rbn.com.br',
       whatsapp: settings.commercial?.whatsapp || '5511999999999',
-      instagram: settings.commercial?.instagram || '@pznews',
+      instagram: settings.commercial?.instagram || '@rbn',
     });
     setShowAdsOnHomepage(settings.content?.showAdsOnHomepage ?? false);
   }, [getSettings]);
@@ -212,7 +212,7 @@ export default function AdvertisementsPage() {
           <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C40000]">Publicidade</p>
-              <h1 className="text-3xl font-light tracking-[-0.06em] text-gray-900 sm:text-4xl">Publicidades do AO PONTO BR</h1>
+              <h1 className="text-3xl font-light tracking-[-0.06em] text-gray-900 sm:text-4xl">Publicidades do RBN</h1>
               <p className="mt-2 text-sm text-gray-600 sm:text-base">Cadastre campanhas, organize posições e mantenha anúncios persistentes.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -282,7 +282,7 @@ export default function AdvertisementsPage() {
                   value={commercialData.email}
                   onChange={(event) => setCommercialData((current) => ({ ...current, email: event.target.value }))}
                   className="mt-2 w-full rounded-xl border border-gray-300 bg-[#fafafa] px-4 py-3 text-gray-900 transition focus:border-[#C40000] focus:outline-none"
-                  placeholder="comercial@pznews.com.br"
+                  placeholder="comercial@rbn.com.br"
                 />
               </label>
 
@@ -304,7 +304,7 @@ export default function AdvertisementsPage() {
                   value={commercialData.instagram}
                   onChange={(event) => setCommercialData((current) => ({ ...current, instagram: event.target.value }))}
                   className="mt-2 w-full rounded-xl border border-gray-300 bg-[#fafafa] px-4 py-3 text-gray-900 transition focus:border-[#C40000] focus:outline-none"
-                  placeholder="@pznews"
+                  placeholder="@rbn"
                 />
               </label>
             </div>

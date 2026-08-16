@@ -61,10 +61,10 @@ export async function generateMetadata({
 
   if (!article) {
    return {
-     title: 'AO PONTO BR | Notícias em Tempo Real',
+     title: 'RBN | Notícias em Tempo Real',
      description: 'Portal de notícias profissional com credibilidade, tecnologia e cobertura completa.',
      openGraph: {
-       title: 'AO PONTO BR | Notícias em Tempo Real',
+       title: 'RBN | Notícias em Tempo Real',
        description: 'Portal de notícias profissional com credibilidade, tecnologia e cobertura completa.',
        type: 'article',
        url,
@@ -72,7 +72,7 @@ export async function generateMetadata({
      },
      twitter: {
        card: 'summary_large_image',
-       title: 'AO PONTO BR | Notícias em Tempo Real',
+       title: 'RBN | Notícias em Tempo Real',
        description: 'Portal de notícias profissional com credibilidade, tecnologia e cobertura completa.',
        images: [`${OFFICIAL_SITE_URL}/logo-oficial.png`],
      },
@@ -80,7 +80,7 @@ export async function generateMetadata({
   }
 
   const title = article.title;
-  const description = article.subtitle || article.excerpt || 'Leia a matéria completa no AO PONTO BR.';
+  const description = article.subtitle || article.excerpt || 'Leia a matéria completa no RBN.';
 
   return {
    title,
@@ -91,7 +91,7 @@ export async function generateMetadata({
       description,
       type: 'article',
       url,
-      images: [{ url: `${OFFICIAL_SITE_URL}/logo-oficial.png`, alt: 'AO PONTO BR' }],
+      images: [{ url: `${OFFICIAL_SITE_URL}/logo-oficial.png`, alt: 'RBN' }],
     },
     twitter: {
       card: 'summary_large_image',

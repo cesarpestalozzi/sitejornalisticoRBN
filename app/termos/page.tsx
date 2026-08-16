@@ -15,7 +15,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">1. Aceitação dos Termos</h2>
               <p className="text-gray-700 leading-relaxed">
-                Ao acessar e usar o AO PONTO BR, você concorda em aceitar e estar vinculado por este Acordo de Termos de Serviço. 
+                Ao acessar e usar o RBN, você concorda em aceitar e estar vinculado por este Acordo de Termos de Serviço. 
                 Se você não concordar em estar vinculado por estes termos, não use este Portal.
               </p>
             </section>
@@ -23,7 +23,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">2. Licença de Uso</h2>
               <p className="text-gray-700 leading-relaxed">
-                O AO PONTO BR concede a você uma licença limitada, não exclusiva e não transferível para acessar e usar este Portal 
+                O RBN concede a você uma licença limitada, não exclusiva e não transferível para acessar e usar este Portal 
                 para fins pessoais, não comerciais. Você não pode reproduzir, distribuir, transmitir, exibir ou vender qualquer conteúdo 
                 sem permissão escrita prévia.
               </p>
@@ -46,8 +46,8 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">4. Propriedade Intelectual</h2>
               <p className="text-gray-700 leading-relaxed">
-                Todo o conteúdo, recursos e designs do AO PONTO BR, incluindo texto, gráficos, logos e imagens, 
-                são propriedade do AO PONTO BR ou de seus fornecedores de conteúdo e protegidos pelas leis de 
+                Todo o conteúdo, recursos e designs do RBN, incluindo texto, gráficos, logos e imagens, 
+                são propriedade do RBN ou de seus fornecedores de conteúdo e protegidos pelas leis de 
                 direitos autorais internacionais.
               </p>
             </section>
@@ -55,7 +55,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">5. Isenção de Responsabilidade</h2>
               <p className="text-gray-700 leading-relaxed">
-                O AO PONTO BR fornece o conteúdo "no estado em que se encontra". Não oferecemos garantias de 
+                O RBN fornece o conteúdo "no estado em que se encontra". Não oferecemos garantias de 
                 qualquer tipo, expressas ou implícitas. Não garantimos que o Portal seja ininterrupto, 
                 seguro ou livre de erros.
               </p>
@@ -64,7 +64,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">6. Limitação de Responsabilidade</h2>
               <p className="text-gray-700 leading-relaxed">
-                Em nenhum caso o AO PONTO BR será responsável por danos indiretos, incidentais, especiais ou 
+                Em nenhum caso o RBN será responsável por danos indiretos, incidentais, especiais ou 
                 consequentes decorrentes do uso ou da impossibilidade de usar o Portal ou o conteúdo.
               </p>
             </section>
@@ -72,7 +72,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">7. Modificações dos Termos</h2>
               <p className="text-gray-700 leading-relaxed">
-                O AO PONTO BR se reserva o direito de modificar estes Termos de Uso a qualquer momento. 
+                O RBN se reserva o direito de modificar estes Termos de Uso a qualquer momento. 
                 Continuando a usar o Portal após tais modificações, você aceita os novos termos.
               </p>
             </section>
@@ -89,7 +89,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">9. Contato</h2>
               <p className="text-gray-700 leading-relaxed">
                 Se tiver dúvidas sobre estes Termos de Uso, entre em contato conosco em:<br />
-                E-mail: legal@pznews.com.br
+                E-mail: legal@rbn.com.br
               </p>
             </section>
           </div>

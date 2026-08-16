@@ -1,5 +1,5 @@
 /**
- * Design System Profissional - AO PONTO BR
+ * Design System Profissional - RBN
  * Sistema centralizado de cores, tipografia e componentes
  * Inspirado em portais como Folha, G1, UOL
  */

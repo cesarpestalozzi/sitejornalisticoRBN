@@ -1,4 +1,4 @@
-// AO PONTO BR - Types and Interfaces
+// RBN - Types and Interfaces
 
 export interface Article {
   id: string;

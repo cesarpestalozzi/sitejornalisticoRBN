@@ -4,12 +4,12 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://pz-news-xi.vercel.app"),
-  title: "AO PONTO BR | Notícias em Tempo Real",
-  description: "Portal de notícias profissional com credibilidade, tecnologia e cobertura completa de todos os temas principais.",
+  metadataBase: new URL("https://rbn-news.vercel.app"),
+  title: "RBN | Rede Brasileira de Notícias",
+  description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
   openGraph: {
-    title: "AO PONTO BR | Notícias em Tempo Real",
-    description: "Portal de notícias profissional com credibilidade, tecnologia e cobertura completa de todos os temas principais.",
+    title: "RBN | Rede Brasileira de Notícias",
+    description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
     type: "website",
     url: "/",
     images: [
@@ -17,14 +17,14 @@ export const metadata: Metadata = {
         url: "/logo-oficial.png",
         width: 1200,
         height: 630,
-        alt: "AO PONTO BR",
+        alt: "RBN",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "AO PONTO BR | Notícias em Tempo Real",
-    description: "Portal de notícias profissional com credibilidade, tecnologia e cobertura completa de todos os temas principais.",
+    title: "RBN | Rede Brasileira de Notícias",
+    description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
     images: ["/logo-oficial.png"],
   },
 };

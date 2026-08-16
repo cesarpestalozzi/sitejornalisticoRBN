@@ -65,7 +65,7 @@ export default function AdminDashboard() {
           <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h1 className="mb-2 text-3xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600">Visão geral de artigos, usuários e publicidades do AO PONTO BR.</p>
+              <p className="text-gray-600">Visão geral de artigos, usuários e publicidades da RBN.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {['day', 'week', 'month', 'year'].map((item) => (

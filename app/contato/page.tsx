@@ -21,18 +21,18 @@ function normalizeInstagramLink(value: string) {
 export default function Contato() {
   const { getSettings } = useSettings();
   const [commercial, setCommercial] = useState({
-    email: 'comercial@pznews.com.br',
+    email: 'comercial@rbn.com.br',
     whatsapp: '5511999999999',
-    instagram: '@pznews',
+    instagram: '@rbn',
   });
 
   useEffect(() => {
     const syncCommercial = () => {
       const settings = getSettings();
       setCommercial({
-        email: settings.commercial?.email || 'comercial@pznews.com.br',
+        email: settings.commercial?.email || 'comercial@rbn.com.br',
         whatsapp: settings.commercial?.whatsapp || '5511999999999',
-        instagram: settings.commercial?.instagram || '@pznews',
+        instagram: settings.commercial?.instagram || '@rbn',
       });
     };
 
@@ -58,12 +58,12 @@ export default function Contato() {
 
           <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.3fr_0.7fr] lg:p-12">
             <div>
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C40000]">AO PONTO BR</p>
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#C40000]">RBN</p>
               <h1 className="max-w-xl text-4xl font-light tracking-[-0.08em] text-[#111111] sm:text-5xl lg:text-7xl">
                 Anuncie Conosco
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-8 text-[#4b4b4b] sm:text-lg">
-                Conecte sua marca ao AO PONTO BR e alcance leitores que valorizam informação, contexto e credibilidade.
+                Conecte sua marca à RBN e alcance leitores que valorizam informação, contexto e credibilidade.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3">
@@ -100,10 +100,10 @@ export default function Contato() {
           <div className="max-w-3xl">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C40000]">Publicidade</p>
             <h2 className="mt-3 text-3xl font-light tracking-[-0.06em] text-[#111111] sm:text-4xl">
-              Conecte sua marca ao AO PONTO BR
+              Conecte sua marca à RBN
             </h2>
             <p className="mt-4 text-base leading-8 text-[#4f4f4f] sm:text-lg">
-              Quer divulgar sua empresa, produto, serviço, evento ou campanha no AO PONTO BR?
+              Quer divulgar sua empresa, produto, serviço, evento ou campanha na RBN?
             </p>
             <p className="mt-2 text-base leading-8 text-[#4f4f4f]">
               Entre em contato com nossa equipe comercial para conhecer as possibilidades de publicidade e parcerias disponíveis.

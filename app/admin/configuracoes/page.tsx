@@ -7,12 +7,12 @@ import { useSettings, SiteSettings, defaultSettings, validateSettings } from '@/
 import { useToast, ToastContainer } from '@/app/components/Toast';
 
 const fontOptions = [
-  { label: 'Inter', value: '"Inter", "Segoe UI", sans-serif', sample: 'AO PONTO BR' },
-  { label: 'Roboto', value: 'Roboto, "Segoe UI", sans-serif', sample: 'AO PONTO BR' },
-  { label: 'Source Sans 3', value: '"Source Sans 3", "Segoe UI", sans-serif', sample: 'AO PONTO BR' },
-  { label: 'Manrope', value: 'Manrope, "Segoe UI", sans-serif', sample: 'AO PONTO BR' },
-  { label: 'Poppins', value: 'Poppins, "Segoe UI", sans-serif', sample: 'AO PONTO BR' },
-  { label: 'Lato', value: 'Lato, "Segoe UI", sans-serif', sample: 'AO PONTO BR' },
+  { label: 'Inter', value: '"Inter", "Segoe UI", sans-serif', sample: 'RBN' },
+  { label: 'Roboto', value: 'Roboto, "Segoe UI", sans-serif', sample: 'RBN' },
+  { label: 'Source Sans 3', value: '"Source Sans 3", "Segoe UI", sans-serif', sample: 'RBN' },
+  { label: 'Manrope', value: 'Manrope, "Segoe UI", sans-serif', sample: 'RBN' },
+  { label: 'Poppins', value: 'Poppins, "Segoe UI", sans-serif', sample: 'RBN' },
+  { label: 'Lato', value: 'Lato, "Segoe UI", sans-serif', sample: 'RBN' },
 ];
 
 export default function SettingsPage() {
@@ -96,7 +96,7 @@ export default function SettingsPage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Configurações do Portal</h1>
-            <p className="text-gray-600">Gerencie todas as configurações profissionais do AO PONTO BR.</p>
+            <p className="text-gray-600">Gerencie todas as configurações profissionais do RBN.</p>
           </div>
 
           {/* Alerts */}
@@ -204,6 +204,71 @@ export default function SettingsPage() {
   );
 }
 
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+function LogoUploadField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void; }) {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      onChange(dataUrl);
+    } catch (error) {
+      console.error('Erro ao carregar imagem:', error);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-sm font-semibold text-gray-700">{label}</label>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="text-xs font-medium text-[#991B1B] hover:text-[#7F1D1D]"
+          >
+            Limpar
+          </button>
+        )}
+      </div>
+
+      {value && (
+        <div className="flex items-center justify-center rounded-lg border border-gray-200 bg-white p-3">
+          <img src={value} alt={label} className="max-h-20 max-w-full object-contain" />
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileUpload}
+          className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-full file:border-0 file:bg-[#991B1B] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#7F1D1D]"
+        />
+      </div>
+
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="URL da imagem ou Data URL"
+        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#991B1B]"
+      />
+    </div>
+  );
+}
+
 // Componentes de Seções
 function BasicSettings({ settings, onChange }: any) {
   return (
@@ -215,13 +280,13 @@ function BasicSettings({ settings, onChange }: any) {
           label="Nome do Site"
           value={settings.basic.siteName}
           onChange={(value: string) => onChange('basic', 'siteName', value)}
-          placeholder="Ex: AO PONTO BR"
+          placeholder="Ex: RBN"
         />
         <InputField
           label="Tagline"
           value={settings.basic.siteTagline}
           onChange={(value: string) => onChange('basic', 'siteTagline', value)}
-          placeholder="Ex: Jornalismo • Informação • Entretenimento"
+          placeholder="Ex: Rede Brasileira de Notícias"
         />
       </div>
 
@@ -233,34 +298,40 @@ function BasicSettings({ settings, onChange }: any) {
         rows={4}
       />
 
-      <div className="grid grid-cols-2 gap-6">
-        <InputField
-          label="Logo do topo (URL ou caminho)"
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <LogoUploadField
+          label="Logo do topo"
           value={settings.basic.logo || '/logo-oficial.png'}
           onChange={(value: string) => onChange('basic', 'logo', value)}
-          placeholder="/logo-oficial.png"
         />
-        <InputField
-          label="Logo do rodapé (URL ou caminho)"
+        <LogoUploadField
+          label="Logo do rodapé"
           value={settings.basic.footerLogo || settings.basic.logo || '/logo-oficial.png'}
           onChange={(value: string) => onChange('basic', 'footerLogo', value)}
-          placeholder="/logo-oficial.png"
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
-        <InputField
-          label="Fuso Horário"
-          value={settings.basic.timezone}
-          onChange={(value: string) => onChange('basic', 'timezone', value)}
-          placeholder="Ex: America/Sao_Paulo"
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <LogoUploadField
+          label="Favicon"
+          value={settings.basic.favicon || '/favicon.ico'}
+          onChange={(value: string) => onChange('basic', 'favicon', value)}
         />
-        <InputField
-          label="Idioma"
-          value={settings.basic.language}
-          onChange={(value: string) => onChange('basic', 'language', value)}
-          placeholder="Ex: pt-BR"
-        />
+
+        <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <InputField
+            label="Fuso Horário"
+            value={settings.basic.timezone}
+            onChange={(value: string) => onChange('basic', 'timezone', value)}
+            placeholder="Ex: America/Sao_Paulo"
+          />
+          <InputField
+            label="Idioma"
+            value={settings.basic.language}
+            onChange={(value: string) => onChange('basic', 'language', value)}
+            placeholder="Ex: pt-BR"
+          />
+        </div>
       </div>
 
       <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
@@ -338,7 +409,7 @@ function SEOSettings({ settings, onChange }: any) {
         label="Twitter Handle"
         value={settings.seo.twitterHandle}
         onChange={(value: string) => onChange('seo', 'twitterHandle', value)}
-        placeholder="Ex: @pznews"
+        placeholder="Ex: @rbn"
       />
     </div>
   );
@@ -451,7 +522,7 @@ function VisualSettings({ settings, onChange }: any) {
 
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" style={{ fontFamily: settings.visual.fontFamily || '"Inter", "Segoe UI", sans-serif' }}>
           <div className="flex items-center justify-between gap-3 px-4 py-3 text-white" style={{ backgroundColor: settings.visual.primaryColor || '#991B1B' }}>
-            <span className="text-base font-bold tracking-[0.12em]">AO PONTO BR</span>
+            <span className="text-base font-bold tracking-[0.12em]">RBN</span>
             <span className="text-[10px] uppercase tracking-[0.18em] text-white/90">Portal</span>
           </div>
 
@@ -663,13 +734,13 @@ function EmailSettings({ settings, onChange }: any) {
           type="email"
           value={settings.email.senderEmail}
           onChange={(value: string) => onChange('email', 'senderEmail', value)}
-          placeholder="noreply@pznews.com.br"
+          placeholder="noreply@rbn.com.br"
         />
         <InputField
           label="Nome do Remetente"
           value={settings.email.senderName}
           onChange={(value: string) => onChange('email', 'senderName', value)}
-          placeholder="AO PONTO BR"
+          placeholder="RBN"
         />
       </div>
 
@@ -695,7 +766,7 @@ function EmailSettings({ settings, onChange }: any) {
         type="email"
         value={settings.email.notificationEmail}
         onChange={(value: string) => onChange('email', 'notificationEmail', value)}
-        placeholder="admin@pznews.com.br"
+        placeholder="admin@rbn.com.br"
       />
 
       <div className="flex items-center gap-3">
@@ -726,9 +797,9 @@ function CommercialSettings({ settings, onChange }: any) {
         <InputField
           label="E-mail comercial"
           type="email"
-          value={settings.commercial?.email || 'comercial@pznews.com.br'}
+          value={settings.commercial?.email || 'comercial@rbn.com.br'}
           onChange={(value: string) => onChange('commercial', 'email', value)}
-          placeholder="comercial@pznews.com.br"
+          placeholder="comercial@rbn.com.br"
         />
         <InputField
           label="WhatsApp comercial"
@@ -740,9 +811,9 @@ function CommercialSettings({ settings, onChange }: any) {
 
       <InputField
         label="Instagram"
-        value={settings.commercial?.instagram || '@pznews'}
+        value={settings.commercial?.instagram || '@rbn'}
         onChange={(value: string) => onChange('commercial', 'instagram', value)}
-        placeholder="@pznews ou https://instagram.com/pznews"
+        placeholder="@rbn ou https://instagram.com/pznews"
       />
 
       <div className="rounded-xl border border-dashed border-[#991B1B]/30 bg-[#991B1B]/5 p-5 text-sm text-gray-700">

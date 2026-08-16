@@ -56,7 +56,7 @@ function svgBanner(label: string, background: string, accent: string) {
     <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
       <rect width="1200" height="630" fill="${background}" />
       <rect x="72" y="72" width="1056" height="486" rx="40" fill="${accent}" opacity="0.16" />
-      <text x="96" y="285" font-family="Arial, sans-serif" font-size="72" font-weight="700" fill="#111827">AO PONTO BR</text>
+      <text x="96" y="285" font-family="Arial, sans-serif" font-size="72" font-weight="700" fill="#111827">RBN</text>
       <text x="96" y="385" font-family="Arial, sans-serif" font-size="42" fill="#1f2937">${label}</text>
     </svg>
   `;
@@ -75,9 +75,9 @@ function getMockAds(): Advertisement[] {
     {
       id: '1',
       title: 'Campanha institucional',
-      description: 'Banner principal no topo com divulgação institucional do AO PONTO BR.',
+      description: 'Banner principal no topo com divulgação institucional do RBN.',
       imageUrl: svgBanner('Campanha institucional', '#FEE2E2', '#991B1B'),
-      link: 'https://pznews.com.br',
+      link: 'https://rbn.com.br',
       position: 'header',
       startDate: '2026-08-01',
       endDate: '2026-08-31',
@@ -91,7 +91,7 @@ function getMockAds(): Advertisement[] {
       title: 'Anúncio lateral',
       description: 'Campanha promocional exibida na barra lateral do portal.',
       imageUrl: svgBanner('Anúncio lateral', '#eef4ff', '#5b7cfa'),
-      link: 'https://pznews.com.br/publicidade',
+      link: 'https://rbn.com.br/publicidade',
       position: 'sidebar',
       startDate: '2026-08-05',
       endDate: '2026-08-25',
