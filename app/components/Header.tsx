@@ -66,10 +66,11 @@ export default function Header() {
               <Image
                 src={logoSrc}
                 alt="RBN"
-                width={160}
-                height={56}
+                width={420}
+                height={170}
                 priority
-                className="h-7 w-auto max-w-[120px] object-contain sm:h-8 sm:max-w-[130px] lg:h-9"
+                sizes="(max-width: 768px) 220px, (max-width: 1280px) 320px, 420px"
+                className="h-12 w-auto max-w-[220px] object-contain sm:h-14 sm:max-w-[300px] lg:h-16 lg:max-w-[380px]"
               />
             </Link>
 
