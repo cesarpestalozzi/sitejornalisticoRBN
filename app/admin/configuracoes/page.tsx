@@ -986,25 +986,29 @@ function BackupSettings({ settings, onChange }: any) {
 }
 
 // Componentes auxiliares
-function InputField({ label, ...props }: any) {
+function InputField({ label, onChange, value, ...props }: any) {
   return (
     <div>
       <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>
       <input
         {...props}
+        value={value ?? ''}
+        onChange={(event) => onChange?.(event.target.value)}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#991B1B] focus:border-transparent"
       />
     </div>
   );
 }
 
-function TextAreaField({ label, rows, ...props }: any) {
+function TextAreaField({ label, rows, onChange, value, ...props }: any) {
   return (
     <div>
       <label className="block text-sm font-semibold text-gray-700 mb-2">{label}</label>
       <textarea
         {...props}
+        value={value ?? ''}
         rows={rows}
+        onChange={(event) => onChange?.(event.target.value)}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#991B1B] focus:border-transparent resize-none"
       />
     </div>
