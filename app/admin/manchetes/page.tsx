@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Save, Search } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
-import { useArticles, type Article } from '@/app/hooks/useArticles';
+import { useArticles } from '@/app/hooks/useArticles';
 import { useToast, ToastContainer } from '@/app/components/Toast';
-import { categories } from '@/app/data/mockData';
+import { normalizeCategorySlug } from '@/app/lib/categoryLabels';
+import { readManagedCategories } from '@/app/lib/managedCategories';
 
 const FEATURED_KEY = 'pz_news_featured_per_category';
 
@@ -16,21 +17,35 @@ interface FeaturedMap {
 export default function ManichetasPage() {
   const { articles } = useArticles();
   const { toasts, addToast, removeToast } = useToast();
-  const [featured, setFeatured] = useState<FeaturedMap>({});
+  const [featured, setFeatured] = useState<FeaturedMap>(() => {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+
+    try {
+      const stored = window.localStorage.getItem(FEATURED_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch (error) {
+      console.error('Erro ao carregar manchetes:', error);
+      return {};
+    }
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [managedCategories, setManagedCategories] = useState(() => readManagedCategories());
 
   const publishedArticles = articles.filter((a) => a.status === 'publicado');
 
   useEffect(() => {
-    const stored = localStorage.getItem(FEATURED_KEY);
-    if (stored) {
-      try {
-        setFeatured(JSON.parse(stored));
-      } catch (error) {
-        console.error('Erro ao carregar manchetes:', error);
-      }
-    }
+    const syncCategories = () => setManagedCategories(readManagedCategories());
+    syncCategories();
+    window.addEventListener('categoriesChanged', syncCategories);
+    window.addEventListener('storage', syncCategories);
+
+    return () => {
+      window.removeEventListener('categoriesChanged', syncCategories);
+      window.removeEventListener('storage', syncCategories);
+    };
   }, []);
 
   useEffect(() => {
@@ -42,13 +57,16 @@ export default function ManichetasPage() {
     addToast('Manchetes salvas com sucesso!', 'success', 3000);
   };
 
-  const categoryList = categories.slice(0, 6).map((c) => c.slug);
+  const categoryList = managedCategories.map((category) => normalizeCategorySlug(category.name));
 
-  const filteredArticles = publishedArticles.filter(
-    (article) =>
+  const filteredArticles = publishedArticles.filter((article) => {
+    const normalizedCategory = normalizeCategorySlug(article.category);
+
+    return (
       (searchTerm === '' || article.title.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (selectedCategory === '' || article.category.toLowerCase() === selectedCategory)
-  );
+      (selectedCategory === '' || normalizedCategory === selectedCategory)
+    );
+  });
 
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -147,7 +165,7 @@ export default function ManichetasPage() {
                       <button
                         key={article.id}
                         onClick={() => {
-                          const category = article.category.toLowerCase();
+                          const category = normalizeCategorySlug(article.category);
                           setFeatured((prev) => ({ ...prev, [category]: article.id }));
                         }}
                         className={`w-full rounded-lg border-2 p-3 text-left transition ${

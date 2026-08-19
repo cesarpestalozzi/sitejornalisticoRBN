@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import { useMemo } from 'react';
 import Hero from './components/Hero';
 import NewsGrid from './components/NewsGrid';
@@ -61,9 +63,11 @@ export default function Home() {
   const { settings: contextSettings } = useSettingsContext();
   const settings = contextSettings ?? defaultSettings;
   const showAdsOnHomepage = settings.content.showAdsOnHomepage;
+  const showWeatherOnHomepage = settings.content.showWeatherOnHomepage;
   const showPodcastsOnHomepage = podcastsLoaded && settings.content.showPodcastsOnHomepage && publishedEpisodes.length > 0;
-  const contentGridClass = showAdsOnHomepage ? 'lg:grid-cols-3' : 'lg:grid-cols-1';
-  const contentColumnClass = showAdsOnHomepage ? 'lg:col-span-2' : 'lg:col-span-1';
+  const showSidebar = showAdsOnHomepage || showWeatherOnHomepage;
+  const contentGridClass = showSidebar ? 'lg:grid-cols-3' : 'lg:grid-cols-1';
+  const contentColumnClass = showSidebar ? 'lg:col-span-2' : 'lg:col-span-1';
 
   const publishedArticles = useMemo(
     () =>
@@ -134,12 +138,38 @@ export default function Home() {
 
   return (
     <>
-      <Hero article={heroArticle} secondaryArticles={heroSecondaryArticles} />
+      {isLoaded ? <Hero article={heroArticle} secondaryArticles={heroSecondaryArticles} /> : (
+        <div className="mx-auto max-w-7xl px-4 py-8">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 w-24 rounded bg-gray-200" />
+            <div className="h-10 w-3/4 rounded bg-gray-200" />
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="h-64 rounded-xl bg-gray-200 md:col-span-2" />
+              <div className="space-y-4">
+                <div className="h-20 rounded-xl bg-gray-200" />
+                <div className="h-20 rounded-xl bg-gray-200" />
+                <div className="h-20 rounded-xl bg-gray-200" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto max-w-7xl px-4 py-12">
         <div className={`grid grid-cols-1 gap-8 ${contentGridClass}`}>
           <div className={`order-2 space-y-8 lg:order-1 ${contentColumnClass}`}>
-            {isLoaded && publishedArticles.length === 0 ? (
+            {!isLoaded ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="animate-pulse rounded-xl border border-gray-200 bg-white p-3">
+                    <div className="h-40 rounded-lg bg-gray-200" />
+                    <div className="mt-3 h-4 w-2/3 rounded bg-gray-200" />
+                    <div className="mt-2 h-4 w-full rounded bg-gray-200" />
+                    <div className="mt-2 h-4 w-5/6 rounded bg-gray-200" />
+                  </div>
+                ))}
+              </div>
+            ) : publishedArticles.length === 0 ? (
               <section className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
                 Ainda não há notícias publicadas no navegador. Publique artigos no painel administrativo para vê-los aqui.
               </section>
@@ -150,8 +180,8 @@ export default function Home() {
             )}
           </div>
 
-          {showAdsOnHomepage && (
-            <div className="order-1 lg:order-2 lg:col-span-1">
+          {showSidebar && (
+            <div className="order-1 hidden lg:order-2 lg:col-span-1 lg:block">
               <Sidebar />
             </div>
           )}

@@ -4,17 +4,17 @@ import { SettingsProvider } from "./contexts/SettingsContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://rbn-news.vercel.app"),
-  title: "RBN | Rede Brasileira de Notícias",
+  metadataBase: new URL("https://www.rbnbrasil.com.br"),
+  title: "RBN | Jornalismo • Informação • Entretenimento",
   description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
   openGraph: {
-    title: "RBN | Rede Brasileira de Notícias",
+    title: "RBN | Jornalismo • Informação • Entretenimento",
     description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
     type: "website",
-    url: "/",
+    url: "https://www.rbnbrasil.com.br",
     images: [
       {
-        url: "/logo-oficial.png",
+        url: "https://www.rbnbrasil.com.br/logo-oficial.png",
         width: 1200,
         height: 630,
         alt: "RBN",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "RBN | Rede Brasileira de Notícias",
     description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
-    images: ["/logo-oficial.png"],
+    images: ["https://www.rbnbrasil.com.br/logo-oficial.png"],
   },
 };
 

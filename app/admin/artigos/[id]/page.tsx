@@ -8,10 +8,10 @@ import AdminSidebar from '@/app/components/AdminSidebar';
 import ArticleMediaManager, { type ArticleImage, type ArticleVideo } from '@/app/components/ArticleMediaManager';
 import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
-import { categories } from '@/app/data/mockData';
 import { useArticles, type Article } from '@/app/hooks/useArticles';
 import { useToast, ToastContainer } from '@/app/components/Toast';
 import { useUsers } from '@/app/hooks/useUsers';
+import { defaultManagedCategories, readManagedCategories, type ManagedCategory } from '@/app/lib/managedCategories';
 import {
   canDeleteArticle,
   canEditArticle,
@@ -62,6 +62,7 @@ export default function EditArticlePage() {
     'Tocantins',
   ];
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [availableCategories, setAvailableCategories] = useState<ManagedCategory[]>(defaultManagedCategories);
   const [mediaState, setMediaState] = useState<{ images: ArticleImage[]; videos: ArticleVideo[]; primaryImage: string }>({
     images: [],
     videos: [],
@@ -70,11 +71,39 @@ export default function EditArticlePage() {
 
   const article = useMemo(() => articles.find((currentArticle) => currentArticle.id === params?.id), [articles, params?.id]);
   const formData = article ? drafts[article.id] ?? article : null;
+  const categoryOptions = useMemo(() => {
+    const options = [...availableCategories];
+    if (formData?.category && !options.some((category) => category.slug === formData.category)) {
+      options.push({
+        id: Number.MAX_SAFE_INTEGER,
+        name: formData.category,
+        slug: formData.category,
+        color: '#991B1B',
+        articles: 0,
+      });
+    }
+    return options;
+  }, [availableCategories, formData?.category]);
   const canAccessArticle = Boolean(article && currentUser && canEditArticle(currentUser, article.author));
 
   const plainContent = useMemo(() => stripHtml(formData?.content ?? ''), [formData?.content]);
   const wordCount = plainContent.length > 0 ? plainContent.split(' ').length : 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  useEffect(() => {
+    const syncCategories = () => {
+      setAvailableCategories(readManagedCategories());
+    };
+
+    syncCategories();
+    window.addEventListener('categoriesChanged', syncCategories);
+    window.addEventListener('storage', syncCategories);
+
+    return () => {
+      window.removeEventListener('categoriesChanged', syncCategories);
+      window.removeEventListener('storage', syncCategories);
+    };
+  }, []);
 
   useEffect(() => {
     if (article) {
@@ -251,7 +280,7 @@ export default function EditArticlePage() {
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-gray-900">Categoria</label>
                       <select name="category" value={formData.category} onChange={handleFieldChange} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
-                        {categories.map((category) => (
+                        {categoryOptions.map((category) => (
                           <option key={category.id} value={category.slug}>{category.name}</option>
                         ))}
                       </select>
@@ -314,7 +343,7 @@ export default function EditArticlePage() {
               <ArticlePreviewPanel
                 title={formData.title}
                 subtitle={formData.subtitle}
-                category={categories.find((category) => category.slug === formData.category)?.name ?? formData.category}
+                category={categoryOptions.find((category) => category.slug === formData.category)?.name ?? formData.category}
                 author={formData.author}
                 content={formData.content}
                 images={mediaState.images}

@@ -11,6 +11,8 @@ export function normalizeCategorySlug(category?: string | null): string {
     .trim();
 
   const aliases: Record<string, string> = {
+    'ultimas noticias': 'ultimas-noticias',
+    'últimas notícias': 'ultimas-noticias',
     politica: 'politica',
     'política': 'politica',
     brasil: 'brasil',
@@ -25,7 +27,8 @@ export function normalizeCategorySlug(category?: string | null): string {
     cinema: 'cinema',
     series: 'series',
     musica: 'musica',
-    esportes: 'esportes',
+    esporte: 'esporte',
+    esportes: 'esporte',
     futebol: 'futebol',
     opiniao: 'opiniao',
     podcasts: 'podcasts',
@@ -40,6 +43,7 @@ export function getCategoryDisplayName(category?: string | null): string {
   const slug = normalizeCategorySlug(category);
   const labels: Record<string, string> = {
     geral: 'Geral',
+    'ultimas-noticias': 'Últimas Notícias',
     politica: 'Política',
     brasil: 'Brasil',
     mundo: 'Mundo',
@@ -53,17 +57,29 @@ export function getCategoryDisplayName(category?: string | null): string {
     cinema: 'Cinema',
     series: 'Séries',
     musica: 'Música',
-    esportes: 'Esportes',
+    esporte: 'Esporte',
+    esportes: 'Esporte',
     futebol: 'Futebol',
     opiniao: 'Opinião',
     podcasts: 'Podcasts',
     colunistas: 'Colunistas',
     videos: 'Vídeos',
+    famosos: 'Famosos',
+    entretenimento: 'Entretenimento',
+    'meio-ambiente': 'Meio Ambiente',
+    seguranca: 'Segurança',
+    cidades: 'Cidades',
+    turismo: 'Turismo',
+    gastronomia: 'Gastronomia',
   };
 
   if (labels[slug]) {
     return labels[slug];
   }
 
-  return (category ?? 'Geral').trim() || 'Geral';
+  const fallback = (category ?? 'Geral').trim() || 'Geral';
+  return fallback
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }

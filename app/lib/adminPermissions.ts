@@ -18,6 +18,7 @@ export type AdminPermission =
   | 'headlines:manage'
   | 'categories:manage'
   | 'podcasts:manage'
+  | 'comments:manage'
   | 'publicities:manage'
   | 'analytics:view'
   | 'users:manage'
@@ -68,6 +69,7 @@ const ALL_PERMISSIONS: AdminPermission[] = [
   'headlines:manage',
   'categories:manage',
   'podcasts:manage',
+  'comments:manage',
   'publicities:manage',
   'analytics:view',
   'users:manage',
@@ -86,6 +88,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'articles:trash:manage',
     'headlines:manage',
     'categories:manage',
+    'comments:manage',
   ],
   editor: [
     'dashboard:view',
@@ -97,6 +100,7 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'articles:trash:manage',
     'headlines:manage',
     'categories:manage',
+    'comments:manage',
   ],
   jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own'],
   colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own'],
@@ -247,6 +251,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
 
   if (pathname.startsWith('/admin/podcasts')) {
     return hasPermission(user, 'podcasts:manage');
+  }
+
+  if (pathname.startsWith('/admin/comentarios')) {
+    return hasPermission(user, 'comments:manage');
   }
 
   if (pathname.startsWith('/admin/publicidades')) {

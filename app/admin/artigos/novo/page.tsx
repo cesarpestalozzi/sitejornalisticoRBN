@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle2, Save, Send, CalendarClock } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Save, Send, CalendarClock, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import ArticleMediaManager, { type ArticleImage, type ArticleVideo } from '@/app/components/ArticleMediaManager';
 import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
-import { categories } from '@/app/data/mockData';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useUsers } from '@/app/hooks/useUsers';
 import {
@@ -17,10 +16,18 @@ import {
   canViewAllArticles,
   useCurrentAdminUser,
 } from '@/app/lib/adminPermissions';
+import { defaultManagedCategories, readManagedCategories, type ManagedCategory } from '@/app/lib/managedCategories';
 
 function stripHtml(content: string) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
+
+type AudienceRecipient = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+};
 
 export default function NewArticlePage() {
   const router = useRouter();
@@ -30,29 +37,29 @@ export default function NewArticlePage() {
   const brazilianLocations = [
     'Acre',
     'Alagoas',
-    'AmapÃ¡',
+    'Amapá',
     'Amazonas',
     'Bahia',
-    'CearÃ¡',
+    'Ceará',
     'Distrito Federal',
-    'EspÃ­rito Santo',
-    'GoiÃ¡s',
-    'MaranhÃ£o',
+    'Espírito Santo',
+    'Goiás',
+    'Maranhão',
     'Mato Grosso',
     'Mato Grosso do Sul',
     'Minas Gerais',
-    'ParÃ¡',
-    'ParaÃ­ba',
-    'ParanÃ¡',
+    'Pará',
+    'Paraíba',
+    'Paraná',
     'Pernambuco',
-    'PiauÃ­',
+    'Piauí',
     'Rio de Janeiro',
     'Rio Grande do Norte',
     'Rio Grande do Sul',
-    'RondÃ´nia',
+    'Rondônia',
     'Roraima',
     'Santa Catarina',
-    'SÃ£o Paulo',
+    'São Paulo',
     'Sergipe',
     'Tocantins',
   ];
@@ -63,13 +70,14 @@ export default function NewArticlePage() {
   const [formData, setFormData] = useState({
     title: '',
     subtitle: '',
-    category: categories[0]?.slug ?? 'economia',
+    category: defaultManagedCategories[0]?.slug ?? 'economia',
     excerpt: '',
     content: '',
     author: defaultAuthor,
-    location: 'SÃ£o Paulo',
+    location: 'São Paulo',
     featured: false,
   });
+  const [availableCategories, setAvailableCategories] = useState<ManagedCategory[]>(defaultManagedCategories);
 
   useEffect(() => {
     if (defaultAuthor && !formData.author) {
@@ -77,10 +85,40 @@ export default function NewArticlePage() {
     }
   }, [defaultAuthor, formData.author]);
 
+  useEffect(() => {
+    const syncCategories = () => {
+      const managed = readManagedCategories();
+      setAvailableCategories(managed);
+      setFormData((current) => {
+        if (managed.some((category) => category.slug === current.category)) {
+          return current;
+        }
+        return {
+          ...current,
+          category: managed[0]?.slug ?? current.category,
+        };
+      });
+    };
+
+    syncCategories();
+    window.addEventListener('categoriesChanged', syncCategories);
+    window.addEventListener('storage', syncCategories);
+
+    return () => {
+      window.removeEventListener('categoriesChanged', syncCategories);
+      window.removeEventListener('storage', syncCategories);
+    };
+  }, []);
+
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
   const [showScheduleFields, setShowScheduleFields] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [notifyByEmail, setNotifyByEmail] = useState(true);
+  const [audienceRecipients, setAudienceRecipients] = useState<AudienceRecipient[]>([]);
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [isLoadingAudience, setIsLoadingAudience] = useState(true);
+  const [audienceError, setAudienceError] = useState('');
   const [mediaState, setMediaState] = useState<{ images: ArticleImage[]; videos: ArticleVideo[]; primaryImage: string }>({
     images: [],
     videos: [],
@@ -90,6 +128,50 @@ export default function NewArticlePage() {
   const plainContent = useMemo(() => stripHtml(formData.content), [formData.content]);
   const wordCount = plainContent.length > 0 ? plainContent.split(' ').length : 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+  const selectedRecipients = useMemo(
+    () => audienceRecipients.filter((recipient) => selectedRecipientIds.includes(recipient.id)),
+    [audienceRecipients, selectedRecipientIds]
+  );
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAudience = async () => {
+      setIsLoadingAudience(true);
+      setAudienceError('');
+
+      try {
+        const response = await fetch('/api/admin/audience', { method: 'GET', headers: { Accept: 'application/json' } });
+        const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; users?: AudienceRecipient[]; error?: string };
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || 'Não foi possível carregar os usuários cadastrados.');
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        const users = Array.isArray(payload.users) ? payload.users : [];
+        setAudienceRecipients(users);
+        setSelectedRecipientIds(users.map((user) => user.id));
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setAudienceError(error instanceof Error ? error.message : 'Erro ao carregar público.');
+      } finally {
+        if (isActive) {
+          setIsLoadingAudience(false);
+        }
+      }
+    };
+
+    loadAudience();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const handleFieldChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = event.target;
@@ -105,34 +187,35 @@ export default function NewArticlePage() {
     setMediaState({ images, videos, primaryImage });
   };
 
-  const handlePublish = (publishStatus: 'rascunho' | 'agendado' | 'publicado') => {
+  const handlePublish = async (publishStatus: 'rascunho' | 'agendado' | 'publicado') => {
     if (!currentUser || !canCreateArticle(currentUser)) {
-      window.alert('Sem permissÃ£o para criar matÃ©rias.');
+      window.alert('Sem permissão para criar matérias.');
       return;
     }
 
     if (!formData.title.trim()) {
-      window.alert('Preencha o tÃ­tulo da notÃ­cia.');
+      window.alert('Preencha o título da notícia.');
       return;
     }
 
     if (!plainContent.trim()) {
-      window.alert('Preencha o conteÃºdo da notÃ­cia.');
+      window.alert('Preencha o conteúdo da notícia.');
       return;
     }
 
     if (publishStatus === 'agendado' && (!scheduledDate || !scheduledTime)) {
-      window.alert('Defina a data e o horÃ¡rio do agendamento.');
+      window.alert('Defina a data e o horário do agendamento.');
       return;
     }
 
     if ((publishStatus === 'publicado' || publishStatus === 'agendado') && !canPublishArticle(currentUser, formData.author)) {
-      window.alert('Seu perfil nÃ£o pode publicar esta matÃ©ria.');
+      window.alert('Seu perfil não pode publicar esta matéria.');
       return;
     }
 
+    let createdArticleId = '';
     try {
-      addArticle({
+      const createdArticle = addArticle({
         title: formData.title,
         subtitle: formData.subtitle,
         category: formData.category,
@@ -148,15 +231,54 @@ export default function NewArticlePage() {
         scheduledDate: publishStatus === 'agendado' ? scheduledDate : undefined,
         scheduledTime: publishStatus === 'agendado' ? scheduledTime : undefined,
       });
+      createdArticleId = createdArticle.id;
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Sem permissÃ£o para publicar esta matÃ©ria.');
+      window.alert(error instanceof Error ? error.message : 'Sem permissão para publicar esta matéria.');
       return;
+    }
+
+    if (publishStatus === 'publicado' && notifyByEmail && selectedRecipients.length > 0) {
+      try {
+        const response = await fetch('/api/admin/article-notify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            articleId: createdArticleId,
+            articleUrl: `${window.location.origin}/artigo/${encodeURIComponent(createdArticleId)}`,
+            title: formData.title,
+            excerpt: formData.excerpt || plainContent.slice(0, 180),
+            recipients: selectedRecipients,
+            siteUrl: window.location.origin,
+          }),
+        });
+
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          sentCount?: number;
+          failureCount?: number;
+        };
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || 'Falha ao enviar notificações por e-mail.');
+        }
+
+        const sentCount = Number(payload.sentCount ?? 0);
+        const failureCount = Number(payload.failureCount ?? 0);
+        if (failureCount > 0) {
+          window.alert(`Notificações enviadas para ${sentCount} pessoa(s). ${failureCount} envio(s) falharam.`);
+        }
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : 'Não foi possível disparar os e-mails da notícia.');
+      }
     }
 
     const messages = {
       rascunho: 'Rascunho salvo com sucesso.',
-      agendado: `PublicaÃ§Ã£o agendada para ${scheduledDate} Ã s ${scheduledTime}.`,
-      publicado: 'NotÃ­cia publicada com sucesso no RBN.',
+      agendado: `Publicação agendada para ${scheduledDate} às ${scheduledTime}.`,
+      publicado: 'Notícia publicada com sucesso no RBN.',
     };
 
     setFeedbackMessage(messages[publishStatus]);
@@ -183,7 +305,7 @@ export default function NewArticlePage() {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Novo artigo</h1>
-                <p className="text-sm text-gray-600">Crie uma notÃ­cia completa para o RBN.</p>
+               <p className="text-sm text-gray-600">Crie uma notícia completa para o RBN.</p>
               </div>
             </div>
           </div>
@@ -201,16 +323,16 @@ export default function NewArticlePage() {
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <div className="mb-6 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">InformaÃ§Ãµes principais</h2>
-                    <p className="text-sm text-gray-500">Defina tÃ­tulo, autoria, categoria e resumo.</p>
+                    <h2 className="text-lg font-bold text-gray-900">Informações principais</h2>
+                    <p className="text-sm text-gray-500">Defina título, autoria, categoria e resumo.</p>
                   </div>
                   <div className="rounded-full bg-[#FF796C]/10 px-4 py-2 text-sm font-semibold text-[#FF796C]">{wordCount} palavras</div>
                 </div>
 
                 <div className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-900">TÃ­tulo</label>
-                    <input type="text" name="title" value={formData.title} onChange={handleFieldChange} placeholder="Digite o tÃ­tulo da notÃ­cia" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Título</label>
+                    <input type="text" name="title" value={formData.title} onChange={handleFieldChange} placeholder="Digite o título da notícia" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
 
                   <div>
@@ -222,7 +344,7 @@ export default function NewArticlePage() {
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-gray-900">Categoria</label>
                       <select name="category" value={formData.category} onChange={handleFieldChange} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
-                        {categories.map((category) => (
+                        {availableCategories.map((category) => (
                           <option key={category.id} value={category.slug}>{category.name}</option>
                         ))}
                       </select>
@@ -255,7 +377,7 @@ export default function NewArticlePage() {
                     <textarea name="excerpt" value={formData.excerpt} onChange={handleFieldChange} rows={4} placeholder="Escreva um resumo para listagens e cards" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicaÃ§Ã£o</label>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicação</label>
                     <select name="location" value={formData.location} onChange={handleFieldChange} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
                       {brazilianLocations.map((location) => (
                         <option key={location} value={location}>{location}</option>
@@ -268,8 +390,8 @@ export default function NewArticlePage() {
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">ConteÃºdo da notÃ­cia</h2>
-                    <p className="text-sm text-gray-500">Use a barra para tÃ­tulos, negrito, listas, citaÃ§Ãµes e links.</p>
+                    <h2 className="text-lg font-bold text-gray-900">Conteúdo da notícia</h2>
+                    <p className="text-sm text-gray-500">Use a barra para títulos, negrito, listas, citações e links.</p>
                   </div>
                   <div className="text-right text-sm text-gray-500">
                     <p>{wordCount} palavras</p>
@@ -283,7 +405,7 @@ export default function NewArticlePage() {
               <ArticlePreviewPanel
                 title={formData.title}
                 subtitle={formData.subtitle}
-                category={categories.find((category) => category.slug === formData.category)?.name ?? formData.category}
+                category={availableCategories.find((category) => category.slug === formData.category)?.name ?? formData.category}
                 author={formData.author}
                 content={formData.content}
                 images={mediaState.images}
@@ -297,36 +419,120 @@ export default function NewArticlePage() {
             <aside className="space-y-6">
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <div className="mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">MÃ­dia da matÃ©ria</h2>
-                  <p className="mt-1 text-sm text-gray-500">Adicione vÃ¡rias imagens e vÃ­deos, escolha a imagem principal e edite antes de publicar.</p>
+                  <h2 className="text-lg font-bold text-gray-900">Mídia da matéria</h2>
+                  <p className="mt-1 text-sm text-gray-500">Adicione várias imagens e vídeos, escolha a imagem principal, adicione legenda e edite antes de publicar.</p>
                 </div>
                 <ArticleMediaManager
                   initialImages={mediaState.images}
                   initialVideos={mediaState.videos}
                   initialPrimaryImage={mediaState.primaryImage}
-                  title={formData.title || 'A notÃ­cia'}
+                  title={formData.title || 'A notícia'}
                   onChange={handleMediaChange}
                 />
               </section>
 
               <section className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">ConfiguraÃ§Ãµes de destaque</h2>
+                <h2 className="text-lg font-bold text-gray-900">Configurações de destaque</h2>
                 <label className="mt-4 flex items-start gap-3">
                   <input type="checkbox" name="featured" checked={formData.featured} onChange={handleFieldChange} className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]" />
                   <span>
                     <span className="block font-semibold text-gray-900">Exibir no hero da home</span>
-                    <span className="text-sm text-gray-500">Artigos marcados como destaque aparecem no topo da pÃ¡gina inicial.</span>
+                    <span className="text-sm text-gray-500">Artigos marcados como destaque aparecem no topo da página inicial.</span>
                   </span>
                 </label>
               </section>
 
               <section className="rounded-xl bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-gray-900">PublicaÃ§Ã£o</h2>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Disparo rápido por e-mail</h2>
+                    <p className="text-sm text-gray-500">Escolha para quem enviar a notícia quando publicar.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                    <Users className="h-3.5 w-3.5" />
+                    {audienceRecipients.length} cadastrados
+                  </div>
+                </div>
+
+                <label className="mb-3 flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={notifyByEmail}
+                    onChange={(event) => setNotifyByEmail(event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]"
+                  />
+                  <span>
+                    <span className="block font-semibold text-gray-900">Enviar notícia por e-mail ao publicar</span>
+                    <span className="text-sm text-gray-500">Você pode ativar/desativar esse disparo em cada matéria.</span>
+                  </span>
+                </label>
+
+                {notifyByEmail && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-800">Destinatários selecionados: {selectedRecipientIds.length}</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecipientIds(audienceRecipients.map((recipient) => recipient.id))}
+                          className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Selecionar todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecipientIds([])}
+                          className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    </div>
+
+                    {isLoadingAudience ? (
+                      <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">Carregando usuários cadastrados...</p>
+                    ) : audienceError ? (
+                      <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">{audienceError}</p>
+                    ) : audienceRecipients.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-600">Nenhum usuário cadastrado encontrado.</p>
+                    ) : (
+                      <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                        {audienceRecipients.map((recipient) => {
+                          const checked = selectedRecipientIds.includes(recipient.id);
+                          return (
+                            <label key={recipient.id} className="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  if (event.target.checked) {
+                                    setSelectedRecipientIds((current) => (current.includes(recipient.id) ? current : [...current, recipient.id]));
+                                    return;
+                                  }
+                                  setSelectedRecipientIds((current) => current.filter((id) => id !== recipient.id));
+                                }}
+                                className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]"
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold text-gray-900">{recipient.name}</span>
+                                <span className="block truncate text-xs text-gray-600">{recipient.email}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-bold text-gray-900">Publicação</h2>
                 <div className="mt-4 space-y-3">
                 {canPublishArticle(currentUser, formData.author) ? (
                   <button type="button" onClick={() => handlePublish('publicado')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#2a2a2a]">
                     <Send className="h-4 w-4" />
-                    Publicar notÃ­cia
+                    Publicar notícia
                   </button>
                 ) : null}
                 <button type="button" onClick={() => handlePublish('rascunho')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">
@@ -336,7 +542,7 @@ export default function NewArticlePage() {
                 {canPublishArticle(currentUser, formData.author) ? (
                   <button type="button" onClick={() => setShowScheduleFields((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
                     <CalendarClock className="h-4 w-4" />
-                    Agendar publicaÃ§Ã£o
+                    Agendar publicação
                   </button>
                 ) : null}
               </div>
@@ -357,4 +563,3 @@ export default function NewArticlePage() {
     </div>
   );
 }
-

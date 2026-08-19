@@ -460,8 +460,27 @@ export default function ArticleMediaManager({
                           Principal
                         </span>
                       )}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+                        Legenda / descrição
+                      </label>
+                      <textarea
+                        value={image.caption ?? ''}
+                        onChange={(event) => {
+                          const nextImages = images.map((item) =>
+                            item.id === image.id ? { ...item, caption: event.target.value } : item
+                          );
+                          emitChange(nextImages, videos);
+                        }}
+                        rows={2}
+                        placeholder={image.isPrimary ? 'Legenda da imagem principal da matéria' : 'Descreva esta imagem'}
+                        className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:border-[#FF796C] focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <button type="button" onClick={() => markPrimaryImage(image.id)} className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-[#FF796C] hover:text-[#FF796C]">
                         Usar como principal
                       </button>

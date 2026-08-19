@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import WeatherWidget from '@/app/components/WeatherWidget';
 import { useAdvertisements } from '@/app/hooks/useAdvertisements';
 import { defaultSettings } from '@/app/lib/settings';
 import { useSettingsContext } from '@/app/contexts/SettingsContext';
@@ -21,7 +22,9 @@ function normalizeDay(value?: string) {
 export default function Sidebar() {
   const { settings: contextSettings } = useSettingsContext();
   const { ads = [], incrementAdImpression, incrementAdClick } = useAdvertisements();
-  const showAdsOnHomepage = (contextSettings ?? defaultSettings).content.showAdsOnHomepage;
+  const currentSettings = contextSettings ?? defaultSettings;
+  const showAdsOnHomepage = currentSettings.content.showAdsOnHomepage;
+  const showWeatherOnHomepage = currentSettings.content.showWeatherOnHomepage;
   const visibleAds = useMemo(() => {
     if (!showAdsOnHomepage) {
       return [];
@@ -61,14 +64,15 @@ export default function Sidebar() {
     });
   }, [visibleAds, incrementAdImpression]);
 
-  if (!showAdsOnHomepage) {
+  if (!showAdsOnHomepage && !showWeatherOnHomepage) {
     return null;
   }
 
   return (
-    <aside className="space-y-6">
-      {/* Publicidades */}
-      {visibleAds.length > 0 && (
+    <aside className="w-full max-w-[320px] space-y-6 lg:ml-auto">
+      {showWeatherOnHomepage && <WeatherWidget />}
+
+      {showAdsOnHomepage && visibleAds.length > 0 && (
         <div className="space-y-4">
           {visibleAds.map((ad) => (
             <div key={ad.id} className="rounded-lg bg-white shadow-md overflow-hidden border border-gray-200">
@@ -86,8 +90,7 @@ export default function Sidebar() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => incrementAdClick(ad.id)}
-                    className="inline-flex w-full items-center justify-center rounded bg-[#991B1B] px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-[#7F1D1D] focus:outline-none focus:ring-2 focus:ring-[#991B1B]/40"
-                    style={{ color: '#ffffff' }}
+                    className="inline-flex w-full items-center justify-center rounded bg-[#991B1B] px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-[#7F1D1D] focus:outline-none focus:ring-2 focus:ring-[#991B1B]/40 !text-white"
                   >
                     Saiba mais
                   </a>

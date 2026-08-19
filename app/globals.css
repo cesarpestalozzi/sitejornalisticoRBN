@@ -44,11 +44,20 @@ html {
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(180deg, #faf7f2 0%, #f5f3ef 100%);
   color: var(--foreground);
   font-family: var(--font-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+main {
+  background: transparent;
+}
+
+.font-editorial {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  letter-spacing: -0.03em;
 }
 
 ::selection {

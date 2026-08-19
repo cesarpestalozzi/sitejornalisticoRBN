@@ -1,4 +1,4 @@
-import { ArrowRight, BadgeCheck, BookOpenText, Globe2, Newspaper, ShieldCheck, Sparkles, Users2 } from 'lucide-react';
+import { BadgeCheck, BookOpenText, Newspaper, ShieldCheck, Sparkles, Users2 } from 'lucide-react';
 
 const principles = [
   {
@@ -33,20 +33,6 @@ const principles = [
   },
 ];
 
-const coverageAreas = [
-  'Brasil',
-  'Mundo',
-  'Política',
-  'Economia',
-  'Tecnologia',
-  'Cultura',
-  'Entretenimento',
-  'Esportes',
-  'Saúde',
-  'Ciência',
-  'Notícias locais e regionais',
-];
-
 export default function QuemSomosPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-16">
@@ -57,19 +43,19 @@ export default function QuemSomosPage() {
         </h1>
       </div>
 
-      <div className="grid gap-10 lg:grid-cols-[1.6fr_0.8fr]">
-        <div className="space-y-12">
-          <section className="space-y-6">
+      <div className="grid gap-10 lg:grid-cols-[1.65fr_0.85fr]">
+        <div className="space-y-10">
+          <section className="space-y-6 rounded-[28px] border border-gray-200 bg-white p-6 sm:p-8">
             <p className="text-xl font-light leading-relaxed text-gray-700 sm:text-2xl">
               O <span className="font-medium text-gray-900">RBN</span> é um portal jornalístico digital criado para levar informação de forma <span className="font-medium text-gray-900">clara, responsável e acessível</span> aos leitores.
             </p>
 
             <div className="grid gap-6 md:grid-cols-2">
               <p className="text-base leading-8 text-gray-700">
-                Nossa proposta é acompanhar os principais acontecimentos do Brasil e do mundo, oferecendo notícias, análises e conteúdos informativos com compromisso com a apuração dos fatos, pluralidade de perspectivas e transparência editorial.
+                Fundado em 2026 pelo jornalista César Pestalozzi, o RBN nasceu com a proposta de construir uma nova experiência de jornalismo digital, pautada pela qualidade da informação, pela inovação e pelo compromisso com o leitor.
               </p>
               <p className="text-base leading-8 text-gray-700">
-                Em um cenário em que a informação circula cada vez mais rápido, acreditamos que jornalismo de qualidade exige mais do que velocidade: exige responsabilidade, contexto e compromisso com a verdade.
+                Nossa missão é acompanhar os principais acontecimentos do Brasil e do mundo com rigor editorial, contexto e clareza, ajudando a construir uma cultura de informação mais consciente e confiável.
               </p>
             </div>
           </section>
@@ -79,15 +65,22 @@ export default function QuemSomosPage() {
               <div className="rounded-full bg-[#991B1B]/10 p-2 text-[#991B1B]">
                 <Newspaper className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Nossa Missão</h2>
+              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Sobre o RBN</h2>
             </div>
-            <p className="max-w-3xl text-lg leading-8 text-gray-700">
-              Nossa missão é <span className="font-medium text-gray-900">informar com responsabilidade e contribuir para que nossos leitores compreendam os acontecimentos que impactam a sociedade</span>.
-            </p>
-            <div className="mt-6 border-t border-gray-200 pt-6">
-              <p className="text-base leading-8 text-gray-700">
-                Buscamos produzir conteúdos jornalísticos relevantes, objetivos e bem apurados, valorizando a informação de interesse público e o direito do leitor de ter acesso a diferentes perspectivas sobre os fatos.
+            <div className="space-y-5 text-base leading-8 text-gray-700">
+              <p>
+                O RBN foi fundado em 2026 pelo jornalista César Pestalozzi, com a proposta de construir uma nova experiência de jornalismo digital, pautada pela informação de qualidade, pela inovação e pelo compromisso com o leitor.
               </p>
+              <p>
+                Desde sua criação, o portal busca oferecer um jornalismo independente, responsável e acessível, valorizando a apuração dos fatos, a clareza da informação e o respeito ao público.
+              </p>
+              <p>
+                O RBN nasce com o propósito de acompanhar as transformações do jornalismo e da sociedade, ampliando sua cobertura e desenvolvendo novas formas de informar, conectar e aproximar o leitor dos acontecimentos que fazem parte do seu cotidiano.
+              </p>
+              <p>
+                Em constante evolução, o portal investe no aprimoramento de seus processos, na diversidade de temas e na qualidade de seu conteúdo, mantendo como princípio fundamental o compromisso com a informação e com o interesse público.
+              </p>
+              <p className="font-medium text-gray-900">RBN. Informação que acompanha o seu tempo.</p>
             </div>
           </section>
 
@@ -96,7 +89,19 @@ export default function QuemSomosPage() {
               <div className="rounded-full bg-[#991B1B]/10 p-2 text-[#991B1B]">
                 <BadgeCheck className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Nossos Princípios</h2>
+              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Nossa missão</h2>
+            </div>
+            <p className="text-base leading-8 text-gray-700">
+              Produzir jornalismo com responsabilidade, rigor e clareza, contribuindo para que o leitor compreenda os acontecimentos que impactam a sociedade e tenha acesso a uma informação útil, contextualizada e confiável.
+            </p>
+          </section>
+
+          <section className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-[#991B1B]/10 p-2 text-[#991B1B]">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Nossos princípios</h2>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -112,75 +117,52 @@ export default function QuemSomosPage() {
             </div>
           </section>
 
-          <section className="space-y-5">
+          <section className="space-y-6 rounded-[28px] border border-gray-200 bg-white p-6 sm:p-8">
             <div className="flex items-center gap-3">
               <div className="rounded-full bg-[#991B1B]/10 p-2 text-[#991B1B]">
-                <Globe2 className="h-5 w-5" />
+                <Users2 className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">O Que Você Encontra na RBN</h2>
+              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Quem está por trás do RBN</h2>
             </div>
 
-            <p className="max-w-3xl text-base leading-8 text-gray-700">
-              Nossa cobertura reúne diferentes áreas de interesse público, incluindo:
-            </p>
-
-            <div className="flex flex-wrap gap-3">
-              {coverageAreas.map((area) => (
-                <span key={area} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700">
-                  {area}
-                </span>
-              ))}
-            </div>
-
-            <p className="text-base leading-8 text-gray-700">
-              Nosso objetivo é oferecer uma experiência completa para quem busca <span className="font-medium text-gray-900">informação, contexto e credibilidade</span> em um único lugar.
-            </p>
-          </section>
-
-          <section className="rounded-[28px] border border-gray-200 bg-white p-6 sm:p-8">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="rounded-full bg-[#991B1B]/10 p-2 text-[#991B1B]">
-                <ArrowRight className="h-5 w-5" />
+            <div className="grid gap-5 md:grid-cols-[0.9fr_1.1fr] md:items-center">
+              <div className="flex h-32 w-32 items-center justify-center rounded-full bg-[#111111] text-3xl font-semibold text-white md:h-40 md:w-40">
+                CP
               </div>
-              <h2 className="text-2xl font-light tracking-[-0.04em] text-gray-900 sm:text-3xl">Nossa História</h2>
+              <div className="space-y-3">
+                <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#991B1B]">Fundador</p>
+                <h3 className="text-3xl font-light tracking-[-0.05em] text-gray-900">César Pestalozzi</h3>
+                <p className="text-base leading-8 text-gray-700">Jornalista e fundador do RBN.</p>
+                <p className="text-base leading-8 text-gray-700">
+                  Com uma visão voltada para a credibilidade, a contextualização e a aproximação com o leitor, César lidera a construção de um portal que busca traduzir o jornalismo contemporâneo em uma experiência clara, moderna e confiável.
+                </p>
+              </div>
             </div>
-            <p className="text-base leading-8 text-gray-700">
-              O <span className="font-medium text-gray-900">RBN foi fundado em 2026</span>, com a proposta de construir uma nova experiência de jornalismo digital.
-            </p>
-            <p className="mt-4 text-base leading-8 text-gray-700">
-              Desde o início, o projeto tem como pilares a qualidade da informação, a inovação e o respeito ao leitor. O portal está em constante evolução, buscando aprimorar seus processos, ampliar sua cobertura e desenvolver novas formas de apresentar informação jornalística.
-            </p>
-          </section>
-
-          <section className="rounded-[28px] border border-gray-200 bg-[#F8F8F8] p-6 sm:p-8">
-            <p className="text-base leading-8 text-gray-700">
-              À medida que o RBN cresce, nosso compromisso permanece o mesmo: <span className="font-medium text-gray-900">produzir informação relevante, responsável e útil para nossos leitores.</span>
-            </p>
-          </section>
-
-          <section className="rounded-[28px] border border-[#111111] bg-[#111111] p-6 text-white sm:p-8">
-            <h2 className="mb-4 text-2xl font-light tracking-[-0.04em] text-white sm:text-3xl">Nosso Compromisso com o Leitor</h2>
-            <p className="text-base leading-8 text-gray-200">
-              O leitor está no centro do nosso trabalho.
-            </p>
-            <p className="mt-4 text-base leading-8 text-gray-200">
-              Por isso, buscamos manter uma relação baseada em <span className="font-medium text-white">confiança, transparência e responsabilidade</span>. Valorizamos sugestões, críticas e apontamentos que possam contribuir para o aprimoramento do nosso jornalismo.
-            </p>
-            <p className="mt-6 text-base leading-8 text-gray-200">
-              O RBN acredita que informação de qualidade é essencial para uma sociedade mais consciente, participativa e preparada para tomar decisões.
-            </p>
-            <p className="mt-8 text-xl font-light tracking-[-0.04em] text-white">RBN — Informação que importa.</p>
           </section>
         </div>
 
         <aside className="lg:pt-14">
-          <div className="sticky top-8 rounded-[26px] border border-gray-200 bg-[#F8F8F8] p-6">
-            <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.22em] text-[#991B1B]">RBN</p>
-            <h3 className="text-3xl font-light tracking-[-0.05em] text-gray-900">Jornalismo com rigor</h3>
-            <div className="mt-6 space-y-5 border-t border-gray-200 pt-5 text-sm leading-7 text-gray-700">
-              <p>Informar com responsabilidade.</p>
-              <p>Apurar com transparência.</p>
-              <p>Servir o leitor com clareza.</p>
+          <div className="sticky top-8 space-y-6">
+            <div className="rounded-[26px] border border-gray-200 bg-[#F8F8F8] p-6">
+              <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.22em] text-[#991B1B]">RBN</p>
+              <h3 className="text-3xl font-light tracking-[-0.05em] text-gray-900">Nossa visão</h3>
+              <div className="mt-6 space-y-4 text-sm leading-7 text-gray-700">
+                <p>Ser uma referência em jornalismo digital com foco em clareza, confiança e impacto social.</p>
+                <p>Ampliar o alcance da informação de qualidade e fortalecer a relação entre o leitor e o conhecimento.</p>
+                <p>Construir um espaço onde a credibilidade, a apuração e o interesse público estejam no centro.</p>
+              </div>
+            </div>
+
+            <div id="expediente" className="rounded-[26px] border border-gray-200 bg-[#111111] p-6 text-white">
+              <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#F5C4C4]">Expediente</p>
+              <h3 className="mt-3 text-2xl font-light tracking-[-0.04em] text-white">Jornalismo com rigor</h3>
+              <ul className="mt-5 space-y-2 text-sm leading-7 text-gray-200">
+                <li>• Independência editorial</li>
+                <li>• Apuração e verificação</li>
+                <li>• Transparência</li>
+                <li>• Correção de informação</li>
+                <li>• Respeito ao leitor</li>
+              </ul>
             </div>
           </div>
         </aside>

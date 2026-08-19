@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   canCreateArticle,
   canDeleteArticle,
@@ -8,6 +8,7 @@ import {
   canViewAllArticles,
   getCurrentAdminUser,
 } from '@/app/lib/adminPermissions';
+import { hasSupabaseConfig, supabase } from '@/app/lib/supabase';
 
 export interface ArticleImage {
   id: string;
@@ -66,10 +67,6 @@ type SupabaseArticleRow = {
   updated_at?: string;
 };
 
-function hasSupabaseConfig() {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-}
-
 function getSupabaseEndpoint(query = '') {
   return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}${query}`;
 }
@@ -90,24 +87,26 @@ function getSupabaseHeaders() {
   return headers;
 }
 
-async function readRemoteArticles() {
-  if (!hasSupabaseConfig()) {
-    return null;
+function isSupabaseRlsViolation(error: unknown) {
+  if (!error || typeof error !== 'object') {
+    return false;
   }
 
-  const response = await fetch(
-    getSupabaseEndpoint('?select=id,payload,deleted,updated_at&order=updated_at.desc'),
-    {
-      method: 'GET',
-      headers: getSupabaseHeaders(),
-    }
-  );
+  const message = 'message' in error ? String((error as { message?: string }).message ?? '') : '';
+  const code = 'code' in error ? String((error as { code?: string }).code ?? '') : '';
+  return code === '42501' || message.toLowerCase().includes('row-level security') || message.toLowerCase().includes('violates row-level security');
+}
 
-  if (!response.ok) {
-    throw new Error(`Erro ao ler artigos remotos: ${response.status}`);
+function warnSupabaseWriteIssue(context: string, error: unknown) {
+  if (isSupabaseRlsViolation(error)) {
+    console.warn(`[Supabase sync] ${context}: escrita bloqueada por RLS; mantendo estado local apenas.`);
+    return;
   }
 
-  const rows = (await response.json()) as SupabaseArticleRow[];
+  console.error(`[Supabase sync] ${context}:`, error);
+}
+
+async function normalizeRemoteRows(rows: SupabaseArticleRow[]) {
   const active: Article[] = [];
   const deleted: Article[] = [];
 
@@ -130,65 +129,171 @@ async function readRemoteArticles() {
   return { active, deleted };
 }
 
+async function readRemoteArticles() {
+  if (!hasSupabaseConfig && typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const response = await fetch('/api/articles', { method: 'GET', headers: { Accept: 'application/json' } });
+    if (response.ok) {
+      const rows = (await response.json()) as SupabaseArticleRow[];
+      return normalizeRemoteRows(rows);
+    }
+  } catch (error) {
+    console.warn('API interna de artigos indisponível; tentando Supabase direto.', error);
+  }
+
+  if (!hasSupabaseConfig) {
+    return null;
+  }
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('pz_news_articles')
+      .select('id, payload, deleted, updated_at')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Erro ao ler artigos remotos: ${error.message}`);
+    }
+
+    return normalizeRemoteRows((data ?? []) as SupabaseArticleRow[]);
+  }
+
+  const response = await fetch(
+    getSupabaseEndpoint('?select=id,payload,deleted,updated_at&order=updated_at.desc'),
+    {
+      method: 'GET',
+      headers: getSupabaseHeaders(),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Erro ao ler artigos remotos: ${response.status}`);
+  }
+
+  const rows = (await response.json()) as SupabaseArticleRow[];
+  return normalizeRemoteRows(rows);
+}
+
 async function upsertRemoteArticle(article: Article, deleted: boolean) {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig && typeof window === 'undefined') {
     return;
   }
 
-  const response = await fetch(getSupabaseEndpoint('?on_conflict=id'), {
-    method: 'POST',
-    headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify([
-      {
-        id: article.id,
-        payload: article,
-        deleted,
-        updated_at: new Date().toISOString(),
+  try {
+    const response = await fetch('/api/articles', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    ]),
-  });
+      body: JSON.stringify({ article, deleted }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Erro ao salvar artigo remoto: ${response.status}`);
+    if (response.ok) {
+      return;
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    const message = payload.error ?? `HTTP ${response.status}`;
+    throw new Error(message);
+  } catch (error) {
+    if (hasSupabaseConfig && supabase) {
+      const { error: supabaseError } = await supabase.from(SUPABASE_TABLE).upsert(
+        [
+          {
+            id: article.id,
+            payload: article,
+            deleted,
+            updated_at: new Date().toISOString(),
+          },
+        ],
+        { onConflict: 'id' }
+      );
+
+      if (supabaseError) {
+        if (isSupabaseRlsViolation(supabaseError)) {
+          warnSupabaseWriteIssue('salvar artigo remoto', supabaseError);
+          return;
+        }
+
+        throw new Error(`Erro ao salvar artigo remoto: ${supabaseError.message}`);
+      }
+
+      return;
+    }
+
+    if (error instanceof Error && isSupabaseRlsViolation(error)) {
+      warnSupabaseWriteIssue('salvar artigo remoto', error);
+      return;
+    }
+
+    throw error;
   }
 }
 
 async function deleteRemoteArticleById(id: string) {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig && typeof window === 'undefined') {
     return;
   }
 
-  const response = await fetch(getSupabaseEndpoint(`?id=eq.${encodeURIComponent(id)}`), {
-    method: 'DELETE',
-    headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'return=minimal',
-    },
-  });
+  try {
+    const response = await fetch(`/api/articles?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (response.ok) {
+      return;
+    }
 
-  if (!response.ok) {
-    throw new Error(`Erro ao apagar artigo remoto: ${response.status}`);
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    const message = payload.error ?? `HTTP ${response.status}`;
+    throw new Error(message);
+  } catch (error) {
+    if (hasSupabaseConfig && supabase) {
+      const { error: supabaseError } = await supabase.from(SUPABASE_TABLE).delete().eq('id', id);
+      if (supabaseError) {
+        if (isSupabaseRlsViolation(supabaseError)) {
+          warnSupabaseWriteIssue('apagar artigo remoto', supabaseError);
+          return;
+        }
+
+        throw new Error(`Erro ao apagar artigo remoto: ${supabaseError.message}`);
+      }
+      return;
+    }
+
+    throw error;
   }
 }
 
 async function deleteRemoteTrash() {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig && typeof window === 'undefined') {
     return;
   }
 
-  const response = await fetch(getSupabaseEndpoint('?deleted=is.true'), {
-    method: 'DELETE',
-    headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'return=minimal',
-    },
-  });
+  try {
+    const response = await fetch('/api/articles?trash=true', { method: 'DELETE' });
+    if (response.ok) {
+      return;
+    }
 
-  if (!response.ok) {
-    throw new Error(`Erro ao limpar lixeira remota: ${response.status}`);
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    const message = payload.error ?? `HTTP ${response.status}`;
+    throw new Error(message);
+  } catch (error) {
+    if (hasSupabaseConfig && supabase) {
+      const { error: supabaseError } = await supabase.from(SUPABASE_TABLE).delete().eq('deleted', true);
+      if (supabaseError) {
+        if (isSupabaseRlsViolation(supabaseError)) {
+          warnSupabaseWriteIssue('limpar lixeira remota', supabaseError);
+          return;
+        }
+
+        throw new Error(`Erro ao limpar lixeira remota: ${supabaseError.message}`);
+      }
+      return;
+    }
+
+    throw error;
   }
 }
 
@@ -303,6 +408,58 @@ function getScheduledPublishTimeMs(article: Pick<Article, 'scheduledDate' | 'sch
   return scheduledDate.getTime();
 }
 
+function syncLocalStorageSnapshot(nextArticles: Article[], nextDeletedArticles: Article[]) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const active = nextArticles.filter((article) => !isLegacyMockArticle(article));
+  const deleted = nextDeletedArticles.filter((article) => !isLegacyMockArticle(article));
+
+  localStorage.setItem(ARTICLES_KEY, JSON.stringify(active));
+  localStorage.setItem(DELETED_ARTICLES_KEY, JSON.stringify(deleted));
+
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('pznews-article-view-')) {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
+function maybeSendBrowserNotification(article: Pick<Article, 'id' | 'title' | 'status'>) {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return;
+  }
+
+  const notificationsEnabled = localStorage.getItem('pz_news_notifications_enabled') === 'true';
+  if (!notificationsEnabled || Notification.permission !== 'granted') {
+    return;
+  }
+
+  if (article.status !== 'publicado') {
+    return;
+  }
+
+  const lastNotificationKey = `pz_news_last_notified_${article.id}`;
+  if (sessionStorage.getItem(lastNotificationKey) === '1') {
+    return;
+  }
+
+  const notification = new Notification('Nova matéria publicada', {
+    body: article.title,
+    icon: '/logo-oficial.png',
+    tag: article.id,
+    requireInteraction: false,
+  });
+
+  notification.onclick = () => {
+    window.focus();
+    notification.close();
+  };
+
+  sessionStorage.setItem(lastNotificationKey, '1');
+}
+
 function isLegacyMockArticle(article: Pick<Article, 'id'>) {
   return /^article-\d+$/.test(article.id);
 }
@@ -366,32 +523,68 @@ export function useArticles() {
         }
 
         if (remoteData) {
+          const local = readLocalData();
+          const localArticles = local.active ?? [];
+          const localDeletedArticles = local.deleted ?? [];
+          const localHasArticles = localArticles.length > 0;
+          const localDeletedIds = new Set(localDeletedArticles.map((article) => article.id));
+          const remoteActiveWithoutLocallyDeleted = remoteData.active.filter((article) => !localDeletedIds.has(article.id));
+
+          if (hasSupabaseConfig) {
+            const nextArticles = remoteActiveWithoutLocallyDeleted;
+            const nextDeletedArticles = [...new Map([...remoteData.deleted, ...localDeletedArticles].map((article) => [article.id, article])).values()];
+
+            setArticles(nextArticles);
+            setDeletedArticles(nextDeletedArticles);
+            syncLocalStorageSnapshot(nextArticles, nextDeletedArticles);
+            setIsLoaded(true);
+            return;
+          }
+
           if (remoteData.active.length === 0) {
-            const local = readLocalData();
-            const localHasArticles = Boolean(local.active && local.active.length > 0);
+            const nextLocalArticles = localHasArticles ? localArticles.filter((article) => !localDeletedIds.has(article.id)) : [];
+            if (nextLocalArticles.length > 0 && remoteData.deleted.length === 0) {
+              setArticles(nextLocalArticles);
+              setDeletedArticles(localDeletedArticles);
 
-            if (localHasArticles && local.active) {
-              setArticles(local.active);
-              setDeletedArticles(local.deleted);
-
-              // Semeia o banco remoto com o conteúdo local para sincronizar outros dispositivos.
-              local.active.forEach((article) => {
+              nextLocalArticles.forEach((article) => {
                 void upsertRemoteArticle(article, false).catch((syncError) => {
                   console.error('Erro ao semear artigo local no remoto:', syncError);
                 });
               });
-              local.deleted.forEach((article) => {
+              localDeletedArticles.forEach((article) => {
                 void upsertRemoteArticle(article, true).catch((syncError) => {
                   console.error('Erro ao semear lixeira local no remoto:', syncError);
                 });
               });
             } else {
               setArticles([]);
-              setDeletedArticles(remoteData.deleted);
+              setDeletedArticles(remoteData.deleted.length > 0 ? remoteData.deleted : localDeletedArticles);
+              syncLocalStorageSnapshot([], remoteData.deleted.length > 0 ? remoteData.deleted : localDeletedArticles);
             }
           } else {
-            setArticles(remoteData.active);
-            setDeletedArticles(remoteData.deleted);
+            const mergedActive = [...remoteActiveWithoutLocallyDeleted];
+
+            localArticles.forEach((localArticle) => {
+              if (localDeletedIds.has(localArticle.id)) {
+                return;
+              }
+
+              const remoteMatch = remoteData.active.find((article) => article.id === localArticle.id);
+              const remoteUpdatedAt = remoteMatch ? new Date(remoteMatch.updatedAt).getTime() : 0;
+              const localUpdatedAt = new Date(localArticle.updatedAt).getTime();
+
+              if (!remoteMatch || localUpdatedAt >= remoteUpdatedAt) {
+                if (!mergedActive.some((article) => article.id === localArticle.id)) {
+                  mergedActive.push(localArticle);
+                }
+              }
+            });
+
+            const mergedDeleted = [...new Map([...remoteData.deleted, ...localDeletedArticles].map((article) => [article.id, article])).values()];
+            setArticles(mergedActive);
+            setDeletedArticles(mergedDeleted);
+            syncLocalStorageSnapshot(mergedActive, mergedDeleted);
           }
           setIsLoaded(true);
           return;
@@ -415,17 +608,28 @@ export function useArticles() {
     };
   }, []);
 
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(ARTICLES_KEY, JSON.stringify(articles));
-    }
-  }, [articles, isLoaded]);
+  const persistTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(DELETED_ARTICLES_KEY, JSON.stringify(deletedArticles));
+    if (!isLoaded) {
+      return;
     }
-  }, [deletedArticles, isLoaded]);
+
+    if (persistTimerRef.current) {
+      window.clearTimeout(persistTimerRef.current);
+    }
+
+    persistTimerRef.current = window.setTimeout(() => {
+      localStorage.setItem(ARTICLES_KEY, JSON.stringify(articles));
+      localStorage.setItem(DELETED_ARTICLES_KEY, JSON.stringify(deletedArticles));
+    }, 120);
+
+    return () => {
+      if (persistTimerRef.current) {
+        window.clearTimeout(persistTimerRef.current);
+      }
+    };
+  }, [articles, deletedArticles, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -468,7 +672,7 @@ export function useArticles() {
 
         articlesToPublish.forEach((article) => {
           void upsertRemoteArticle(article, false).catch((error) => {
-            console.error('Erro ao publicar artigo agendado automaticamente:', error);
+            warnSupabaseWriteIssue('publicar artigo agendado automaticamente', error);
           });
         });
 
@@ -520,9 +724,13 @@ export function useArticles() {
       shares: 0,
     };
 
+    if (newArticle.status === 'publicado') {
+      maybeSendBrowserNotification(newArticle);
+    }
+
     setArticles((current) => [newArticle, ...current]);
     void upsertRemoteArticle(newArticle, false).catch((error) => {
-      console.error('Erro ao sincronizar novo artigo:', error);
+      warnSupabaseWriteIssue('sincronizar novo artigo', error);
     });
     return newArticle;
   };
@@ -576,8 +784,13 @@ export function useArticles() {
           lastUpdatedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         } as Article);
+
+        if (nextStatus === 'publicado' && article.status !== 'publicado') {
+          maybeSendBrowserNotification(nextArticle);
+        }
+
         void upsertRemoteArticle(nextArticle, false).catch((error) => {
-          console.error('Erro ao sincronizar atualização do artigo:', error);
+          warnSupabaseWriteIssue('sincronizar atualização do artigo', error);
         });
         return nextArticle;
       })
@@ -596,11 +809,16 @@ export function useArticles() {
       throw new Error('Sem permissão para excluir matérias.');
     }
 
-    setArticles((current) => current.filter((article) => article.id !== id));
+    const nextArticles = articles.filter((article) => article.id !== id);
     const deletedVersion = { ...articleToDelete, updatedAt: new Date().toISOString() };
-    setDeletedArticles((current) => [...current, deletedVersion]);
+    const nextDeletedArticles = [...deletedArticles.filter((article) => article.id !== id), deletedVersion];
+
+    setArticles(nextArticles);
+    setDeletedArticles(nextDeletedArticles);
+    syncLocalStorageSnapshot(nextArticles, nextDeletedArticles);
+
     void upsertRemoteArticle(deletedVersion, true).catch((error) => {
-      console.error('Erro ao sincronizar envio para lixeira:', error);
+      warnSupabaseWriteIssue('sincronizar envio para lixeira', error);
     });
   };
 
@@ -616,10 +834,15 @@ export function useArticles() {
       return;
     }
 
-    setDeletedArticles((current) => current.filter((article) => article.id !== id));
-    setArticles((current) => [...current, articleToRestore]);
+    const nextDeletedArticles = deletedArticles.filter((article) => article.id !== id);
+    const nextArticles = [...articles, articleToRestore];
+
+    setDeletedArticles(nextDeletedArticles);
+    setArticles(nextArticles);
+    syncLocalStorageSnapshot(nextArticles, nextDeletedArticles);
+
     void upsertRemoteArticle(articleToRestore, false).catch((error) => {
-      console.error('Erro ao sincronizar restauração de artigo:', error);
+      warnSupabaseWriteIssue('sincronizar restauração de artigo', error);
     });
   };
 
@@ -629,9 +852,11 @@ export function useArticles() {
       throw new Error('Sem permissão para excluir matérias permanentemente.');
     }
 
-    setDeletedArticles((current) => current.filter((article) => article.id !== id));
+    const nextDeletedArticles = deletedArticles.filter((article) => article.id !== id);
+    setDeletedArticles(nextDeletedArticles);
+    syncLocalStorageSnapshot(articles, nextDeletedArticles);
     void deleteRemoteArticleById(id).catch((error) => {
-      console.error('Erro ao remover artigo remoto permanentemente:', error);
+      warnSupabaseWriteIssue('remover artigo remoto permanentemente', error);
     });
   };
 
@@ -642,8 +867,9 @@ export function useArticles() {
     }
 
     setDeletedArticles([]);
+    syncLocalStorageSnapshot(articles, []);
     void deleteRemoteTrash().catch((error) => {
-      console.error('Erro ao limpar lixeira remota:', error);
+      warnSupabaseWriteIssue('limpar lixeira remota', error);
     });
   };
 
@@ -660,7 +886,7 @@ export function useArticles() {
         };
 
         void upsertRemoteArticle(nextArticle, false).catch((error) => {
-          console.error('Erro ao sincronizar visualização da matéria:', error);
+          warnSupabaseWriteIssue('sincronizar visualização da matéria', error);
         });
         return nextArticle;
       })
@@ -680,7 +906,7 @@ export function useArticles() {
         };
 
         void upsertRemoteArticle(nextArticle, false).catch((error) => {
-          console.error('Erro ao sincronizar compartilhamento da matéria:', error);
+          warnSupabaseWriteIssue('sincronizar compartilhamento da matéria', error);
         });
         return nextArticle;
       })
@@ -702,134 +928,3 @@ export function useArticles() {
   };
 }
 
-function getMockArticles(): Article[] {
-  const now = new Date();
-
-  const iso = (daysAgo: number, hoursAgo = 0) => {
-    const date = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000 - hoursAgo * 60 * 60 * 1000);
-    return date.toISOString();
-  };
-
-  return [
-    {
-      id: 'article-1',
-      title: 'Parlamentares aprovam novo pacote de medidas para reduzir a inflação no país',
-      subtitle: 'Medida terá impacto direto na cesta básica e no crédito ao consumidor.',
-      category: 'Política',
-      author: 'Ana Paula Ribeiro',
-      content:
-        '<p>Os deputados e senadores aprovaram um conjunto de medidas focado em reduzir a inflação e ampliar a previsibilidade econômica para famílias e pequenas empresas.</p><p>Especialistas apontam que a combinação de corte de tributos em itens essenciais e aumento do acompanhamento fiscal pode aliviar o custo de vida em alguns segmentos.</p>',
-      excerpt:
-        'Aprovado em votação acelerada, o pacote busca reduzir custos e tentar estabilizar o consumo em meio à pressão sobre a cesta básica.',
-      image: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?auto=format&fit=crop&w=1200&q=80',
-      featured: true,
-      status: 'publicado',
-      publishedAt: iso(0, 2),
-      createdAt: iso(2, 8),
-      updatedAt: iso(0, 2),
-      lastUpdatedAt: iso(0, 2),
-      views: 4853,
-      shares: 0,
-    },
-    {
-      id: 'article-2',
-      title: 'Setor de tecnologia registra crescimento em vagas e investimentos em IA',
-      subtitle: 'Empresas ampliam contratação de perfil técnico para inteligência artificial.',
-      category: 'Tecnologia',
-      author: 'Mateus Costa',
-      content:
-        '<p>O mercado de tecnologia continua aquecido, com empresas investindo em ferramentas de automação e inteligência artificial para aumentar a produtividade.</p><p>Analistas observam que a demanda por talentos de machine learning e dados supera a oferta atual no mercado nacional.</p>',
-      excerpt:
-        'A expansão de empresas de software e startups tem impulsionado oportunidades em IA, dados e automação em todo o país.',
-      image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
-      featured: false,
-      status: 'publicado',
-      publishedAt: iso(1, 3),
-      createdAt: iso(4, 10),
-      updatedAt: iso(1, 3),
-      lastUpdatedAt: iso(1, 3),
-      views: 3621,
-      shares: 0,
-    },
-    {
-      id: 'article-3',
-      title: 'Eventos esportivos movimentam capitais e impulsionam turismo regional',
-      subtitle: 'Cidades brasileiras observam aumento de visitantes durante as competições.',
-      category: 'Esportes',
-      author: 'Rafael Nunes',
-      content:
-        '<p>As cidades-sede de torneios regional e nacional têm visto um aumento expressivo de turistas durante partidas decisivas e eventos esportivos.</p><p>Hotéis e restaurantes costumam registrar ocupação acima da média em períodos de grande movimentação esportiva.</p>',
-      excerpt:
-        'Com o calendário cheio de competições, cidades do interior e grandes capitais ganham movimento econômico e turístico.',
-      image: 'https://images.unsplash.com/photo-1547347298-4074fc3086f0?auto=format&fit=crop&w=1200&q=80',
-      featured: false,
-      status: 'publicado',
-      publishedAt: iso(2, 7),
-      createdAt: iso(5, 12),
-      updatedAt: iso(2, 7),
-      lastUpdatedAt: iso(2, 7),
-      views: 2879,
-      shares: 0,
-    },
-    {
-      id: 'article-4',
-      title: 'Empresas de varejo investem em logística para atender pedidos por delivery',
-      subtitle: 'Aumento da demanda leva redes a ampliar operações e entregas velozes.',
-      category: 'Economia',
-      author: 'Camila Souza',
-      content:
-        '<p>Empresas de varejo e supermercados estão ampliando investimentos em logística e tecnologia para manter a velocidade das entregas.</p><p>O crescimento do consumo digital empurra redes a melhorar a eficiência do estoque e da última milha.</p>',
-      excerpt:
-        'Pequenas e médias empresas intensificam a automação logística para conquistar maior eficiência e fidelização.',
-      image: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80',
-      featured: false,
-      status: 'publicado',
-      publishedAt: iso(3, 5),
-      createdAt: iso(6, 9),
-      updatedAt: iso(3, 5),
-      lastUpdatedAt: iso(3, 5),
-      views: 2146,
-      shares: 0,
-    },
-    {
-      id: 'article-5',
-      title: 'Cultura local ganha espaço em festivais e novas produções independentes',
-      subtitle: 'Artistas locais despertam interesse com narrativas regionais e formatos inovadores.',
-      category: 'Cultura',
-      author: 'Lívia Martins',
-      content:
-        '<p>Festivais de música, curta-metragem e arte urbana têm fortalecido o protagonismo de artistas locais e de narrativas diversas.</p><p>O aumento do interesse por produções independentes também gera novas oportunidades para a cena cultural regional.</p>',
-      excerpt:
-        'A cena cultural brasileira valoriza cada vez mais artistas independentes e experiências criativas regionais.',
-      image: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
-      featured: false,
-      status: 'publicado',
-      publishedAt: iso(5, 1),
-      createdAt: iso(7, 14),
-      updatedAt: iso(5, 1),
-      lastUpdatedAt: iso(5, 1),
-      views: 1925,
-      shares: 0,
-    },
-    {
-      id: 'article-6',
-      title: 'Gestão pública busca ampliar acesso à saúde por meio de telemedicina',
-      subtitle: 'A estratégia promove atendimento mais rápido para regiões afastadas.',
-      category: 'Saúde',
-      author: 'Paula Mendes',
-      content:
-        '<p>O uso de telemedicina tem ganhado força como alternativa para ampliar o acesso da população a consultas e acompanhamento clínico.</p><p>Especialistas apontam que o modelo pode reduzir filas e melhorar o atendimento em localidades com poucos profissionais de saúde.</p>',
-      excerpt:
-        'A expansão da telemedicina é vista como caminho para ampliar atendimento em áreas remotas e reduzir filas.',
-      image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1200&q=80',
-      featured: false,
-      status: 'rascunho',
-      publishedAt: iso(7, 4),
-      createdAt: iso(9, 11),
-      updatedAt: iso(7, 4),
-      lastUpdatedAt: iso(7, 4),
-      views: 832,
-      shares: 0,
-    },
-  ];
-}

@@ -1,36 +1,89 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertCircle, ArrowLeft, RotateCcw, Trash, Trash2 } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useArticles, type Article } from '@/app/hooks/useArticles';
+import { usePodcasts, type PodcastEpisode } from '@/app/hooks/usePodcasts';
+
+type TrashItem =
+  | {
+      kind: 'article';
+      id: string;
+      title: string;
+      category: string;
+      status: Article['status'];
+      author: string;
+      updatedAt: string;
+    }
+  | {
+      kind: 'podcast';
+      id: string;
+      title: string;
+      category: 'Podcast';
+      status: PodcastEpisode['status'];
+      author: string;
+      updatedAt: string;
+    };
 
 export default function TrashPage() {
-  const { deletedArticles, restoreArticle, permanentlyDeleteArticle, emptyTrash, isLoaded } = useArticles();
+  const { deletedArticles, restoreArticle, permanentlyDeleteArticle, emptyTrash, isLoaded: articlesLoaded } = useArticles();
+  const {
+    deletedEpisodes,
+    restoreEpisode,
+    permanentlyDeleteEpisode,
+    emptyPodcastTrash,
+    isLoaded: podcastsLoaded,
+  } = usePodcasts();
   const [showEmptyModal, setShowEmptyModal] = useState(false);
-  const [deletedItems, setDeletedItems] = useState<Article[]>([]);
+  const isLoaded = articlesLoaded && podcastsLoaded;
 
-  useEffect(() => {
-    if (isLoaded) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDeletedItems(deletedArticles);
+  const deletedItems = useMemo<TrashItem[]>(() => {
+    const articleItems: TrashItem[] = deletedArticles.map((article) => ({
+      kind: 'article',
+      id: article.id,
+      title: article.title,
+      category: article.category,
+      status: article.status,
+      author: article.author,
+      updatedAt: article.updatedAt,
+    }));
+
+    const podcastItems: TrashItem[] = deletedEpisodes.map((episode) => ({
+      kind: 'podcast',
+      id: episode.id,
+      title: episode.title,
+      category: 'Podcast',
+      status: episode.status,
+      author: 'Podcast',
+      updatedAt: episode.updatedAt,
+    }));
+
+    return [...articleItems, ...podcastItems].sort(
+      (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+    );
+  }, [deletedArticles, deletedEpisodes]);
+
+  const handleRestore = (item: TrashItem) => {
+    if (item.kind === 'article') {
+      restoreArticle(item.id);
+      return;
     }
-  }, [deletedArticles, isLoaded]);
-
-  const handleRestore = (id: string) => {
-    restoreArticle(id);
-    setDeletedItems((current) => current.filter((article) => article.id !== id));
+    restoreEpisode(item.id);
   };
 
-  const handlePermanentDelete = (id: string) => {
-    permanentlyDeleteArticle(id);
-    setDeletedItems((current) => current.filter((article) => article.id !== id));
+  const handlePermanentDelete = (item: TrashItem) => {
+    if (item.kind === 'article') {
+      permanentlyDeleteArticle(item.id);
+      return;
+    }
+    permanentlyDeleteEpisode(item.id);
   };
 
   const handleEmptyTrash = () => {
     emptyTrash();
-    setDeletedItems([]);
+    emptyPodcastTrash();
     setShowEmptyModal(false);
   };
 
@@ -64,7 +117,7 @@ export default function TrashPage() {
               </Link>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Lixo</h1>
-                <p className="text-sm text-gray-600">Artigos deletados ({deletedItems.length})</p>
+                <p className="text-sm text-gray-600">Itens deletados ({deletedItems.length})</p>
               </div>
             </div>
             {deletedItems.length > 0 && (
@@ -81,9 +134,9 @@ export default function TrashPage() {
             <div className="rounded-lg bg-white p-12 text-center shadow-sm">
               <Trash2 className="mx-auto mb-4 h-16 w-16 text-gray-300" />
               <h2 className="mb-2 text-xl font-bold text-gray-900">Lixo vazio</h2>
-              <p className="mb-6 text-gray-600">Nenhum artigo deletado no momento.</p>
+              <p className="mb-6 text-gray-600">Nenhum item deletado no momento.</p>
               <Link href="/admin/artigos" className="inline-block rounded-lg bg-[#111111] px-6 py-2 font-semibold text-white transition hover:bg-[#2a2a2a]">
-                Voltar para artigos
+                Voltar para administração
               </Link>
             </div>
           ) : (
@@ -92,6 +145,7 @@ export default function TrashPage() {
                 <table className="w-full">
                   <thead className="border-b border-gray-200 bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Tipo</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Título</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Categoria</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Status</th>
@@ -100,24 +154,25 @@ export default function TrashPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {deletedItems.map((article) => (
-                      <tr key={article.id} className="hover:bg-gray-50">
+                    {deletedItems.map((item) => (
+                      <tr key={`${item.kind}-${item.id}`} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm text-gray-600">{item.kind === 'article' ? 'Artigo' : 'Podcast'}</td>
                         <td className="px-6 py-4">
-                          <p className="text-sm font-semibold text-gray-900">{article.title}</p>
-                          <p className="mt-1 text-xs text-gray-500">Por {article.author}</p>
+                          <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                          <p className="mt-1 text-xs text-gray-500">Por {item.author}</p>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 capitalize">{article.category}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600 capitalize">{item.category}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(article.status)}`}>{article.status}</span>
+                          <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${getStatusColor(item.status)}`}>{item.status}</span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(article.updatedAt).toLocaleDateString('pt-BR')}</td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(item.updatedAt).toLocaleDateString('pt-BR')}</td>
                         <td className="px-6 py-4">
                           <div className="flex gap-3">
-                            <button type="button" onClick={() => handleRestore(article.id)} className="inline-flex items-center gap-1 text-sm font-medium text-green-600 transition hover:text-green-700">
+                            <button type="button" onClick={() => handleRestore(item)} className="inline-flex items-center gap-1 text-sm font-medium text-green-600 transition hover:text-green-700">
                               <RotateCcw className="h-4 w-4" />
                               Restaurar
                             </button>
-                            <button type="button" onClick={() => handlePermanentDelete(article.id)} className="inline-flex items-center gap-1 text-sm font-medium text-[#991B1B] transition hover:text-[#7F1D1D]">
+                            <button type="button" onClick={() => handlePermanentDelete(item)} className="inline-flex items-center gap-1 text-sm font-medium text-[#991B1B] transition hover:text-[#7F1D1D]">
                               <Trash className="h-4 w-4" />
                               Deletar
                             </button>
@@ -140,7 +195,7 @@ export default function TrashPage() {
               <AlertCircle className="h-6 w-6 text-[#991B1B]" />
               <h2 className="text-xl font-bold text-gray-900">Esvaziar lixo</h2>
             </div>
-            <p className="mb-2 text-gray-600">Confirma a exclusão permanente de todos os {deletedItems.length} artigos?</p>
+            <p className="mb-2 text-gray-600">Confirma a exclusão permanente de todos os {deletedItems.length} itens?</p>
             <p className="mb-6 text-sm font-semibold text-[#991B1B]">Esta ação não pode ser desfeita.</p>
             <div className="flex gap-3">
               <button type="button" onClick={() => setShowEmptyModal(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-900 transition hover:bg-gray-50">Cancelar</button>

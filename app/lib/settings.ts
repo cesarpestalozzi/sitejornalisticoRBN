@@ -12,6 +12,19 @@ export interface TeamMember {
   role: string;
 }
 
+export interface FooterLink {
+  label: string;
+  href: string;
+}
+
+export interface HeaderBarLink {
+  label: string;
+  href: string;
+  enabled: boolean;
+}
+
+export const cleanTopBarLinks: HeaderBarLink[] = [];
+
 export interface SiteSettings {
   // Informações Básicas
   basic: {
@@ -24,6 +37,11 @@ export interface SiteSettings {
     timezone: string;
     language: string;
     teamMembers: TeamMember[];
+    footerLinks: FooterLink[];
+    footerContactLinks: FooterLink[];
+    homeHeadline: string;
+    homeTopics: string[];
+    topBarLinks: HeaderBarLink[];
   };
 
   // SEO e Metadata
@@ -104,6 +122,7 @@ export interface SiteSettings {
     enableNewsletterSignup: boolean;
     showAdsOnHomepage: boolean;
     showPodcastsOnHomepage: boolean;
+    showWeatherOnHomepage: boolean;
   };
 
   // Analytics e Rastreamento
@@ -126,7 +145,7 @@ export interface SiteSettings {
 export const defaultSettings: SiteSettings = {
   basic: {
     siteName: 'RBN',
-    siteTagline: 'Rede Brasileira de Notícias',
+    siteTagline: '',
     description: 'Portal de notícias com cobertura completa de política, economia, cultura, Brasil e mundo.',
     logo: '/logo-oficial.png',
     footerLogo: '/logo-oficial.png',
@@ -138,6 +157,22 @@ export const defaultSettings: SiteSettings = {
       { name: '[Nome do profissional]', role: 'Cargo / Função' },
       { name: '[Nome do profissional]', role: 'Cargo / Função' },
     ],
+    footerLinks: [
+      { label: 'quem somos', href: '/quem-somos' },
+      { label: 'princípios editoriais', href: '/politica-editorial' },
+      { label: 'política de privacidade', href: '/privacidade' },
+      { label: 'termos de uso', href: '/termos' },
+      { label: 'anúncio', href: '/contato' },
+    ],
+    footerContactLinks: [
+      { label: 'Redação', href: '/contato' },
+      { label: 'Publicidade', href: '/contato' },
+      { label: 'Assessoria de imprensa', href: '/contato' },
+      { label: 'Denúncias / Sugestões', href: '/contato' },
+    ],
+    homeHeadline: 'Notícias do Brasil e do mundo',
+    homeTopics: ['POLÍTICA', 'BRASIL', 'MUNDO', 'ECONOMIA', 'ESPORTES', 'CULTURA', 'FAMOSOS', 'TECNOLOGIA'],
+    topBarLinks: cleanTopBarLinks,
   },
   seo: {
     metaDescription: 'RBN - Rede Brasileira de Notícias com análise, contexto e informação em tempo real.',
@@ -202,6 +237,7 @@ export const defaultSettings: SiteSettings = {
     enableNewsletterSignup: true,
     showAdsOnHomepage: false,
     showPodcastsOnHomepage: false,
+    showWeatherOnHomepage: true,
   },
   analytics: {
     trackPageViews: true,
@@ -229,6 +265,37 @@ function mergeSettings(base: SiteSettings, override: Partial<SiteSettings> | nul
     const overrideSection = (override[section] as Record<string, any>) || {};
     merged[section] = { ...baseSection, ...overrideSection } as any;
   });
+
+  const rawTagline = merged.basic.siteTagline?.trim();
+  const legacyTaglines = new Set(['Rede Brasileira de Notícias', 'Rede brasileria de noticias', 'Rede Brasileira de noticias']);
+  if (rawTagline && legacyTaglines.has(rawTagline)) {
+    merged.basic.siteTagline = defaultSettings.basic.siteTagline;
+  }
+
+  const rawDescription = merged.seo.metaDescription?.trim();
+  if (rawDescription && rawDescription.toLowerCase().includes('rede brasileira de notícias')) {
+    merged.seo.metaDescription = defaultSettings.seo.metaDescription;
+  }
+
+  const blockedTopBarLabels = new Set([
+    'RBN',
+    'Notícias do Brasil e do mundo',
+    'POLÍTICA',
+    'BRASIL',
+    'MUNDO',
+    'ECONOMIA',
+    'ESPORTES',
+    'CULTURA',
+    'FAMOSOS',
+    'TECNOLOGIA',
+  ]);
+
+  merged.basic.topBarLinks = (merged.basic.topBarLinks ?? cleanTopBarLinks)
+    .filter((link) => !blockedTopBarLabels.has(link.label?.trim() ?? ''));
+
+  if (merged.basic.topBarLinks.length === 0) {
+    merged.basic.topBarLinks = cleanTopBarLinks;
+  }
 
   return merged;
 }
@@ -313,7 +380,6 @@ export function validateSettings(settings: Partial<SiteSettings>): {
 
   if (settings.basic) {
     if (!settings.basic.siteName?.trim()) errors.push('Nome do site é obrigatório');
-    if (!settings.basic.siteTagline?.trim()) errors.push('Tagline do site é obrigatória');
   }
 
   if (settings.email) {

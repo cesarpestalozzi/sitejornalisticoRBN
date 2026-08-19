@@ -11,13 +11,13 @@ interface NewsGridProps {
 
 export default function NewsGrid({ title, category, articles }: NewsGridProps) {
   return (
-    <section className="bg-white border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">{title}</h2>
+    <section className="border-b border-gray-200 bg-white">
+      <div className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8 md:py-10">
+        <div className="mb-5 sm:mb-8">
+          <h2 className="font-editorial text-2xl font-bold text-gray-900 sm:text-3xl">{title}</h2>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
           {articles.slice(0, 6).map((article) => (
             <NewsCardComponent key={article.id} article={article} />
           ))}

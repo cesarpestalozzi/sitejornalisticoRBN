@@ -12,36 +12,36 @@ interface NewsCardProps {
 export default function NewsCardComponent({ article }: NewsCardProps) {
   return (
     <Link href={`/artigo/${article.id}`}>
-      <article className="group bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition duration-300 cursor-pointer h-full flex flex-col">
-        {/* Image */}
-        <div className="relative h-48 overflow-hidden bg-gray-200">
+      <article className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition duration-300 hover:shadow-md">
+        <div className="relative h-40 overflow-hidden bg-gray-200 sm:h-44 md:h-48">
           <img
             src={article.image}
             alt={article.title}
-            className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
           />
-          <span className="absolute top-3 left-3 px-3 py-1 bg-[#991B1B] text-white text-xs font-bold rounded">
+          <span className="absolute left-3 top-3 rounded bg-[#991B1B] px-2.5 py-1 text-[10px] font-bold text-white sm:text-xs">
             {getCategoryDisplayName(article.category)}
           </span>
         </div>
 
-        {/* Content */}
-        <div className="p-4 flex flex-col flex-1">
-          <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#991B1B] transition line-clamp-2 mb-2">
+        <div className="flex flex-1 flex-col p-3 sm:p-4">
+          <h3 className="mb-2 line-clamp-2 text-base font-bold text-gray-900 transition group-hover:text-[#991B1B] sm:text-lg">
             {article.title}
           </h3>
-          
-          <p className="text-gray-600 text-sm line-clamp-2 mb-4 flex-1">
+
+          <p className="mb-4 flex-1 text-sm leading-relaxed text-gray-600 line-clamp-2">
             {article.excerpt}
           </p>
 
-          <div className="space-y-3 pt-3 border-t border-gray-200">
-            <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="space-y-2 border-t border-gray-200 pt-3">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-gray-500 sm:text-xs">
               <span className="font-medium">{article.author}</span>
               <span>{article.readingTime} min</span>
             </div>
-            
-            <p className="text-xs text-gray-400">
+
+            <p className="text-[11px] text-gray-400 sm:text-xs">
               {timeAgo(article.date)}
             </p>
           </div>

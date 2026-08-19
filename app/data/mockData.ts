@@ -3,25 +3,14 @@
 import { Article, NewsCard, Category, Podcast, VideoContent } from '@/app/types';
 
 export const categories: Category[] = [
-  { id: '1', name: 'Últimas Notícias', slug: 'ultimas-noticias' },
-  { id: '2', name: 'Política', slug: 'politica' },
-  { id: '3', name: 'Brasil', slug: 'brasil' },
-  { id: '4', name: 'Mundo', slug: 'mundo' },
-  { id: '5', name: 'Economia', slug: 'economia' },
-  { id: '6', name: 'Negócios', slug: 'negocios' },
-  { id: '7', name: 'Tecnologia', slug: 'tecnologia' },
-  { id: '8', name: 'Ciência', slug: 'ciencia' },
-  { id: '9', name: 'Educação', slug: 'educacao' },
-  { id: '10', name: 'Saúde', slug: 'saude' },
-  { id: '11', name: 'Cultura', slug: 'cultura' },
-  { id: '12', name: 'Cinema', slug: 'cinema' },
-  { id: '13', name: 'Séries', slug: 'series' },
-  { id: '14', name: 'Música', slug: 'musica' },
-  { id: '15', name: 'Esportes', slug: 'esportes' },
-  { id: '16', name: 'Futebol', slug: 'futebol' },
-  { id: '17', name: 'Opinião', slug: 'opiniao' },
-  { id: '18', name: 'Podcasts', slug: 'podcasts' },
-  { id: '19', name: 'Colunistas', slug: 'colunistas' },
+  { id: '1', name: 'Política', slug: 'politica' },
+  { id: '2', name: 'Cultura', slug: 'cultura' },
+  { id: '3', name: 'Saúde', slug: 'saude' },
+  { id: '4', name: 'Esporte', slug: 'esporte' },
+  { id: '5', name: 'Negócios', slug: 'negocios' },
+  { id: '6', name: 'Economia', slug: 'economia' },
+  { id: '7', name: 'Mundo', slug: 'mundo' },
+  { id: '8', name: 'Brasil', slug: 'brasil' },
 ];
 
 const baseDate = (daysAgo: number, hoursAgo = 0) => new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000 - hoursAgo * 60 * 60 * 1000);

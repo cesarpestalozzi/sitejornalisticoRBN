@@ -1,19 +1,32 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Edit2, Trash2, Plus, FolderOpen, Eraser } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
+import { CATEGORIES_STORAGE_KEY, defaultManagedCategories, ensureRequiredManagedCategories, readManagedCategories } from '@/app/lib/managedCategories';
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState([
-    { id: 1, name: 'Política', slug: 'politica', color: '#3B82F6', articles: 24 },
-    { id: 2, name: 'Economia', slug: 'economia', color: '#10B981', articles: 31 },
-    { id: 3, name: 'Tecnologia', slug: 'tecnologia', color: '#F59E0B', articles: 28 },
-    { id: 4, name: 'Saúde', slug: 'saude', color: '#EF4444', articles: 19 },
-    { id: 5, name: 'Esportes', slug: 'esportes', color: '#8B5CF6', articles: 35 },
-    { id: 6, name: 'Cultura', slug: 'cultura', color: '#EC4899', articles: 22 },
-  ]);
+  const [categories, setCategories] = useState(() => {
+    if (typeof window === 'undefined') {
+      return defaultManagedCategories;
+    }
+    return readManagedCategories();
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const nextCategories = ensureRequiredManagedCategories(categories);
+
+      if (JSON.stringify(nextCategories) !== JSON.stringify(categories)) {
+        setCategories(nextCategories);
+        return;
+      }
+
+      window.localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(nextCategories));
+      window.dispatchEvent(new CustomEvent('categoriesChanged', { detail: nextCategories }));
+    }
+  }, [categories]);
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -57,11 +70,11 @@ export default function CategoriesPage() {
   };
 
   const handleClearCategories = () => {
-    if (!window.confirm('Deseja limpar todas as categorias? Esta ação removerá todos os registros da lista.')) {
+    if (!window.confirm('Deseja resetar a lista para as categorias padrão do portal?')) {
       return;
     }
 
-    setCategories([]);
+    setCategories(defaultManagedCategories);
     setShowForm(false);
     setEditingId(null);
     setFormData({ name: '', slug: '', color: '#3B82F6' });

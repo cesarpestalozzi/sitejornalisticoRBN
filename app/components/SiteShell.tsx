@@ -26,7 +26,8 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const { siteName, siteTagline } = getSettings().basic;
-    document.title = `${siteName || 'RBN'} | ${siteTagline || 'Rede Brasileira de Notícias'}`;
+    const cleanTagline = siteTagline?.trim();
+    document.title = cleanTagline ? `${siteName || 'RBN'} | ${cleanTagline}` : (siteName || 'RBN');
   }, [pathname, getSettings]);
 
   const acceptCookies = () => {
@@ -50,10 +51,10 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
           <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="max-w-3xl text-sm leading-6 text-gray-200">
               <p className="font-medium text-white">
-                Para melhorar a sua experiência na plataforma e prover serviços personalizados, utilizamos cookies. Ao aceitar, você terá acesso a todas as funcionalidades do site.
+                Usamos cookies para melhorar sua experiência no site.
               </p>
               <p className="mt-1 text-gray-300">
-                Se clicar em {'"'}Rejeitar Cookies{'"'}, os cookies que não forem estritamente necessários serão desativados. Para escolher quais quer autorizar, clique em {'"'}Gerenciar cookies{'"'}. Saiba mais em nossa{' '}
+                Você pode aceitar ou rejeitar. Saiba mais em nossa{' '}
                 <Link href="/privacidade" className="font-semibold text-[#f7d7a8] underline decoration-[#f7d7a8]/70 underline-offset-2 hover:text-[#fff3d9]">
                   política de privacidade
                 </Link>
@@ -67,7 +68,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                 onClick={rejectCookies}
                 className="inline-flex items-center justify-center rounded-full border border-white/20 bg-transparent px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
               >
-                Rejeitar Cookies
+                Rejeitar
               </button>
               <button
                 type="button"
@@ -75,12 +76,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                 className="inline-flex items-center justify-center rounded-full bg-[#991B1B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7f1d1d] focus:outline-none focus:ring-2 focus:ring-[#991B1B]/40"
               >
                 Aceitar
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center rounded-full border border-white/20 bg-transparent px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
-              >
-                Gerenciar cookies
               </button>
             </div>
           </div>

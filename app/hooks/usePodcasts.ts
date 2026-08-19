@@ -15,6 +15,7 @@ export interface PodcastEpisode {
 }
 
 const PODCASTS_KEY = 'pz_news_podcasts';
+const PODCASTS_TRASH_KEY = 'pz_news_deleted_podcasts';
 
 function getDefaultEpisodes(): PodcastEpisode[] {
   const now = new Date();
@@ -68,15 +69,17 @@ function getDefaultEpisodes(): PodcastEpisode[] {
 
 export function usePodcasts() {
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
+  const [deletedEpisodes, setDeletedEpisodes] = useState<PodcastEpisode[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(PODCASTS_KEY);
+    const trashStored = localStorage.getItem(PODCASTS_TRASH_KEY);
 
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as PodcastEpisode[];
-        const nextEpisodes = Array.isArray(parsed) && parsed.length > 0 ? parsed : getDefaultEpisodes();
+        const nextEpisodes = Array.isArray(parsed) ? parsed : getDefaultEpisodes();
         setEpisodes(nextEpisodes);
       } catch {
         setEpisodes(getDefaultEpisodes());
@@ -85,14 +88,26 @@ export function usePodcasts() {
       setEpisodes(getDefaultEpisodes());
     }
 
+    if (trashStored) {
+      try {
+        const parsedTrash = JSON.parse(trashStored) as PodcastEpisode[];
+        setDeletedEpisodes(Array.isArray(parsedTrash) ? parsedTrash : []);
+      } catch {
+        setDeletedEpisodes([]);
+      }
+    } else {
+      setDeletedEpisodes([]);
+    }
+
     setIsLoaded(true);
   }, []);
 
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem(PODCASTS_KEY, JSON.stringify(episodes));
+      localStorage.setItem(PODCASTS_TRASH_KEY, JSON.stringify(deletedEpisodes));
     }
-  }, [episodes, isLoaded]);
+  }, [episodes, deletedEpisodes, isLoaded]);
 
   const addEpisode = (episode: Omit<PodcastEpisode, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -114,17 +129,54 @@ export function usePodcasts() {
   };
 
   const deleteEpisode = (id: string) => {
-    setEpisodes((current) => current.filter((episode) => episode.id !== id));
+    setEpisodes((current) => {
+      const episodeToDelete = current.find((episode) => episode.id === id);
+      if (!episodeToDelete) {
+        return current;
+      }
+
+      const deletedWithTimestamp = {
+        ...episodeToDelete,
+        updatedAt: new Date().toISOString(),
+      };
+
+      setDeletedEpisodes((trashCurrent) => [deletedWithTimestamp, ...trashCurrent.filter((episode) => episode.id !== id)]);
+      return current.filter((episode) => episode.id !== id);
+    });
+  };
+
+  const restoreEpisode = (id: string) => {
+    setDeletedEpisodes((currentTrash) => {
+      const episodeToRestore = currentTrash.find((episode) => episode.id === id);
+      if (!episodeToRestore) {
+        return currentTrash;
+      }
+
+      setEpisodes((currentEpisodes) => [episodeToRestore, ...currentEpisodes.filter((episode) => episode.id !== id)]);
+      return currentTrash.filter((episode) => episode.id !== id);
+    });
+  };
+
+  const permanentlyDeleteEpisode = (id: string) => {
+    setDeletedEpisodes((currentTrash) => currentTrash.filter((episode) => episode.id !== id));
+  };
+
+  const emptyPodcastTrash = () => {
+    setDeletedEpisodes([]);
   };
 
   const publishedEpisodes = useMemo(() => episodes.filter((episode) => episode.status === 'publicado'), [episodes]);
 
   return {
     episodes,
+    deletedEpisodes,
     publishedEpisodes,
     isLoaded,
     addEpisode,
     updateEpisode,
     deleteEpisode,
+    restoreEpisode,
+    permanentlyDeleteEpisode,
+    emptyPodcastTrash,
   };
 }

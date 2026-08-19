@@ -299,6 +299,23 @@ function BasicSettings({ settings, onChange }: any) {
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <InputField
+          label="Texto do topo da home"
+          value={settings.basic.homeHeadline || 'Notícias do Brasil e do mundo'}
+          onChange={(value: string) => onChange('basic', 'homeHeadline', value || 'Notícias do Brasil e do mundo')}
+          placeholder="Ex: Notícias do Brasil e do mundo"
+        />
+      </div>
+
+      <TextAreaField
+        label="Tópicos do topo da home"
+        value={(settings.basic.homeTopics || []).join('\n')}
+        onChange={(value: string) => onChange('basic', 'homeTopics', value.split('\n').map((item) => item.trim()).filter(Boolean))}
+        placeholder="POLÍTICA\nBRASIL\nMUNDO"
+        rows={5}
+      />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <LogoUploadField
           label="Logo do topo"
           value={settings.basic.logo || '/logo-oficial.png'}
@@ -336,40 +353,135 @@ function BasicSettings({ settings, onChange }: any) {
 
       <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">Nossa Equipe</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Links do Rodapé</h3>
           <button
             type="button"
             onClick={() => {
-              const nextMembers = [...(settings.basic.teamMembers || []), { name: '[Nome do profissional]', role: 'Cargo / Função' }];
-              onChange('basic', 'teamMembers', nextMembers);
+              const nextLinks = [...(settings.basic.footerLinks || []), { label: 'novo link', href: '/' }];
+              onChange('basic', 'footerLinks', nextLinks);
             }}
             className="rounded-lg bg-[#991B1B] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#7F1D1D]"
           >
-            Adicionar membro
+            Adicionar link
           </button>
         </div>
 
-        {(settings.basic.teamMembers || []).map((member: { name: string; role: string }, index: number) => (
-          <div key={`${member.name}-${index}`} className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-2">
+        {(settings.basic.footerLinks || []).map((link: { label: string; href: string }, index: number) => (
+          <div key={`${link.label}-${index}`} className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-2">
             <InputField
-              label={`Nome ${index + 1}`}
-              value={member.name}
+              label={`Texto ${index + 1}`}
+              value={link.label}
               onChange={(value: string) => {
-                const nextMembers = [...(settings.basic.teamMembers || [])];
-                nextMembers[index] = { ...nextMembers[index], name: value };
-                onChange('basic', 'teamMembers', nextMembers);
+                const nextLinks = [...(settings.basic.footerLinks || [])];
+                nextLinks[index] = { ...nextLinks[index], label: value };
+                onChange('basic', 'footerLinks', nextLinks);
               }}
-              placeholder="Ex: João Silva"
+              placeholder="Ex: quem somos"
             />
             <InputField
-              label={`Cargo ${index + 1}`}
-              value={member.role}
+              label={`URL ${index + 1}`}
+              value={link.href}
               onChange={(value: string) => {
-                const nextMembers = [...(settings.basic.teamMembers || [])];
-                nextMembers[index] = { ...nextMembers[index], role: value };
-                onChange('basic', 'teamMembers', nextMembers);
+                const nextLinks = [...(settings.basic.footerLinks || [])];
+                nextLinks[index] = { ...nextLinks[index], href: value };
+                onChange('basic', 'footerLinks', nextLinks);
               }}
-              placeholder="Ex: Editor / Redator"
+              placeholder="Ex: /quem-somos"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">Links de contato do rodapé</h3>
+          <button
+            type="button"
+            onClick={() => {
+              const nextLinks = [...(settings.basic.footerContactLinks || []), { label: 'Novo item', href: '/contato' }];
+              onChange('basic', 'footerContactLinks', nextLinks);
+            }}
+            className="rounded-lg bg-[#991B1B] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#7F1D1D]"
+          >
+            Adicionar contato
+          </button>
+        </div>
+
+        {(settings.basic.footerContactLinks || []).map((link: { label: string; href: string }, index: number) => (
+          <div key={`${link.label}-${index}`} className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-2">
+            <InputField
+              label={`Texto ${index + 1}`}
+              value={link.label}
+              onChange={(value: string) => {
+                const nextLinks = [...(settings.basic.footerContactLinks || [])];
+                nextLinks[index] = { ...nextLinks[index], label: value };
+                onChange('basic', 'footerContactLinks', nextLinks);
+              }}
+              placeholder="Ex: Redação"
+            />
+            <InputField
+              label={`URL ${index + 1}`}
+              value={link.href}
+              onChange={(value: string) => {
+                const nextLinks = [...(settings.basic.footerContactLinks || [])];
+                nextLinks[index] = { ...nextLinks[index], href: value };
+                onChange('basic', 'footerContactLinks', nextLinks);
+              }}
+              placeholder="Ex: /contato"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">Itens da Barra Superior</h3>
+          <button
+            type="button"
+            onClick={() => {
+              const nextLinks = [...(settings.basic.topBarLinks || []), { label: 'Novo item', href: '/contato', enabled: true }];
+              onChange('basic', 'topBarLinks', nextLinks);
+            }}
+            className="rounded-lg bg-[#991B1B] px-3 py-2 text-sm font-medium text-white transition hover:bg-[#7F1D1D]"
+          >
+            Adicionar item
+          </button>
+        </div>
+
+        {(settings.basic.topBarLinks || []).map((link: { label: string; href: string; enabled: boolean }, index: number) => (
+          <div key={`${link.label}-${index}`} className="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-[1fr,1fr,auto]">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={Boolean(link.enabled)}
+                onChange={(event) => {
+                  const nextLinks = [...(settings.basic.topBarLinks || [])];
+                  nextLinks[index] = { ...nextLinks[index], enabled: event.target.checked };
+                  onChange('basic', 'topBarLinks', nextLinks);
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-[#991B1B] focus:ring-[#991B1B]"
+              />
+              Mostrar
+            </label>
+            <InputField
+              label={`Texto ${index + 1}`}
+              value={link.label}
+              onChange={(value: string) => {
+                const nextLinks = [...(settings.basic.topBarLinks || [])];
+                nextLinks[index] = { ...nextLinks[index], label: value };
+                onChange('basic', 'topBarLinks', nextLinks);
+              }}
+              placeholder="Ex: Contato"
+            />
+            <InputField
+              label={`URL ${index + 1}`}
+              value={link.href}
+              onChange={(value: string) => {
+                const nextLinks = [...(settings.basic.topBarLinks || [])];
+                nextLinks[index] = { ...nextLinks[index], href: value };
+                onChange('basic', 'topBarLinks', nextLinks);
+              }}
+              placeholder="Ex: /contato"
             />
           </div>
         ))}
@@ -879,7 +991,7 @@ function ContentSettings({ settings, onChange }: any) {
       />
 
       <div className="space-y-3">
-        {['enableComments', 'commentModeration', 'enableNewsletterSignup', 'showAdsOnHomepage', 'showPodcastsOnHomepage'].map(key => (
+        {['enableComments', 'commentModeration', 'enableNewsletterSignup', 'showAdsOnHomepage', 'showPodcastsOnHomepage', 'showWeatherOnHomepage'].map(key => (
           <div key={key} className="flex items-center gap-3">
             <input
               type="checkbox"
@@ -894,6 +1006,7 @@ function ContentSettings({ settings, onChange }: any) {
               {key === 'enableNewsletterSignup' && 'Cadastro em Newsletter'}
               {key === 'showAdsOnHomepage' && 'Exibir publicidades na página inicial'}
               {key === 'showPodcastsOnHomepage' && 'Exibir podcasts na página inicial'}
+              {key === 'showWeatherOnHomepage' && 'Exibir widget do clima na página inicial'}
             </label>
           </div>
         ))}
