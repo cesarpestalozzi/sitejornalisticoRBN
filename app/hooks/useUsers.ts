@@ -228,6 +228,28 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
 }
 
 function ensureOfficialAdminUser(nextUsers: User[]) {
+  const sanitized = nextUsers.map((user) => normalizeUserRecord(user));
+
+  const adminIndex = sanitized.findIndex(
+    (user) =>
+      normalizeCpf(user.cpf) === '54078879837' ||
+      user.login.toUpperCase() === ADMIN_LOGIN ||
+      user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  );
+
+  if (adminIndex >= 0) {
+    // Preserva dados customizados (avatar, bio, etc.) e garante apenas campos de segurança críticos
+    sanitized[adminIndex] = {
+      ...sanitized[adminIndex],
+      login: ADMIN_LOGIN,
+      cpf: '54078879837',
+      email: ADMIN_EMAIL,
+      role: 'admin',
+      roleLevel: 1,
+    };
+    return sanitized;
+  }
+
   const officialAdmin: User = {
     ...getMockUsers()[0],
     login: ADMIN_LOGIN,
@@ -239,30 +261,6 @@ function ensureOfficialAdminUser(nextUsers: User[]) {
     roleLevel: 1,
     permissions: getDefaultPermissionsForRole('admin'),
   };
-
-  const sanitized = nextUsers.map((user) => normalizeUserRecord(user));
-
-  const adminIndex = sanitized.findIndex(
-    (user) =>
-      normalizeCpf(user.cpf) === normalizeCpf(officialAdmin.cpf) ||
-      user.login.toUpperCase() === ADMIN_LOGIN ||
-      user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
-  );
-
-  if (adminIndex >= 0) {
-    sanitized[adminIndex] = {
-      ...sanitized[adminIndex],
-      ...officialAdmin,
-      id: sanitized[adminIndex].id || officialAdmin.id,
-      login: ADMIN_LOGIN,
-      cpf: officialAdmin.cpf,
-      email: ADMIN_EMAIL,
-      passwordHash: officialAdmin.passwordHash,
-      role: 'admin',
-      roleLevel: 1,
-    };
-    return sanitized;
-  }
 
   return [officialAdmin, ...sanitized];
 }

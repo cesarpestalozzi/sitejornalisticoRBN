@@ -8,6 +8,52 @@ import Footer from './Footer';
 import { useSettings } from '@/app/lib/settings';
 
 const COOKIE_KEY = 'pz_news_cookie_consent';
+const COOKIE_TTL_MS = 1000 * 60 * 60 * 24 * 365;
+
+function readStoredCookieConsent(): 'accepted' | 'rejected' | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const localValue = window.localStorage.getItem(COOKIE_KEY);
+    if (localValue === 'accepted' || localValue === 'rejected') {
+      return localValue;
+    }
+
+    const cookieValue = document.cookie
+      .split('; ')
+      .find((entry) => entry.startsWith(`${COOKIE_KEY}=`));
+
+    if (!cookieValue) {
+      return null;
+    }
+
+    const rawValue = decodeURIComponent(cookieValue.split('=')[1] ?? '');
+    if (rawValue === 'accepted' || rawValue === 'rejected') {
+      return rawValue;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function persistCookieConsent(value: 'accepted' | 'rejected') {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(COOKIE_KEY, value);
+  } catch {
+    // localStorage pode ficar indisponível em alguns navegadores/ambientes.
+  }
+
+  const expires = new Date(Date.now() + COOKIE_TTL_MS).toUTCString();
+  document.cookie = `${COOKIE_KEY}=${encodeURIComponent(value)}; path=/; max-age=${Math.floor(COOKIE_TTL_MS / 1000)}; expires=${expires}; SameSite=Lax`;
+}
 
 export default function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,12 +62,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   const [cookieConsent, setCookieConsent] = useState<'accepted' | 'rejected' | null>(null);
 
   useEffect(() => {
-    const storedConsent = window.localStorage.getItem(COOKIE_KEY);
-    if (storedConsent === 'accepted' || storedConsent === 'rejected') {
-      setCookieConsent(storedConsent);
-      return;
-    }
-    setCookieConsent(null);
+    setCookieConsent(readStoredCookieConsent());
   }, []);
 
   useEffect(() => {
@@ -31,12 +72,12 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   }, [pathname, getSettings]);
 
   const acceptCookies = () => {
-    window.localStorage.setItem(COOKIE_KEY, 'accepted');
+    persistCookieConsent('accepted');
     setCookieConsent('accepted');
   };
 
   const rejectCookies = () => {
-    window.localStorage.setItem(COOKIE_KEY, 'rejected');
+    persistCookieConsent('rejected');
     setCookieConsent('rejected');
   };
 

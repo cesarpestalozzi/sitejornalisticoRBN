@@ -1,10 +1,12 @@
 'use client';
 
-import { Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-react';
+import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { ToastContainer, useToast } from '@/app/components/Toast';
 import { useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
+
+const MAX_PASSWORD_LENGTH = 8;
 
 const roleConfig: Record<UserRole, { label: string; ribbon: string; text: string }> = {
   admin: { label: 'Administrador Principal', ribbon: 'from-purple-600 to-purple-700', text: 'text-purple-700' },
@@ -75,6 +77,187 @@ async function fileToDataUrl(file: File) {
   });
 }
 
+function ChangePasswordModal({
+  user,
+  onClose,
+  onSuccess,
+}: {
+  user: User;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [step, setStep] = useState<'request' | 'confirm'>('request');
+  const [code, setCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+
+  const handleRequestCode = async () => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/password-reset/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Erro ao enviar código.');
+      }
+
+      setInfo(`Código enviado para ${user.email}. Verifique sua caixa de entrada.`);
+      setStep('confirm');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao solicitar código.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmChange = async () => {
+    setError('');
+
+    if (!code.trim()) {
+      setError('Informe o código recebido por e-mail.');
+      return;
+    }
+
+    if (!newPassword.trim() || newPassword.length > MAX_PASSWORD_LENGTH) {
+      setError(`A nova senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres.`);
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/password-reset/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, code: code.trim(), newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || 'Erro ao confirmar nova senha.');
+      }
+
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao confirmar nova senha.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-[#991B1B] px-6 py-4 text-white rounded-t-2xl">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" />
+            <h2 className="font-bold text-lg">Trocar senha</h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg px-3 py-1 text-sm hover:bg-white/10 transition">Fechar</button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {step === 'request' ? (
+            <>
+              <p className="text-sm text-gray-600">
+                Um código de verificação será enviado para <span className="font-semibold text-gray-900">{user.email}</span>.
+                Use-o para redefinir a senha.
+              </p>
+              {error && <p className="text-sm text-[#991B1B] bg-[#991B1B]/5 rounded-lg px-4 py-3">{error}</p>}
+              <button
+                type="button"
+                onClick={handleRequestCode}
+                disabled={loading}
+                className="w-full rounded-lg bg-[#991B1B] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7F1D1D] disabled:opacity-50"
+              >
+                {loading ? 'Enviando...' : 'Enviar código por e-mail'}
+              </button>
+            </>
+          ) : (
+            <>
+              {info && <p className="text-sm text-green-700 bg-green-50 rounded-lg px-4 py-3">{info}</p>}
+              {error && <p className="text-sm text-[#991B1B] bg-[#991B1B]/5 rounded-lg px-4 py-3">{error}</p>}
+
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-900">Código recebido por e-mail</label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="000000"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-2xl font-bold tracking-widest focus:border-[#991B1B] focus:outline-none"
+                  maxLength={6}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-900">
+                  Nova senha <span className="font-normal text-gray-500">(máx. {MAX_PASSWORD_LENGTH} caracteres)</span>
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value.slice(0, MAX_PASSWORD_LENGTH))}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#991B1B] focus:outline-none"
+                  maxLength={MAX_PASSWORD_LENGTH}
+                />
+                <p className="mt-1 text-xs text-gray-500">{newPassword.length}/{MAX_PASSWORD_LENGTH} caracteres</p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-900">Confirmar nova senha</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value.slice(0, MAX_PASSWORD_LENGTH))}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#991B1B] focus:outline-none"
+                  maxLength={MAX_PASSWORD_LENGTH}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setStep('request'); setCode(''); setNewPassword(''); setConfirmPassword(''); setError(''); }}
+                  className="flex-1 rounded-lg border border-gray-300 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Reenviar código
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmChange}
+                  disabled={loading}
+                  className="flex-1 rounded-lg bg-[#991B1B] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7F1D1D] disabled:opacity-50"
+                >
+                  {loading ? 'Salvando...' : 'Confirmar senha'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const { users, addUser, updateUser, deleteUser, isLoaded } = useUsers();
   const { toasts, addToast, removeToast } = useToast();
@@ -85,6 +268,7 @@ export default function UsersPage() {
   const [passwordInput, setPasswordInput] = useState('');
   const [avatarPreview, setAvatarPreview] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [changingPasswordUser, setChangingPasswordUser] = useState<User | null>(null);
 
   const filteredUsers = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -154,6 +338,10 @@ export default function UsersPage() {
 
     if (!formData.bio.trim()) {
       nextErrors.bio = 'Descreva a função ou especialidade do usuário.';
+    }
+
+    if (passwordInput.trim() && passwordInput.trim().length > MAX_PASSWORD_LENGTH) {
+      nextErrors.password = `A senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres.`;
     }
 
     setErrors(nextErrors);
@@ -313,7 +501,7 @@ export default function UsersPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
                     <button type="button" onClick={() => handleToggleStatus(user)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
                       <ToggleLeft className="h-4 w-4" />
                       {user.status === 'ativo' ? 'Desativar' : 'Ativar'}
@@ -321,6 +509,10 @@ export default function UsersPage() {
                     <button type="button" onClick={() => openEditModal(user)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
                       <PencilLine className="h-4 w-4" />
                       Editar
+                    </button>
+                    <button type="button" onClick={() => setChangingPasswordUser(user)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#991B1B] px-4 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#991B1B] hover:text-white">
+                      <KeyRound className="h-4 w-4" />
+                      Trocar senha
                     </button>
                     <button type="button" onClick={() => handleDelete(user.id)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">
                       <Trash2 className="h-4 w-4" />
@@ -391,14 +583,19 @@ export default function UsersPage() {
                       {errors.login && <p className="mt-2 text-xs text-[#991B1B]">{errors.login}</p>}
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-gray-900">Senha inicial</label>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">
+                        Senha inicial <span className="font-normal text-gray-500">(máx. {MAX_PASSWORD_LENGTH} chars)</span>
+                      </label>
                       <input
                         type="password"
                         value={passwordInput}
-                        onChange={(event) => setPasswordInput(event.target.value)}
+                        onChange={(event) => setPasswordInput(event.target.value.slice(0, MAX_PASSWORD_LENGTH))}
                         placeholder={editingId ? 'Deixe em branco para manter a senha atual' : 'Informe a senha inicial'}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                        maxLength={MAX_PASSWORD_LENGTH}
                       />
+                      <p className="mt-1 text-xs text-gray-500">{passwordInput.length}/{MAX_PASSWORD_LENGTH} caracteres</p>
+                      {errors.password && <p className="mt-1 text-xs text-[#991B1B]">{errors.password}</p>}
                     </div>
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-gray-900">Status</label>
@@ -463,6 +660,17 @@ export default function UsersPage() {
       )}
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+
+      {changingPasswordUser && (
+        <ChangePasswordModal
+          user={changingPasswordUser}
+          onClose={() => setChangingPasswordUser(null)}
+          onSuccess={() => {
+            setChangingPasswordUser(null);
+            addToast('Senha alterada com sucesso!', 'success', 3000);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -123,13 +123,13 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
              {secondaryArticles.map((secondaryArticle) => (
                <Link key={secondaryArticle.id} href={`/artigo/${secondaryArticle.id}`} className="group block border-b border-gray-200 pb-4 last:border-0 sm:pb-6">
                  <div className="flex gap-3">
-                   <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded bg-gray-200 sm:h-24 sm:w-24">
+                   <div className="relative aspect-square w-20 shrink-0 overflow-hidden rounded bg-gray-200 sm:w-28">
                      <Image 
                        src={secondaryArticle.image} 
                        alt={secondaryArticle.title} 
-                       width={96}
-                       height={96}
-                       className="block h-full w-full object-cover object-center"
+                       fill
+                       sizes="(max-width: 640px) 80px, 112px"
+                       className="h-full w-full object-cover object-center"
                        loading="lazy"
                      />
                    </div>

@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Lock, UserRound } from 'lucide-react';
+import { AlertCircle, Lock, Smartphone, UserRound } from 'lucide-react';
 import { ADMIN_LOGIN, ADMIN_EMAIL, DEFAULT_PASSWORD, buildUserLogin, normalizeCpf, useUsers } from '@/app/hooks/useUsers';
 
 function hashPassword(value: string) {
@@ -39,13 +39,19 @@ function matchesPassword(storedHash: string, inputPassword: string) {
   );
 }
 
+type LoginStep = 'credentials' | 'mfa';
+
 export default function AdminLogin() {
   const router = useRouter();
   const { users, isLoaded } = useUsers();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<LoginStep>('credentials');
+  const [pendingUserId, setPendingUserId] = useState('');
+  const [pendingUserData, setPendingUserData] = useState<Record<string, unknown> | null>(null);
 
   const loginHint = useMemo(() => {
     if (!isLoaded || !users.length) {
@@ -55,7 +61,7 @@ export default function AdminLogin() {
     return `Ex.: ${users[0].login}`;
   }, [isLoaded, users]);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmitCredentials = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
     setLoading(true);
@@ -67,26 +73,80 @@ export default function AdminLogin() {
       (item) => item.login.toUpperCase() === credential || normalizeCpf(item.cpf) === normalizeCpf(cleanIdentifier)
     );
 
-    if (user && matchesPassword(user.passwordHash, password)) {
-      localStorage.setItem(
-        'adminUser',
-        JSON.stringify({
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          roleLevel: user.roleLevel,
-          avatar: user.avatar,
-          login: user.login,
-          permissions: user.permissions,
-        })
-      );
-      router.push('/admin/dashboard');
+    if (!user || !matchesPassword(user.passwordHash, password)) {
+      setError('Identificacao ou senha invalidos. Use o login RBN + CPF e a senha cadastrada.');
       setLoading(false);
       return;
     }
 
-    setError('Identificação ou senha inválidos. Use o login RBN + CPF e a senha cadastrada.');
+    const userData = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      roleLevel: user.roleLevel,
+      avatar: user.avatar,
+      login: user.login,
+      permissions: user.permissions,
+    };
+
+    try {
+      const mfaStatusResponse = await fetch('/api/admin/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'status', userId: user.id }),
+      });
+
+      const mfaStatus = await mfaStatusResponse.json();
+
+      if (mfaStatus.mfaEnabled) {
+        setPendingUserId(user.id);
+        setPendingUserData(userData);
+        setStep('mfa');
+        setLoading(false);
+        return;
+      }
+    } catch {
+      // Se nao conseguir verificar MFA, continua sem ele
+    }
+
+    localStorage.setItem('adminUser', JSON.stringify(userData));
+    router.push('/admin/dashboard');
+    setLoading(false);
+  };
+
+  const handleSubmitMfa = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    if (mfaCode.length !== 6) {
+      setError('Informe os 6 digitos do codigo do autenticador.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', userId: pendingUserId, token: mfaCode }),
+      });
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        setError('Codigo invalido ou expirado. Tente novamente.');
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
+      router.push('/admin/dashboard');
+    } catch {
+      setError('Erro ao verificar codigo. Tente novamente.');
+    }
+
     setLoading(false);
   };
 
@@ -98,7 +158,7 @@ export default function AdminLogin() {
             <span className="text-white font-bold text-2xl">R</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">RBN</h1>
-          <p className="text-gray-600 text-sm mt-1">Rede Brasileira de Notícias • Painel Administrativo</p>
+          <p className="text-gray-600 text-sm mt-1">Rede Brasileira de Noticias - Painel Administrativo</p>
         </div>
 
         {error && (
@@ -108,52 +168,96 @@ export default function AdminLogin() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-center text-xs text-gray-700">
-            Acesso oficial: <span className="font-semibold text-gray-900">{ADMIN_LOGIN}</span> / <span className="font-semibold text-gray-900">{DEFAULT_PASSWORD}</span>
-            <span className="mt-1 block text-[11px] text-gray-500">{ADMIN_EMAIL}</span>
-          </div>
+        {step === 'credentials' && (
+          <form onSubmit={handleSubmitCredentials} className="space-y-5">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-center text-xs text-gray-700">
+              Acesso oficial: <span className="font-semibold text-gray-900">{ADMIN_LOGIN}</span> / <span className="font-semibold text-gray-900">{DEFAULT_PASSWORD}</span>
+              <span className="mt-1 block text-[11px] text-gray-500">{ADMIN_EMAIL}</span>
+            </div>
 
-          <div>
-            <label className="block text-gray-900 font-semibold mb-2">Identificação</label>
-            <div className="relative">
-              <UserRound className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <div>
+              <label className="block text-gray-900 font-semibold mb-2">Identificacao</label>
+              <div className="relative">
+                <UserRound className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={identifier}
+                  onChange={(event) => setIdentifier(event.target.value)}
+                  placeholder={ADMIN_LOGIN}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Use o formato {loginHint}</p>
+            </div>
+
+            <div>
+              <label className="block text-gray-900 font-semibold mb-2">Senha</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="........"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                  required
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Senha padrao: {DEFAULT_PASSWORD}</p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !isLoaded}
+              className="w-full bg-[#111111] text-white font-bold py-2 rounded-lg hover:bg-[#2a2a2a] transition disabled:opacity-50"
+            >
+              {loading ? 'Verificando...' : 'Entrar no Painel'}
+            </button>
+          </form>
+        )}
+
+        {step === 'mfa' && (
+          <form onSubmit={handleSubmitMfa} className="space-y-5">
+            <div className="flex items-center gap-3 rounded-xl bg-blue-50 border border-blue-200 px-4 py-3">
+              <Smartphone className="h-5 w-5 text-blue-600 shrink-0" />
+              <p className="text-sm text-blue-800">
+                Abra o <strong>Microsoft Authenticator</strong> e informe o codigo de 6 digitos.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-gray-900 font-semibold mb-2 text-center">Codigo do autenticador</label>
               <input
                 type="text"
-                value={identifier}
-                onChange={(event) => setIdentifier(event.target.value)}
-                placeholder={ADMIN_LOGIN}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                value={mfaCode}
+                onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="w-full py-4 border border-gray-300 rounded-lg focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10 text-center text-3xl font-bold tracking-[0.5em]"
+                maxLength={6}
+                autoFocus
                 required
               />
+              <p className="text-xs text-center text-gray-500 mt-1">O codigo se renova a cada 30 segundos</p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Use o formato {loginHint}</p>
-          </div>
 
-          <div>
-            <label className="block text-gray-900 font-semibold mb-2">Senha</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
-                required
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Senha padrão: {DEFAULT_PASSWORD}</p>
-          </div>
+            <button
+              type="submit"
+              disabled={loading || mfaCode.length !== 6}
+              className="w-full bg-[#111111] text-white font-bold py-2 rounded-lg hover:bg-[#2a2a2a] transition disabled:opacity-50"
+            >
+              {loading ? 'Verificando...' : 'Confirmar codigo'}
+            </button>
 
-          <button
-            type="submit"
-            disabled={loading || !isLoaded}
-            className="w-full bg-[#111111] text-white font-bold py-2 rounded-lg hover:bg-[#2a2a2a] transition disabled:opacity-50"
-          >
-            {loading ? 'Entrando...' : 'Entrar no Painel'}
-          </button>
-        </form>
+            <button
+              type="button"
+              onClick={() => { setStep('credentials'); setMfaCode(''); setError(''); }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700 transition"
+            >
+              Voltar ao login
+            </button>
+          </form>
+        )}
 
         <div className="mt-8 pt-6 border-t border-gray-200 text-center">
           <p className="text-sm text-gray-600">

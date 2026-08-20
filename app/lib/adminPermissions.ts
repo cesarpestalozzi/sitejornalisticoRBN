@@ -277,6 +277,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return hasPermission(user, 'users:manage');
   }
 
+  if (pathname.startsWith('/admin/seguranca')) {
+    return true; // Todo usuário logado pode gerenciar sua própria segurança
+  }
+
   if (pathname.startsWith('/admin/configuracoes')) {
     return hasPermission(user, 'settings:manage');
   }

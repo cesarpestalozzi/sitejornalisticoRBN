@@ -18,16 +18,25 @@ function getAdminClient() {
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const adminClient = getAdminClient();
+  const { searchParams } = new URL(request.url);
+  const articleId = searchParams.get('articleId') || searchParams.get('id');
+
   if (!adminClient) {
     return NextResponse.json({ error: 'Supabase service role not configured.' }, { status: 500 });
   }
 
-  const { data, error } = await adminClient
+  let query = adminClient
     .from('pz_news_comments')
     .select('id, payload, updated_at')
     .order('updated_at', { ascending: false });
+
+  if (articleId) {
+    query = query.eq('payload->>articleId', articleId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

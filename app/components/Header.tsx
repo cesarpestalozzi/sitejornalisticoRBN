@@ -8,7 +8,6 @@ import { Menu, X, Search, Bell, UserRound } from 'lucide-react';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { useSettings } from '@/app/lib/settings';
 import { readManagedCategories } from '@/app/lib/managedCategories';
-import { useArticles } from '@/app/hooks/useArticles';
 import { readCurrentRbnUser } from '@/app/lib/rbnAuth';
 
 function getFirstName(value: string) {
@@ -19,7 +18,6 @@ function getFirstName(value: string) {
 export default function Header() {
   const router = useRouter();
   const { getSettings } = useSettings();
-  const { articles } = useArticles();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [settings, setSettings] = useState(getSettings());
@@ -154,20 +152,12 @@ export default function Header() {
     router.push(`/pesquisa?q=${encodeURIComponent(query)}`);
   };
 
-  const publishedCategorySlugs = useMemo(() => {
-    const slugs = new Set<string>();
-    articles
-      .filter((article) => article.status === 'publicado')
-      .forEach((article) => {
-        slugs.add(normalizeCategorySlug(article.category));
-      });
-    return slugs;
-  }, [articles]);
-
   const menuCategories = useMemo(
     () =>
-      managedCategories.filter((category) => publishedCategorySlugs.has(normalizeCategorySlug(category.slug || category.name))),
-    [managedCategories, publishedCategorySlugs]
+      managedCategories
+        .filter((category) => Boolean(category.slug || category.name))
+        .sort((left, right) => (left.name || '').localeCompare(right.name || '')),
+    [managedCategories]
   );
 
   return (

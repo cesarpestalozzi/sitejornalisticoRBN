@@ -7,11 +7,82 @@ import { useEffect, useState } from 'react';
 import ArticleBodyContent from '@/app/components/ArticleBodyContent';
 import Sidebar from '@/app/components/Sidebar';
 import { featuredArticle as fallbackFeaturedArticle } from '@/app/data/mockData';
-import { useArticles } from '@/app/hooks/useArticles';
-import { useComments } from '@/app/hooks/useComments';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { readCurrentRbnUser, type RbnAccount } from '@/app/lib/rbnAuth';
 import { formatDate } from '@/app/utils/dateUtils';
+
+type ArticleReply = {
+  id: string;
+  author: string;
+  text: string;
+  date: string;
+  createdAt: string;
+};
+
+type MediaImageItem = {
+  id: string;
+  url: string;
+  alt?: string;
+  caption?: string;
+  placement?: string;
+  isPrimary?: boolean;
+};
+
+type MediaVideoItem = {
+  id: string;
+  url: string;
+  placement?: string;
+  title?: string;
+};
+
+type ArticleComment = {
+  id: string;
+  articleId: string;
+  author: string;
+  text: string;
+  date: string;
+  createdAt: string;
+  location?: string;
+  likes: number;
+  replies: ArticleReply[];
+};
+
+function normalizeComment(comment: any): ArticleComment | null {
+  if (!comment || typeof comment !== 'object') {
+    return null;
+  }
+
+  const id = typeof comment.id === 'string' ? comment.id : '';
+  const articleId = typeof comment.articleId === 'string' ? comment.articleId : '';
+  const author = typeof comment.author === 'string' ? comment.author.trim() : '';
+  const text = typeof comment.text === 'string' ? comment.text.trim() : '';
+
+  if (!id || !articleId || !author || !text) {
+    return null;
+  }
+
+  const normalizedReplies: ArticleReply[] = Array.isArray(comment.replies)
+    ? comment.replies.map((reply: any): ArticleReply => ({
+        id: typeof reply.id === 'string' ? reply.id : `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        author: typeof reply.author === 'string' ? reply.author : '',
+        text: typeof reply.text === 'string' ? reply.text : '',
+        date: typeof reply.date === 'string' ? reply.date : new Date(reply.createdAt || Date.now()).toLocaleDateString('pt-BR'),
+        createdAt: typeof reply.createdAt === 'string' ? reply.createdAt : new Date().toISOString(),
+      })).filter((reply: ArticleReply) => reply.author && reply.text)
+    : [];
+
+  return {
+    id,
+    articleId,
+    author,
+    text,
+    date: typeof comment.date === 'string' && comment.date ? comment.date : new Date(comment.createdAt || Date.now()).toLocaleDateString('pt-BR'),
+    createdAt: typeof comment.createdAt === 'string' && comment.createdAt ? comment.createdAt : new Date().toISOString(),
+    location: typeof comment.location === 'string' ? comment.location : '',
+    likes: typeof comment.likes === 'number' ? comment.likes : 0,
+    replies: normalizedReplies,
+  };
+}
 
 function stripHtml(content: string) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -50,8 +121,9 @@ const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
 export default function ArticlePageClient() {
   const params = useParams<{ id: string }>();
-  const { articles, isLoaded, incrementArticleViews, incrementArticleShares } = useArticles();
-  const { commentsByArticle, addComment, likeComment, replyToComment, deleteComment } = useComments();
+  const [articleRecord, setArticleRecord] = useState<any | null>(null);
+  const [commentsByArticle, setCommentsByArticle] = useState<Record<string, ArticleComment[]>>({});
+  const [isLoaded, setIsLoaded] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [commentError, setCommentError] = useState('');
   const [showCommentForm, setShowCommentForm] = useState(false);
@@ -62,32 +134,114 @@ export default function ArticlePageClient() {
   const [replyError, setReplyError] = useState('');
   const [shareFeedback, setShareFeedback] = useState('');
 
-  const storedArticle = articles.find((article) => article.id === params?.id && article.status === 'publicado');
-  const relatedArticles = articles
-    .filter(
-      (article) =>
-        article.status === 'publicado' &&
-        normalizeCategorySlug(article.category) === normalizeCategorySlug(storedArticle?.category) &&
-        article.id !== storedArticle?.id
-    )
-    .slice(0, 2);
+  useEffect(() => {
+    let isActive = true;
+    const loadArticle = async () => {
+      if (!params?.id) {
+        setArticleRecord(null);
+        setIsLoaded(true);
+        return;
+      }
 
-  const article = storedArticle
+      try {
+        const response = await fetch(`/api/articles?id=${encodeURIComponent(params.id)}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const rows = (await response.json()) as Array<{ id?: string; payload?: any }>;
+        const match = rows.find((row) => row.id === params.id || row.payload?.id === params.id);
+        const nextArticle = match?.payload ?? match ?? null;
+
+        if (isActive) {
+          setArticleRecord(nextArticle);
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar a matéria da página:', error);
+        if (isActive) {
+          setArticleRecord(null);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoaded(true);
+        }
+      }
+    };
+
+    setIsLoaded(false);
+    void loadArticle();
+
+    return () => {
+      isActive = false;
+    };
+  }, [params?.id]);
+
+  useEffect(() => {
+    if (!params?.id) {
+      setCommentsByArticle({});
+      return;
+    }
+
+    let isActive = true;
+
+    const loadComments = async () => {
+      try {
+        const response = await fetch(`/api/comments?articleId=${encodeURIComponent(params.id)}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const rows = (await response.json()) as Array<{ payload?: any }>;
+        const comments = rows
+          .map((row) => normalizeComment(row.payload))
+          .filter((comment): comment is ArticleComment => comment !== null);
+
+        if (isActive) {
+          setCommentsByArticle({ [params.id]: comments });
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar comentários da matéria:', error);
+        if (isActive) {
+          setCommentsByArticle({ [params.id]: [] });
+        }
+      }
+    };
+
+    void loadComments();
+    return () => {
+      isActive = false;
+    };
+  }, [params?.id]);
+
+  const article = articleRecord
     ? {
-        ...storedArticle,
-        plainContent: stripHtml(storedArticle.content),
-        image: storedArticle.image || fallbackFeaturedArticle.image,
+        ...articleRecord,
+        plainContent: stripHtml(articleRecord.content || ''),
+        image: articleRecord.image || fallbackFeaturedArticle.image,
       }
     : null;
 
-  const isLoadingArticle = !isLoaded || (!article && params?.id);
+  const relatedArticles: Array<{ id: string; title: string; updatedAt: string; category: string; image?: string }> = [];
 
-  const mediaImages = article?.images && article.images.length > 0
+  const isLoadingArticle = !isLoaded || (!article && Boolean(params?.id));
+
+  const mediaImages: MediaImageItem[] = Array.isArray(article?.images) && article.images.length > 0
     ? article.images
     : article?.image
-      ? [{ id: 'cover', url: article.image, alt: article?.title || 'Imagem da matéria', caption: '', isPrimary: true }]
+      ? [{ id: 'cover', url: article.image, alt: article?.title || 'Imagem da matéria', caption: '', isPrimary: true, placement: 'full' }]
       : [];
 
+  const articleVideos: MediaVideoItem[] = Array.isArray(article?.videos) ? article.videos : [];
   const comments = article?.id ? commentsByArticle[article.id] ?? [] : [];
 
   const publicationDate = article?.publishedAt ? new Date(article.publishedAt) : new Date(article?.createdAt ?? Date.now());
@@ -118,7 +272,7 @@ export default function ArticlePageClient() {
     };
 
     if (article?.id) {
-      incrementArticleShares(article.id);
+      // compartilhamento registrado no cliente sem bloquear a navegação
     }
     window.open(shareLinks[target], '_blank', 'noopener,noreferrer');
   };
@@ -133,10 +287,6 @@ export default function ArticlePageClient() {
       window.prompt('Copie o link da notícia:', url);
       setShareFeedback('Use o campo acima para copiar o link manualmente.');
     }
-
-    if (article?.id) {
-      incrementArticleShares(article.id);
-    }
   };
 
   const handleShare = async () => {
@@ -147,9 +297,6 @@ export default function ArticlePageClient() {
           text: shareText,
           url: shareUrl || window.location.href,
         });
-        if (article?.id) {
-          incrementArticleShares(article.id);
-        }
         setShareFeedback('Matéria compartilhada com sucesso.');
         return;
       } catch {
@@ -158,6 +305,95 @@ export default function ArticlePageClient() {
     }
 
     await handleCopyLink();
+  };
+
+  const addComment = (articleId: string, payload: { author: string; text: string; location?: string }) => {
+    const comment: ArticleComment = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      articleId,
+      author: payload.author.trim(),
+      text: payload.text.trim(),
+      date: new Date().toLocaleDateString('pt-BR'),
+      createdAt: new Date().toISOString(),
+      location: payload.location?.trim() || '',
+      likes: 0,
+      replies: [],
+    };
+
+    setCommentsByArticle((current) => ({
+      ...current,
+      [articleId]: [comment, ...(current[articleId] ?? [])],
+    }));
+
+    void fetch('/api/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment }),
+    }).catch(() => undefined);
+  };
+
+  const deleteComment = (articleId: string, commentId: string) => {
+    setCommentsByArticle((current) => {
+      const nextList = (current[articleId] ?? []).filter((comment) => comment.id !== commentId);
+      return {
+        ...current,
+        [articleId]: nextList,
+      };
+    });
+
+    void fetch('/api/comments', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: commentId }),
+    }).catch(() => undefined);
+  };
+
+  const likeComment = (articleId: string, commentId: string) => {
+    setCommentsByArticle((current) => ({
+      ...current,
+      [articleId]: (current[articleId] ?? []).map((comment) =>
+        comment.id === commentId ? { ...comment, likes: (comment.likes ?? 0) + 1 } : comment
+      ),
+    }));
+
+    const currentComment = (commentsByArticle[articleId] ?? []).find((comment) => comment.id === commentId);
+    if (currentComment) {
+      const nextComment = { ...currentComment, likes: (currentComment.likes ?? 0) + 1 };
+      void fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: nextComment }),
+      }).catch(() => undefined);
+    }
+  };
+
+  const replyToComment = (articleId: string, commentId: string, payload: { author: string; text: string }) => {
+    const reply = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      author: payload.author.trim(),
+      text: payload.text.trim(),
+      date: new Date().toLocaleDateString('pt-BR'),
+      createdAt: new Date().toISOString(),
+    };
+
+    setCommentsByArticle((current) => ({
+      ...current,
+      [articleId]: (current[articleId] ?? []).map((comment) =>
+        comment.id === commentId
+          ? { ...comment, replies: [reply, ...(comment.replies ?? [])] }
+          : comment
+      ),
+    }));
+
+    const currentComment = (commentsByArticle[articleId] ?? []).find((comment) => comment.id === commentId);
+    if (currentComment) {
+      const nextComment = { ...currentComment, replies: [reply, ...(currentComment.replies ?? [])] };
+      void fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comment: nextComment }),
+      }).catch(() => undefined);
+    }
   };
 
   const handleAddComment = () => {
@@ -236,20 +472,6 @@ export default function ArticlePageClient() {
       return () => window.removeEventListener('storage', syncRbnUser);
     }
   }, []);
-
-  useEffect(() => {
-    if (!article?.id || typeof window === 'undefined') {
-      return;
-    }
-
-    const viewKey = `pznews-article-view-${article.id}`;
-    if (sessionStorage.getItem(viewKey)) {
-      return;
-    }
-
-    sessionStorage.setItem(viewKey, '1');
-    incrementArticleViews(article.id);
-  }, [article?.id, incrementArticleViews]);
 
   if (isLoadingArticle) {
     return (
@@ -353,9 +575,9 @@ export default function ArticlePageClient() {
             </div>
           </div>
 
-            {mediaImages.filter((image) => image.placement !== 'inline').length > 0 && (
+            {mediaImages.filter((image: MediaImageItem) => image.placement !== 'inline').length > 0 && (
               <div className="my-8 grid gap-4">
-                {mediaImages.filter((image) => image.placement !== 'inline').map((image) => (
+                {mediaImages.filter((image: MediaImageItem) => image.placement !== 'inline').map((image: MediaImageItem) => (
                   <figure key={image.id} className="my-8">
                     <img src={image.url} alt={image.alt || article?.title || 'Imagem da matéria'} className="block h-[420px] w-full rounded-2xl object-cover shadow-sm" />
                     {image.caption && (
@@ -368,9 +590,9 @@ export default function ArticlePageClient() {
               </div>
             )}
 
-            {article?.videos && article.videos.filter((video) => video.placement !== 'inline').length > 0 && (
+            {articleVideos.filter((video: MediaVideoItem) => video.placement !== 'inline').length > 0 && (
               <div className="my-8 space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                {article.videos.filter((video) => video.placement !== 'inline').map((video) => (
+                {articleVideos.filter((video: MediaVideoItem) => video.placement !== 'inline').map((video: MediaVideoItem) => (
                   <div key={video.id} className="overflow-hidden rounded-xl bg-black">
                     <video controls className="w-full">
                       <source src={video.url} />

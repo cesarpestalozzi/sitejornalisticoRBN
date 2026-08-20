@@ -21,8 +21,11 @@ function getAdminClient() {
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const adminClient = getAdminClient();
+  const { searchParams } = new URL(request.url);
+  const requestedId = searchParams.get('id');
+  const requestedCategory = searchParams.get('category');
 
   if (!adminClient) {
     return NextResponse.json(
@@ -31,10 +34,42 @@ export async function GET() {
     );
   }
 
-  const { data, error } = await adminClient
+  let query = adminClient
     .from('pz_news_articles')
     .select('id, payload, deleted, updated_at')
     .order('updated_at', { ascending: false });
+
+  if (requestedId) {
+    query = query.eq('id', requestedId);
+  }
+
+  const { data, error } = await query;
+
+  if (requestedCategory) {
+    const normalizedCategory = requestedCategory.trim().toLowerCase();
+    const filteredRows = (data ?? []).filter((row: any) => {
+      const payload = row?.payload;
+      if (!payload || typeof payload !== 'object') {
+        return false;
+      }
+
+      const categoryValue = typeof payload.category === 'string' ? payload.category.toLowerCase() : '';
+      const categorySlug = categoryValue
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim();
+
+      return categorySlug === normalizedCategory
+        || categorySlug.replace(/\s+/g, '-') === normalizedCategory
+        || categorySlug === normalizedCategory.replace(/-/g, ' ');
+    });
+
+    return NextResponse.json(filteredRows, {
+      status: 200,
+      headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+    });
+  }
 
   if (error) {
     return NextResponse.json(
@@ -43,7 +78,15 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json(data ?? [], {
+  const normalizedRows = (data ?? []).filter((row: any) => {
+    if (!requestedId) {
+      return true;
+    }
+
+    return row?.id === requestedId || row?.payload?.id === requestedId;
+  });
+
+  return NextResponse.json(normalizedRows, {
     status: 200,
     headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
   });

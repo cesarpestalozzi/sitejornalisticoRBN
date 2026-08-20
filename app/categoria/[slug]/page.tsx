@@ -6,8 +6,21 @@ import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/app/components/Sidebar';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { readManagedCategories } from '@/app/lib/managedCategories';
-import { useArticles } from '@/app/hooks/useArticles';
 import { formatDate } from '@/app/utils/dateUtils';
+
+interface CategoryArticle {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: string;
+  author: string;
+  content: string;
+  excerpt: string;
+  image?: string;
+  status: 'rascunho' | 'agendado' | 'publicado';
+  createdAt: string;
+  updatedAt: string;
+}
 
 function stripHtml(content: string) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -22,8 +35,52 @@ export default function CategoryPage() {
   const params = useParams();
   const rawSlug = typeof params?.slug === 'string' ? params.slug : '';
   const currentSlug = normalizeCategorySlug(rawSlug);
-  const { articles, isLoaded } = useArticles();
+  const [articles, setArticles] = useState<CategoryArticle[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [managedCategories, setManagedCategories] = useState(() => readManagedCategories());
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadArticles = async () => {
+      try {
+        setIsLoaded(false);
+        const response = await fetch(`/api/articles?category=${encodeURIComponent(currentSlug)}`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const rows = (await response.json()) as Array<{ payload?: CategoryArticle }>; 
+        const nextArticles = rows
+          .map((row) => row.payload)
+          .filter((article): article is CategoryArticle => Boolean(article && article.id));
+
+        if (isActive) {
+          setArticles(nextArticles.filter((article) => article.status === 'publicado').sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()));
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar categoria:', error);
+        if (isActive) {
+          setArticles([]);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoaded(true);
+        }
+      }
+    };
+
+    void loadArticles();
+
+    return () => {
+      isActive = false;
+    };
+  }, [currentSlug]);
 
   useEffect(() => {
     const syncCategories = () => setManagedCategories(readManagedCategories());
@@ -45,11 +102,8 @@ export default function CategoryPage() {
 
   const publishedArticles = useMemo(
     () =>
-      articles
-        .filter((article) => article.status === 'publicado')
-        .filter((article) => normalizeCategorySlug(article.category) === currentSlug)
-        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
-    [articles, currentSlug]
+      [...articles].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [articles]
   );
 
   const featuredArticle = publishedArticles[0];
