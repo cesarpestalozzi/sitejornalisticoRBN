@@ -14,7 +14,7 @@ export default function Podcasts({ podcasts }: PodcastsProps) {
   };
 
   return (
-    <section className="bg-gray-50 border-b border-gray-200">
+    <section className="bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

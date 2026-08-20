@@ -43,7 +43,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
            </div>
          </div>
 
-         <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-gray-600">
+         <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-white p-10 text-center text-gray-600">
            <h2 className="text-2xl font-semibold text-gray-900">Acompanhe o portal em tempo real</h2>
            <p className="mt-3">Publique sua primeira matéria no painel administrativo para que ela apareça aqui automaticamente.</p>
          </div>

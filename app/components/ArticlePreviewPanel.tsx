@@ -58,7 +58,7 @@ export default function ArticlePreviewPanel({
         </div>
 
         {heroImage && (
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-[#f8f8f8]">
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
             <img src={heroImage} alt={title || 'Imagem da matéria'} className="h-[420px] w-full bg-white object-cover" />
           </div>
         )}
@@ -91,7 +91,7 @@ export default function ArticlePreviewPanel({
         {galleryImages.length > 1 && (
           <div className="grid gap-4 md:grid-cols-2">
             {galleryImages.slice(1).map((image, index) => (
-              <div key={`${image.url}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-[#f8f8f8]">
+              <div key={`${image.url}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                 <img src={image.url} alt={image.alt || title} className="h-56 w-full bg-white object-cover" />
               </div>
             ))}

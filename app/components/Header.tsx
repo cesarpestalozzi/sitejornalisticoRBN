@@ -220,7 +220,7 @@ export default function Header() {
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Pesquisar..."
                   aria-label="Pesquisar notícias"
-                  className="w-full rounded-full border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 shadow-sm transition focus:border-[#991B1B] focus:bg-white focus:outline-none"
+                  className="w-full rounded-full border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition focus:border-[#991B1B] focus:bg-white focus:outline-none"
                 />
                 <button
                   type="submit"
@@ -332,7 +332,7 @@ export default function Header() {
               ))}
             </div>
           ) : (
-            <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+            <p className="rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-500">
               Nenhuma categoria com matéria publicada.
             </p>
           )}
