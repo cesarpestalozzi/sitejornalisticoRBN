@@ -1,14 +1,16 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, Suspense, lazy } from 'react';
 import Hero from './Hero';
 import NewsGrid from './NewsGrid';
-import Sidebar from './Sidebar';
 import { defaultSettings } from '@/app/lib/settings';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import type { Article, NewsCard } from '@/app/types';
 import { useSettingsContext } from '@/app/contexts/SettingsContext';
 import { useState } from 'react';
+
+// Lazy load sidebar para não bloquear o render principal
+const Sidebar = lazy(() => import('./Sidebar'));
 
 interface HomeArticle {
   id: string;
@@ -180,7 +182,9 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
 
           {showSidebar && (
             <div className="order-1 hidden lg:order-2 lg:col-span-1 lg:block">
-              <Sidebar />
+              <Suspense fallback={<div className="space-y-4"><div className="h-48 bg-gray-200 rounded-lg animate-pulse" /></div>}>
+                <Sidebar />
+              </Suspense>
             </div>
           )}
         </div>
