@@ -126,7 +126,8 @@ function createAvatar(name: string, background: string) {
 }
 
 function getMockUsers(): User[] {
-  const now = new Date().toISOString();
+  // Usa data muito antiga para que dados reais do Supabase sempre ganhem no merge
+  const epoch = '2020-01-01T00:00:00.000Z';
 
   return [
     {
@@ -146,8 +147,8 @@ function getMockUsers(): User[] {
       articlesCount: 45,
       specialization: 'Gestão editorial',
       location: 'São Paulo, SP',
-      createdAt: now,
-      updatedAt: now,
+      createdAt: epoch,
+      updatedAt: epoch,
     },
     {
       id: '2',
@@ -166,8 +167,8 @@ function getMockUsers(): User[] {
       articlesCount: 62,
       specialization: 'Política e Economia',
       location: 'Rio de Janeiro, RJ',
-      createdAt: now,
-      updatedAt: now,
+      createdAt: epoch,
+      updatedAt: epoch,
     },
     {
       id: '3',
@@ -186,8 +187,8 @@ function getMockUsers(): User[] {
       articlesCount: 38,
       specialization: 'Tecnologia',
       location: 'Recife, PE',
-      createdAt: now,
-      updatedAt: now,
+      createdAt: epoch,
+      updatedAt: epoch,
     },
   ];
 }
@@ -313,10 +314,10 @@ function readLocalUsers() {
 async function readRemoteUsers() {
   const rows = await readRemoteUsersViaApi();
   if (!rows) return null;
-  const parsedUsers = rows
+  // Usa dados do Supabase diretamente sem aplicar mock defaults
+  return rows
     .filter((row) => row && row.payload)
     .map((row) => normalizeUserRecord({ ...row.payload, id: row.id }));
-  return ensureOfficialAdminUser(parsedUsers).map(normalizeUserRecord);
 }
 
 async function upsertRemoteUser(user: User) {
@@ -366,21 +367,13 @@ export function useUsers() {
     let isActive = true;
 
     const load = async () => {
-      const localUsers = readLocalUsers();
       try {
         const remoteUsers = await readRemoteUsers();
-        if (!isActive) {
-          return;
-        }
+        if (!isActive) return;
 
-        if (remoteUsers) {
-          const mergedUsers = mergeUsers(remoteUsers, localUsers);
-          setUsers(mergedUsers);
-          mergedUsers.forEach((user) => {
-            void upsertRemoteUser(user).catch((error) => {
-              console.error('Erro ao sincronizar usuário na carga inicial:', error);
-            });
-          });
+        if (remoteUsers && remoteUsers.length > 0) {
+          // Supabase disponível — usa como fonte de verdade, sem merge com dados locais
+          setUsers(remoteUsers);
           setIsLoaded(true);
           return;
         }
@@ -388,10 +381,10 @@ export function useUsers() {
         console.error('Erro ao carregar usuários remotos:', error);
       }
 
-      if (!isActive) {
-        return;
-      }
+      if (!isActive) return;
 
+      // Fallback: usa localStorage
+      const localUsers = readLocalUsers();
       setUsers(localUsers);
       setIsLoaded(true);
     };
@@ -445,22 +438,12 @@ export function useUsers() {
     };
   }, []);
 
+  // Persiste no localStorage sempre que os usuários mudarem após o carregamento
   useEffect(() => {
-    if (!isLoaded) {
+    if (!isLoaded || users.length === 0) {
       return;
     }
-
-    const persistedUsers = ensureOfficialAdminUser(users).map(normalizeUserRecord);
-    const changed = persistedUsers.length !== users.length || persistedUsers.some((user, index) => {
-      const current = users[index];
-      return !current || user.id !== current.id || user.name !== current.name || user.avatar !== current.avatar || user.location !== current.location;
-    });
-
-    if (changed) {
-      setUsers(persistedUsers);
-    }
-
-    localStorage.setItem(USERS_KEY, JSON.stringify(persistedUsers));
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
   }, [users, isLoaded]);
 
   const addUser = (user: Omit<User, 'id' | 'joinDate' | 'createdAt' | 'updatedAt'> & { joinDate?: string; createdAt?: string; updatedAt?: string }) => {

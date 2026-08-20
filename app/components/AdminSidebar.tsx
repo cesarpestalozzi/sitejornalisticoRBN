@@ -23,7 +23,6 @@ import {
   Newspaper,
 } from 'lucide-react';
 import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
-import { getCurrentAdminProfile, useUsers } from '@/app/hooks/useUsers';
 
 const menuItems = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
@@ -47,8 +46,6 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const currentUser = useCurrentAdminUser();
-  const { users } = useUsers();
-  const currentProfile = getCurrentAdminProfile(users) ?? currentUser;
   const visibleMenuItems = menuItems.filter((item) => canAccessAdminRoute(currentUser, item.href));
 
   const handleLogout = () => {
@@ -85,7 +82,7 @@ export default function AdminSidebar() {
             </div>
           </div>
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center shadow-[0_8px_20px_rgba(0,0,0,0.12)]">
-            <p className="truncate text-sm font-semibold text-white">{currentProfile?.name ?? 'Usuário logado'}</p>
+            <p className="truncate text-sm font-semibold text-white">{currentUser?.name ?? 'Usuário logado'}</p>
           </div>
         </div>
 

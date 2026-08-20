@@ -94,6 +94,15 @@ function ChangePasswordModal({
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
 
+  // Usa o email do adminUser (sessão ativa) se for o mesmo usuário, pois o users state pode ter email mock
+  const effectiveEmail = (() => {
+    try {
+      const session = JSON.parse(localStorage.getItem('adminUser') || '{}');
+      if (session?.id === user.id && session?.email) return session.email as string;
+    } catch {}
+    return user.email;
+  })();
+
   const handleRequestCode = async () => {
     setError('');
     setLoading(true);
@@ -102,7 +111,7 @@ function ChangePasswordModal({
       const response = await fetch('/api/password-reset/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
+        body: JSON.stringify({ email: effectiveEmail }),
       });
 
       const data = await response.json();
@@ -111,7 +120,7 @@ function ChangePasswordModal({
         throw new Error(data.error || 'Erro ao enviar código.');
       }
 
-      setInfo(`Código enviado para ${user.email}. Verifique sua caixa de entrada.`);
+      setInfo(`Código enviado para ${effectiveEmail}. Verifique sua caixa de entrada.`);
       setStep('confirm');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao solicitar código.');
@@ -144,7 +153,7 @@ function ChangePasswordModal({
       const response = await fetch('/api/password-reset/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, code: code.trim(), newPassword }),
+        body: JSON.stringify({ email: effectiveEmail, code: code.trim(), newPassword }),
       });
 
       const data = await response.json();
@@ -176,7 +185,7 @@ function ChangePasswordModal({
           {step === 'request' ? (
             <>
               <p className="text-sm text-gray-600">
-                Um código de verificação será enviado para <span className="font-semibold text-gray-900">{user.email}</span>.
+                Um código de verificação será enviado para <span className="font-semibold text-gray-900">{effectiveEmail}</span>.
                 Use-o para redefinir a senha.
               </p>
               {error && <p className="text-sm text-[#991B1B] bg-[#991B1B]/5 rounded-lg px-4 py-3">{error}</p>}
