@@ -58,7 +58,7 @@ function SearchPageContent() {
   }, [articles, query]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-7xl px-4 py-10">
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -88,17 +88,17 @@ function SearchPageContent() {
                   }
                 }}
                 placeholder="Pesquisar notícias, categorias e autores"
-                className="w-full rounded-full border border-gray-300 bg-gray-50 py-3.5 pl-14 pr-4 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#991B1B] focus:bg-white"
+                className="w-full rounded-full border border-gray-300 bg-white py-3.5 pl-14 pr-4 text-sm text-gray-900 shadow-sm outline-none transition focus:border-[#991B1B] focus:bg-white"
               />
             </label>
           </div>
 
           {!query ? (
-            <div className="mt-8 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-600">
+            <div className="mt-8 rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
               Digite um termo para localizar matérias, categorias, autores ou palavras-chave.
             </div>
           ) : results.length === 0 ? (
-            <div className="mt-8 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-gray-600">
+            <div className="mt-8 rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
               Nenhuma matéria encontrada para esta busca. Tente outro termo.
             </div>
           ) : (
@@ -132,7 +132,7 @@ function SearchPageContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}> 
+    <Suspense fallback={<div className="min-h-screen bg-white" />}> 
       <SearchPageContent />
     </Suspense>
   );

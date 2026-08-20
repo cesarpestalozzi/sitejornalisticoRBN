@@ -66,7 +66,7 @@ export default function CategoryPage() {
           {!isLoaded ? (
             <div className="rounded-xl border border-gray-200 bg-white p-6 text-gray-500">Carregando matérias...</div>
           ) : publishedArticles.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6 text-gray-600">
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-gray-600">
               Ainda não há matérias publicadas nesta categoria.
             </div>
           ) : (

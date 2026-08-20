@@ -420,7 +420,7 @@ export default function ArticlePageClient() {
                   Adicionar comentário
                 </button>
               ) : (
-                <div className="mb-8 rounded-xl border border-gray-200 bg-[#f9f9f9] p-4 shadow-sm">
+                <div className="mb-8 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-gray-900">Adicionar comentário</p>
                     <button
@@ -446,7 +446,7 @@ export default function ArticlePageClient() {
                       </Link>
                     </div>
                   ) : (
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-200 bg-white px-4 py-3">
                       <p className="text-sm font-medium text-green-800">Conectado como <span className="font-bold">{currentRbnUser.name}</span></p>
                     </div>
                   )}
@@ -482,7 +482,7 @@ export default function ArticlePageClient() {
                         setShowCommentForm(false);
                         setCommentError('');
                       }}
-                      className="rounded-lg border border-gray-300 bg-white px-6 py-2 text-gray-700 font-semibold transition hover:bg-gray-50"
+                      className="rounded-lg border border-gray-300 bg-white px-6 py-2 text-gray-700 font-semibold transition hover:bg-white"
                     >
                       Cancelar
                     </button>
