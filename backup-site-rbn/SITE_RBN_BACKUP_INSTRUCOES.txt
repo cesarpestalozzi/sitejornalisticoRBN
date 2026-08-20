@@ -1,0 +1,18 @@
+﻿Backup do projeto RBN
+
+Arquivo gerado em: 2026-08-18
+Projeto: portal-iwp-news-website-development
+
+Importante:
+- Este pacote contém o código do projeto e os arquivos necessários para restaurar o app.
+- O arquivo .env.local real foi excluído por segurança, pois contém chaves e segredos.
+- Para restaurar, copie o arquivo .env.example para .env.local e preencha com os valores reais do Supabase/Vercel/etc.
+- Se você quiser, também pode salvar em um drive e manter o backup no GitHub.
+
+Como restaurar em outro computador:
+1. Extraia o ZIP.
+2. Abra a pasta do projeto.
+3. Rode: npm install
+4. Copie .env.example para .env.local e preencha as chaves reais.
+5. Rode: npm run dev
+6. Para deploy, conecte o repo na Vercel e configure as variáveis.
