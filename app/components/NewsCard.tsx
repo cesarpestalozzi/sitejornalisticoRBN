@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { NewsCard } from '@/app/types';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 import { formatDate, timeAgo } from '@/app/utils/dateUtils';
@@ -14,11 +15,12 @@ export default function NewsCardComponent({ article }: NewsCardProps) {
     <Link href={`/artigo/${article.id}`}>
       <article className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition duration-300 hover:shadow-md">
         <div className="relative h-40 overflow-hidden bg-gray-200 sm:h-44 md:h-48">
-          <img
+          <Image
             src={article.image}
             alt={article.title}
+            width={400}
+            height={192}
             loading="lazy"
-            decoding="async"
             className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
           />
           <span className="absolute left-3 top-3 rounded bg-[#991B1B] px-2.5 py-1 text-[10px] font-bold text-white sm:text-xs">

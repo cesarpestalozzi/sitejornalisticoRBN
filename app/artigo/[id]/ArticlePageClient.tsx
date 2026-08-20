@@ -353,9 +353,9 @@ export default function ArticlePageClient() {
             </div>
           </div>
 
-            {mediaImages.length > 0 && (
+            {mediaImages.filter((image) => image.placement !== 'inline').length > 0 && (
               <div className="my-8 grid gap-4">
-                {mediaImages.map((image) => (
+                {mediaImages.filter((image) => image.placement !== 'inline').map((image) => (
                   <figure key={image.id} className="my-8">
                     <img src={image.url} alt={image.alt || article?.title || 'Imagem da matéria'} className="block h-[420px] w-full rounded-2xl object-cover shadow-sm" />
                     {image.caption && (
@@ -368,9 +368,9 @@ export default function ArticlePageClient() {
               </div>
             )}
 
-            {article?.videos && article.videos.length > 0 && (
+            {article?.videos && article.videos.filter((video) => video.placement !== 'inline').length > 0 && (
               <div className="my-8 space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                {article.videos.map((video) => (
+                {article.videos.filter((video) => video.placement !== 'inline').map((video) => (
                   <div key={video.id} className="overflow-hidden rounded-xl bg-black">
                     <video controls className="w-full">
                       <source src={video.url} />
@@ -382,7 +382,7 @@ export default function ArticlePageClient() {
 
             <div className="mb-12 max-w-none">
               {article ? (
-                <ArticleBodyContent content={article.content} />
+                <ArticleBodyContent content={article.content} images={article.images ?? []} videos={article.videos ?? []} />
               ) : (
                 <p className="leading-relaxed text-gray-700">{fallbackFeaturedArticle.content}</p>
               )}

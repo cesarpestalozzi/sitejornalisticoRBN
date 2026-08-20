@@ -77,7 +77,6 @@ export default function Footer() {
                 />
                 <div>
                   <p className="text-xl font-semibold tracking-[-0.04em]" style={{ color: footerText }}>{siteName}</p>
-                  <p className="text-sm uppercase tracking-[0.18em] text-white/70">Jornalismo • Informação • Entretenimento</p>
                 </div>
               </Link>
             </div>

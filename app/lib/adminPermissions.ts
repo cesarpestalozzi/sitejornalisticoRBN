@@ -257,6 +257,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return hasPermission(user, 'comments:manage');
   }
 
+  if (pathname.startsWith('/admin/gerador-card')) {
+    return hasAnyPermission(user, ['articles:view:all', 'articles:view:own', 'articles:create']);
+  }
+
   if (pathname.startsWith('/admin/publicidades')) {
     return hasPermission(user, 'publicities:manage');
   }

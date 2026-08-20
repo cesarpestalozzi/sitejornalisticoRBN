@@ -33,6 +33,31 @@ function getPrimaryArticleImage(payload?: Record<string, any>) {
   return imageFromList;
 }
 
+async function proxyRemoteImage(imageUrl: string, request: NextRequest) {
+  const resolvedUrl = imageUrl.startsWith('http') ? imageUrl : new URL(imageUrl, request.url).toString();
+  const response = await fetch(resolvedUrl, {
+    method: 'GET',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha ao buscar imagem remota: ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') || 'image/jpeg';
+  const arrayBuffer = await response.arrayBuffer();
+
+  return new NextResponse(arrayBuffer, {
+    status: 200,
+    headers: {
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+      'Content-Length': String(arrayBuffer.byteLength),
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
@@ -64,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!imageValue.startsWith('data:')) {
-      return NextResponse.redirect(imageValue.startsWith('http') ? imageValue : new URL(imageValue, request.url).toString());
+      return await proxyRemoteImage(imageValue, request);
     }
 
     const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/i.exec(imageValue);

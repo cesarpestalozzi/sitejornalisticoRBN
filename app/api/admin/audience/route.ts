@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { listAllAuthUsers } from '@/app/api/_lib/authUsers';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 type AudienceUser = {
   id: string;
   email: string;
@@ -24,8 +27,17 @@ function getDisplayName(email: string, metadata: Record<string, unknown> | null)
 
 export async function GET() {
   const { users: authUsers, error } = await listAllAuthUsers();
+
   if (error) {
-    return NextResponse.json({ ok: false, error }, { status: 500 });
+    return NextResponse.json(
+      {
+        ok: true,
+        users: [],
+        warning: error,
+        source: 'fallback-local',
+      },
+      { status: 200 }
+    );
   }
 
   const users: AudienceUser[] = authUsers
@@ -39,5 +51,5 @@ export async function GET() {
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  return NextResponse.json({ ok: true, users }, { status: 200 });
+  return NextResponse.json({ ok: true, users, source: 'supabase-service-role' }, { status: 200 });
 }

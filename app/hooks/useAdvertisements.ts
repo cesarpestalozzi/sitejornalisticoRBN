@@ -22,6 +22,7 @@ const ADS_KEY = 'pz_news_ads';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const SUPABASE_TABLE = 'pz_news_ads';
+let remoteAdsUnavailable = false;
 
 type SupabaseAdvertisementRow = {
   id: string;
@@ -151,7 +152,7 @@ function readLocalAds() {
 }
 
 async function readRemoteAds() {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig() || remoteAdsUnavailable) {
     return null;
   }
 
@@ -162,6 +163,11 @@ async function readRemoteAds() {
       headers: getSupabaseHeaders(),
     }
   );
+
+  if (response.status === 404) {
+    remoteAdsUnavailable = true;
+    return null;
+  }
 
   if (!response.ok) {
     throw new Error(`Erro ao ler publicidades remotas: ${response.status}`);
@@ -174,7 +180,7 @@ async function readRemoteAds() {
 }
 
 async function upsertRemoteAd(ad: Advertisement) {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig() || remoteAdsUnavailable) {
     return;
   }
 
@@ -193,13 +199,18 @@ async function upsertRemoteAd(ad: Advertisement) {
     ]),
   });
 
+  if (response.status === 404) {
+    remoteAdsUnavailable = true;
+    return;
+  }
+
   if (!response.ok) {
     throw new Error(`Erro ao salvar publicidade remota: ${response.status}`);
   }
 }
 
 async function deleteRemoteAdById(id: string) {
-  if (!hasSupabaseConfig()) {
+  if (!hasSupabaseConfig() || remoteAdsUnavailable) {
     return;
   }
 
@@ -210,6 +221,11 @@ async function deleteRemoteAdById(id: string) {
       Prefer: 'return=minimal',
     },
   });
+
+  if (response.status === 404) {
+    remoteAdsUnavailable = true;
+    return;
+  }
 
   if (!response.ok) {
     throw new Error(`Erro ao excluir publicidade remota: ${response.status}`);

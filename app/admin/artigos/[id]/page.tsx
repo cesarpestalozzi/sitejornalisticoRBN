@@ -24,6 +24,15 @@ function stripHtml(content: string) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function EditArticlePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -134,6 +143,52 @@ export default function EditArticlePage() {
 
   const handleMediaChange = (images: ArticleImage[], videos: ArticleVideo[], primaryImage: string) => {
     setMediaState({ images, videos, primaryImage });
+  };
+
+  const handleEditorMediaRegister = async (kind: 'image' | 'video', file: File, caption: string) => {
+    if (!formData) {
+      throw new Error('Artigo não disponível para registrar mídia.');
+    }
+
+    const dataUrl = await fileToDataUrl(file);
+    const mediaId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    if (kind === 'image') {
+      const nextImage: ArticleImage = {
+        id: mediaId,
+        url: dataUrl,
+        alt: caption.trim() || formData.title || file.name,
+        caption: caption.trim(),
+        isPrimary: false,
+        name: file.name,
+        placement: 'inline',
+      };
+
+      setMediaState((current) => ({
+        images: [...current.images, nextImage],
+        videos: current.videos,
+        primaryImage: current.primaryImage,
+      }));
+
+      return { id: nextImage.id, url: nextImage.url };
+    }
+
+    const nextVideo: ArticleVideo = {
+      id: mediaId,
+      url: dataUrl,
+      title: file.name,
+      caption: caption.trim(),
+      name: file.name,
+      type: 'upload',
+      placement: 'inline',
+    };
+
+    setMediaState((current) => ({
+      ...current,
+      videos: [...current.videos, nextVideo],
+    }));
+
+    return { id: nextVideo.id, url: nextVideo.url };
   };
 
   const handleSave = () => {
@@ -337,6 +392,9 @@ export default function EditArticlePage() {
                   value={formData.content}
                   onChange={(content) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, content } }))}
                   minHeight={360}
+                  libraryImages={mediaState.images}
+                  libraryVideos={mediaState.videos}
+                  onRegisterMedia={handleEditorMediaRegister}
                 />
               </section>
 

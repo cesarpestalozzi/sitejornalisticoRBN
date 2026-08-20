@@ -10,6 +10,7 @@ export interface ArticleImage {
   caption: string;
   isPrimary: boolean;
   name?: string;
+  placement?: 'gallery' | 'inline';
 }
 
 export interface ArticleVideo {
@@ -20,6 +21,7 @@ export interface ArticleVideo {
   name?: string;
   type?: 'upload' | 'external' | 'microsoft-stream';
   embedUrl?: string;
+  placement?: 'gallery' | 'inline';
 }
 
 interface ArticleMediaManagerProps {

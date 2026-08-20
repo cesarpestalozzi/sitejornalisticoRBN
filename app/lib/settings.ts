@@ -237,7 +237,7 @@ export const defaultSettings: SiteSettings = {
     enableNewsletterSignup: true,
     showAdsOnHomepage: false,
     showPodcastsOnHomepage: false,
-    showWeatherOnHomepage: true,
+    showWeatherOnHomepage: false,
   },
   analytics: {
     trackPageViews: true,

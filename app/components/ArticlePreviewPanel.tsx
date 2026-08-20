@@ -7,8 +7,8 @@ interface ArticlePreviewPanelProps {
   category: string;
   author: string;
   content: string;
-  images?: Array<{ url: string; alt?: string }>;
-  videos?: Array<{ url: string }>;
+  images?: Array<{ id?: string; url: string; alt?: string; placement?: 'gallery' | 'inline' }>;
+  videos?: Array<{ id?: string; url: string; placement?: 'gallery' | 'inline' }>;
   location?: string;
   publishedAt?: string;
   lastUpdatedAt?: string;
@@ -26,7 +26,9 @@ export default function ArticlePreviewPanel({
   publishedAt,
   lastUpdatedAt,
 }: ArticlePreviewPanelProps) {
-  const heroImage = images[0]?.url;
+  const galleryImages = images.filter((image) => image.placement !== 'inline');
+  const visibleVideos = videos.filter((video) => video.placement !== 'inline');
+  const heroImage = galleryImages[0]?.url;
   const publicationDate = publishedAt ? new Date(publishedAt) : new Date();
   const updateDate = lastUpdatedAt ? new Date(lastUpdatedAt) : publicationDate;
 
@@ -66,9 +68,9 @@ export default function ArticlePreviewPanel({
           <p className="mt-1">Última atualização em {formatDateTime(updateDate)}.</p>
         </div>
 
-        {videos.length > 0 && (
+        {visibleVideos.length > 0 && (
           <div className="space-y-3">
-            {videos.map((video, index) => (
+            {visibleVideos.map((video, index) => (
               <div key={`${video.url}-${index}`} className="overflow-hidden rounded-2xl bg-black">
                 <video controls className="w-full">
                   <source src={video.url} />
@@ -79,12 +81,16 @@ export default function ArticlePreviewPanel({
         )}
 
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <ArticleBodyContent content={content || '<p>Seu texto será exibido aqui com parágrafos, destaque e elementos multimídia.</p>'} />
+          <ArticleBodyContent
+            content={content || '<p>Seu texto será exibido aqui com parágrafos, destaque e elementos multimídia.</p>'}
+            images={images}
+            videos={videos}
+          />
         </div>
 
-        {images.length > 1 && (
+        {galleryImages.length > 1 && (
           <div className="grid gap-4 md:grid-cols-2">
-            {images.slice(1).map((image, index) => (
+            {galleryImages.slice(1).map((image, index) => (
               <div key={`${image.url}-${index}`} className="overflow-hidden rounded-2xl border border-gray-200 bg-[#f8f8f8]">
                 <img src={image.url} alt={image.alt || title} className="h-56 w-full bg-white object-cover" />
               </div>

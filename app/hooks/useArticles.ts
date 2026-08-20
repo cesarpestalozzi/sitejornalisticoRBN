@@ -17,6 +17,7 @@ export interface ArticleImage {
   caption: string;
   isPrimary: boolean;
   name?: string;
+  placement?: 'gallery' | 'inline';
 }
 
 export interface ArticleVideo {
@@ -27,6 +28,7 @@ export interface ArticleVideo {
   name?: string;
   type?: 'upload' | 'external' | 'microsoft-stream';
   embedUrl?: string;
+  placement?: 'gallery' | 'inline';
 }
 
 export interface Article {
@@ -135,7 +137,11 @@ async function readRemoteArticles() {
   }
 
   try {
-    const response = await fetch('/api/articles', { method: 'GET', headers: { Accept: 'application/json' } });
+    const response = await fetch('/api/articles', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
     if (response.ok) {
       const rows = (await response.json()) as SupabaseArticleRow[];
       return normalizeRemoteRows(rows);
@@ -188,6 +194,7 @@ async function upsertRemoteArticle(article: Article, deleted: boolean) {
       headers: {
         'Content-Type': 'application/json',
       },
+      cache: 'no-store',
       body: JSON.stringify({ article, deleted }),
     });
 
@@ -239,7 +246,10 @@ async function deleteRemoteArticleById(id: string) {
   }
 
   try {
-    const response = await fetch(`/api/articles?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const response = await fetch(`/api/articles?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      cache: 'no-store',
+    });
     if (response.ok) {
       return;
     }
@@ -271,7 +281,10 @@ async function deleteRemoteTrash() {
   }
 
   try {
-    const response = await fetch('/api/articles?trash=true', { method: 'DELETE' });
+    const response = await fetch('/api/articles?trash=true', {
+      method: 'DELETE',
+      cache: 'no-store',
+    });
     if (response.ok) {
       return;
     }
@@ -311,6 +324,7 @@ function normalizeImages(images?: unknown): ArticleImage[] {
         caption: '',
         isPrimary: index === 0,
         name: 'Imagem',
+        placement: 'gallery',
       };
     }
 
@@ -323,6 +337,7 @@ function normalizeImages(images?: unknown): ArticleImage[] {
         caption: candidate.caption ?? '',
         isPrimary: Boolean(candidate.isPrimary) || index === 0,
         name: candidate.name ?? 'Imagem',
+        placement: candidate.placement ?? 'gallery',
       };
     }
 
@@ -333,6 +348,7 @@ function normalizeImages(images?: unknown): ArticleImage[] {
       caption: '',
       isPrimary: index === 0,
       name: 'Imagem',
+      placement: 'gallery',
     };
   });
 }
@@ -350,6 +366,7 @@ function normalizeVideos(videos?: unknown): ArticleVideo[] {
         title: 'Vídeo',
         caption: '',
         name: 'Vídeo',
+        placement: 'gallery',
       };
     }
 
@@ -363,6 +380,7 @@ function normalizeVideos(videos?: unknown): ArticleVideo[] {
         name: candidate.name ?? 'Vídeo',
         type: candidate.type ?? 'external',
         embedUrl: candidate.embedUrl ?? '',
+        placement: candidate.placement ?? 'gallery',
       };
     }
 
@@ -927,4 +945,3 @@ export function useArticles() {
     incrementArticleShares,
   };
 }
-

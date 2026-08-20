@@ -1,12 +1,69 @@
 interface ArticleBodyContentProps {
   content: string;
   className?: string;
+  images?: Array<{ id?: string; url: string }>;
+  videos?: Array<{ id?: string; url: string }>;
 }
 
-export default function ArticleBodyContent({ content, className = '' }: ArticleBodyContentProps) {
+export function resolveInlineMediaContent(
+  content: string,
+  images: Array<{ id?: string; url: string }>,
+  videos: Array<{ id?: string; url: string }>
+) {
+  let resolvedContent = content;
+
+  resolvedContent = resolvedContent.replace(/\(IMAGEM:(media:\/\/image\/[^)|]+)(?:\|([^)]*))?\)/gi, (_match, sourceToken: string, caption?: string) => {
+    const resolvedImage = images.find((image) => image.id && sourceToken.endsWith(image.id));
+    if (!resolvedImage) {
+      return '';
+    }
+
+    const normalizedCaption = typeof caption === 'string' ? caption.trim() : '';
+    const captionHtml = normalizedCaption ? `<figcaption>${normalizedCaption}</figcaption>` : '';
+    return `<figure class="article-media article-media--compact"><img src="${resolvedImage.url}" alt="${normalizedCaption || 'Imagem da matéria'}" />${captionHtml}</figure>`;
+  });
+
+  resolvedContent = resolvedContent.replace(/\(VIDEO:(media:\/\/video\/[^)|]+)(?:\|([^)]*))?\)/gi, (_match, sourceToken: string, caption?: string) => {
+    const resolvedVideo = videos.find((video) => video.id && sourceToken.endsWith(video.id));
+    if (!resolvedVideo) {
+      return '';
+    }
+
+    const normalizedCaption = typeof caption === 'string' ? caption.trim() : '';
+    const captionHtml = normalizedCaption ? `<figcaption>${normalizedCaption}</figcaption>` : '';
+    return `<figure class="article-media article-media--compact"><video controls><source src="${resolvedVideo.url}" /></video>${captionHtml}</figure>`;
+  });
+
+  images.forEach((image) => {
+    if (!image.id) {
+      return;
+    }
+
+    resolvedContent = resolvedContent.split(`media://image/${image.id}`).join(image.url);
+  });
+
+  videos.forEach((video) => {
+    if (!video.id) {
+      return;
+    }
+
+    resolvedContent = resolvedContent.split(`media://video/${video.id}`).join(video.url);
+  });
+
+  return resolvedContent;
+}
+
+export default function ArticleBodyContent({
+  content,
+  className = '',
+  images = [],
+  videos = [],
+}: ArticleBodyContentProps) {
+  const resolvedContent = resolveInlineMediaContent(content || '<p>Texto em construção.</p>', images, videos);
+
   return (
     <>
-      <div className={`article-rich-content ${className}`.trim()} dangerouslySetInnerHTML={{ __html: content || '<p>Texto em construção.</p>' }} />
+      <div className={`article-rich-content ${className}`.trim()} dangerouslySetInnerHTML={{ __html: resolvedContent }} />
       <style jsx global>{`
         .article-rich-content {
           color: #111827;
@@ -16,6 +73,7 @@ export default function ArticleBodyContent({ content, className = '' }: ArticleB
         }
 
         .article-rich-content p,
+        .article-rich-content div,
         .article-rich-content ul,
         .article-rich-content ol,
         .article-rich-content blockquote,
@@ -82,7 +140,17 @@ export default function ArticleBodyContent({ content, className = '' }: ArticleB
           border-radius: 0.35rem;
         }
 
-        .article-rich-content img,
+        .article-rich-content img {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          height: auto;
+          border-radius: 1rem;
+          margin: 1.5rem auto;
+          object-fit: contain;
+          box-shadow: 0 10px 30px rgba(17, 17, 17, 0.08);
+        }
+
         .article-rich-content video,
         .article-rich-content iframe {
           display: block;
@@ -103,7 +171,11 @@ export default function ArticleBodyContent({ content, className = '' }: ArticleB
           margin: 1.5rem auto;
         }
 
-        .article-rich-content .article-media--compact img,
+        .article-rich-content .article-media--compact img {
+          max-height: none;
+          object-fit: contain;
+        }
+
         .article-rich-content .article-media--compact video,
         .article-rich-content .article-media--compact iframe {
           max-height: 420px;

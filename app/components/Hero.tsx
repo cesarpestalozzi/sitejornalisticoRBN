@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Article, NewsCard } from '@/app/types';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { formatDate } from '@/app/utils/dateUtils';
@@ -72,7 +73,15 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
          <div className="lg:col-span-2">
            <Link href={`/artigo/${article.id}`}>
              <div className="group cursor-pointer overflow-hidden rounded-xl">
-               <img src={article.image} alt={article.title} className="h-64 w-full object-cover object-top transition duration-300 group-hover:scale-105 sm:h-80 md:h-96" />
+               <Image 
+                 src={article.image} 
+                 alt={article.title} 
+                 width={1200}
+                 height={400}
+                 className="block h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
+                 priority
+                 loading="eager"
+               />
              </div>
            </Link>
 
@@ -115,7 +124,14 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
                <Link key={secondaryArticle.id} href={`/artigo/${secondaryArticle.id}`} className="group block border-b border-gray-200 pb-4 last:border-0 sm:pb-6">
                  <div className="flex gap-3">
                    <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded bg-gray-200 sm:h-20 sm:w-28">
-                     <img src={secondaryArticle.image} alt={secondaryArticle.title} className="h-full w-full object-cover object-top" />
+                     <Image 
+                       src={secondaryArticle.image} 
+                       alt={secondaryArticle.title} 
+                       width={112}
+                       height={80}
+                       className="block h-full w-full object-cover object-center"
+                       loading="lazy"
+                     />
                    </div>
                    <div className="min-w-0 flex-1">
                      <span className="text-[10px] font-semibold uppercase text-[#991B1B] sm:text-xs">{getCategoryDisplayName(secondaryArticle.category)}</span>

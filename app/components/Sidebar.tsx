@@ -70,7 +70,11 @@ export default function Sidebar() {
 
   return (
     <aside className="w-full max-w-[320px] space-y-6 lg:ml-auto">
-      {showWeatherOnHomepage && <WeatherWidget />}
+      {showWeatherOnHomepage && (
+        <div className="hidden lg:block">
+          <WeatherWidget />
+        </div>
+      )}
 
       {showAdsOnHomepage && visibleAds.length > 0 && (
         <div className="space-y-4">

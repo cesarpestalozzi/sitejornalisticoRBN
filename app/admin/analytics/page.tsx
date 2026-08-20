@@ -6,6 +6,7 @@ import { TrendingUp, Eye, Share2, MessageCircle, RotateCcw, Users, Download, typ
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useAdvertisements } from '@/app/hooks/useAdvertisements';
 import { useArticles } from '@/app/hooks/useArticles';
+import { useComments } from '@/app/hooks/useComments';
 
 const COLORS = ['#991B1B', '#FF6B6B', '#FFA07A', '#FFB6C1', '#DEB887'];
 
@@ -29,6 +30,20 @@ type SignupUser = {
   createdAt: string;
 };
 
+type AnalyticsRangeKey = 'today' | 'yesterday' | 'last3' | 'last7' | 'previousWeek' | 'last30' | 'last60' | 'last90' | 'all';
+
+const analyticsRangeOptions: Array<{ value: AnalyticsRangeKey; label: string }> = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
+  { value: 'last3', label: 'Últimos 3 dias' },
+  { value: 'last7', label: 'Últimos 7 dias' },
+  { value: 'previousWeek', label: 'Semana passada' },
+  { value: 'last30', label: 'Últimos 30 dias' },
+  { value: 'last60', label: 'Últimos 60 dias' },
+  { value: 'last90', label: 'Últimos 90 dias' },
+  { value: 'all', label: 'Total geral' },
+];
+
 function renderPieLabel({ name, percent }: { name?: string; percent?: number }) {
   return `${name ?? 'Categoria'} ${((percent || 0) * 100).toFixed(0)}%`;
 }
@@ -39,11 +54,133 @@ function formatDay(date: Date) {
   return `${day}/${month}`;
 }
 
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
 export default function AnalyticsPage() {
   const { articles, updateArticle, isLoaded: isArticlesLoaded } = useArticles();
   const { ads, updateAdvertisement, isLoaded: isAdsLoaded } = useAdvertisements();
-  const [signupWindow, setSignupWindow] = useState<number>(7);
+  const { allComments, isLoaded: isCommentsLoaded } = useComments();
+  const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRangeKey>('last7');
   const [signupUsers, setSignupUsers] = useState<SignupUser[]>([]);
+
+  const getRangeDates = (range: AnalyticsRangeKey) => {
+    const today = startOfDay(new Date());
+
+    switch (range) {
+      case 'today':
+        return { start: startOfDay(today), end: endOfDay(today) };
+      case 'yesterday': {
+        const start = startOfDay(today);
+        start.setDate(start.getDate() - 1);
+        return { start, end: endOfDay(start) };
+      }
+      case 'last3': {
+        const start = startOfDay(today);
+        start.setDate(start.getDate() - 2);
+        return { start, end: endOfDay(today) };
+      }
+      case 'last7': {
+        const start = startOfDay(today);
+        start.setDate(start.getDate() - 6);
+        return { start, end: endOfDay(today) };
+      }
+      case 'previousWeek': {
+        const end = startOfDay(today);
+        end.setDate(end.getDate() - 1);
+        const start = startOfDay(end);
+        start.setDate(start.getDate() - 6);
+        return { start, end: endOfDay(end) };
+      }
+      case 'last30': {
+        const start = startOfDay(today);
+        start.setDate(start.getDate() - 29);
+        return { start, end: endOfDay(today) };
+      }
+      case 'last60': {
+        const start = startOfDay(today);
+        start.setDate(start.getDate() - 59);
+        return { start, end: endOfDay(today) };
+      }
+      case 'last90': {
+        const start = startOfDay(today);
+        start.setDate(start.getDate() - 89);
+        return { start, end: endOfDay(today) };
+      }
+      case 'all':
+      default:
+        return null;
+    }
+  };
+
+  const getPreviousRangeDates = (range: AnalyticsRangeKey) => {
+    const currentRange = getRangeDates(range);
+    if (!currentRange) {
+      return null;
+    }
+
+    const currentStart = startOfDay(currentRange.start);
+    const currentEnd = endOfDay(currentRange.end);
+    const spanInDays = Math.max(1, Math.round((currentEnd.getTime() - currentStart.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+    const previousEnd = endOfDay(new Date(currentStart.getTime() - 24 * 60 * 60 * 1000));
+    const previousStart = startOfDay(new Date(previousEnd));
+    previousStart.setDate(previousStart.getDate() - (spanInDays - 1));
+
+    return { start: previousStart, end: previousEnd };
+  };
+
+  const isWithinRange = (value: string | Date | undefined, range: { start: Date; end: Date } | null) => {
+    const date = value instanceof Date ? value : value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) {
+      return false;
+    }
+    if (!range) {
+      return true;
+    }
+    return date >= range.start && date <= range.end;
+  };
+
+  const readLocalSignupUsers = () => {
+    if (typeof window === 'undefined') {
+      return [] as SignupUser[];
+    }
+
+    try {
+      const raw = window.localStorage.getItem('rbn_users');
+      if (!raw) {
+        return [] as SignupUser[];
+      }
+
+      const parsed = JSON.parse(raw) as Array<{ id?: string; email?: string; name?: string; createdAt?: string }>;
+      if (!Array.isArray(parsed)) {
+        return [] as SignupUser[];
+      }
+
+      return parsed
+        .filter((user) => typeof user?.email === 'string' && typeof user?.createdAt === 'string')
+        .map((user) => {
+          const email = String(user.email);
+          return {
+            id: String(user.id ?? `${email}-${user.createdAt}`),
+            email,
+            name: String(user.name ?? email.split('@')[0] ?? 'Usuário RBN'),
+            createdAt: String(user.createdAt),
+          };
+        })
+        .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+    } catch {
+      return [] as SignupUser[];
+    }
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -51,22 +188,22 @@ export default function AnalyticsPage() {
     const loadSignups = async () => {
       try {
         const response = await fetch('/api/admin/audience', { method: 'GET', headers: { Accept: 'application/json' } });
-        if (!response.ok) {
-          throw new Error('Não foi possível carregar os cadastros.');
-        }
+        const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; users?: SignupUser[]; error?: string; warning?: string };
 
-        const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; users?: SignupUser[]; error?: string };
         if (!isActive) {
           return;
         }
 
-        setSignupUsers(Array.isArray(payload.users) ? payload.users : []);
+        const remoteUsers = Array.isArray(payload.users) ? payload.users : [];
+        const localUsers = readLocalSignupUsers();
+        const mergedUsers = remoteUsers.length > 0 ? remoteUsers : localUsers;
+        setSignupUsers(mergedUsers);
       } catch (error) {
         if (!isActive) {
           return;
         }
         console.error('Erro ao carregar cadastros:', error);
-        setSignupUsers([]);
+        setSignupUsers(readLocalSignupUsers());
       }
     };
 
@@ -78,23 +215,44 @@ export default function AnalyticsPage() {
   }, []);
 
   const publishedArticles = useMemo(() => articles.filter((article) => article.status === 'publicado'), [articles]);
+  const activeRangeDates = useMemo(() => getRangeDates(analyticsRange), [analyticsRange]);
 
-  const totalViews = useMemo(() => publishedArticles.reduce((sum, article) => sum + (article.views ?? 0), 0), [publishedArticles]);
-  const totalShares = useMemo(() => publishedArticles.reduce((sum, article) => sum + (article.shares ?? 0), 0), [publishedArticles]);
+  const filteredPublishedArticles = useMemo(
+    () =>
+      publishedArticles.filter((article) =>
+        isWithinRange(article.publishedAt ?? article.createdAt, activeRangeDates)
+      ),
+    [publishedArticles, activeRangeDates]
+  );
+
+  const filteredComments = useMemo(
+    () => allComments.filter((comment) => isWithinRange(comment.createdAt, activeRangeDates)),
+    [allComments, activeRangeDates]
+  );
+
+  const totalViews = useMemo(
+    () => filteredPublishedArticles.reduce((sum, article) => sum + (article.views ?? 0), 0),
+    [filteredPublishedArticles]
+  );
+  const totalShares = useMemo(
+    () => filteredPublishedArticles.reduce((sum, article) => sum + (article.shares ?? 0), 0),
+    [filteredPublishedArticles]
+  );
+  const totalComments = filteredComments.length;
 
   const topArticles = useMemo(
     () =>
-      [...publishedArticles]
+      [...filteredPublishedArticles]
         .sort((left, right) => (right.views ?? 0) - (left.views ?? 0))
         .slice(0, 5)
         .map((article) => ({ title: article.title, views: article.views ?? 0 })),
-    [publishedArticles]
+    [filteredPublishedArticles]
   );
 
   const categoryData = useMemo(() => {
     const map = new Map<string, number>();
 
-    publishedArticles.forEach((article) => {
+    filteredPublishedArticles.forEach((article) => {
       const key = article.category || 'Outros';
       map.set(key, (map.get(key) ?? 0) + (article.views ?? 0));
     });
@@ -103,20 +261,25 @@ export default function AnalyticsPage() {
       .map(([name, value]) => ({ name, value }))
       .sort((left, right) => right.value - left.value)
       .slice(0, 5);
-  }, [publishedArticles]);
+  }, [filteredPublishedArticles]);
 
   const viewsData = useMemo(() => {
-    const today = new Date();
+    const sourceDates = filteredPublishedArticles
+      .map((article) => new Date(article.publishedAt ?? article.createdAt))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .sort((left, right) => left.getTime() - right.getTime());
+    const today = startOfDay(new Date());
+    const seriesStart = activeRangeDates ? startOfDay(activeRangeDates.start) : (sourceDates[0] ? startOfDay(sourceDates[0]) : today);
+    const seriesEnd = activeRangeDates ? endOfDay(activeRangeDates.end) : endOfDay(today);
     const buckets = new Map<string, ViewsDataPoint>();
 
-    for (let index = 6; index >= 0; index -= 1) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - index);
+    for (let cursor = new Date(seriesStart); cursor <= seriesEnd; cursor.setDate(cursor.getDate() + 1)) {
+      const date = new Date(cursor);
       const key = formatDay(date);
       buckets.set(key, { dia: key, visualizações: 0, compartilhamentos: 0 });
     }
 
-    publishedArticles.forEach((article) => {
+    filteredPublishedArticles.forEach((article) => {
       const baseDate = article.publishedAt ? new Date(article.publishedAt) : new Date(article.createdAt);
       const key = formatDay(baseDate);
       const bucket = buckets.get(key);
@@ -129,29 +292,22 @@ export default function AnalyticsPage() {
     });
 
     return [...buckets.values()];
-  }, [publishedArticles]);
+  }, [filteredPublishedArticles, activeRangeDates]);
 
   const growth = useMemo(() => {
-    const now = new Date();
-    const nowMs = now.getTime();
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    const currentStart = nowMs - sevenDays;
-    const previousStart = nowMs - sevenDays * 2;
+    if (analyticsRange === 'all') {
+      return '0%';
+    }
 
-    let currentTotal = 0;
-    let previousTotal = 0;
+    const previousRangeDates = getPreviousRangeDates(analyticsRange);
+    if (!previousRangeDates) {
+      return '0%';
+    }
 
-    publishedArticles.forEach((article) => {
-      const date = article.publishedAt ? new Date(article.publishedAt).getTime() : new Date(article.createdAt).getTime();
-      const views = article.views ?? 0;
-      if (date >= currentStart) {
-        currentTotal += views;
-        return;
-      }
-      if (date >= previousStart && date < currentStart) {
-        previousTotal += views;
-      }
-    });
+    const currentTotal = filteredPublishedArticles.reduce((sum, article) => sum + (article.views ?? 0), 0);
+    const previousTotal = publishedArticles
+      .filter((article) => isWithinRange(article.publishedAt ?? article.createdAt, previousRangeDates))
+      .reduce((sum, article) => sum + (article.views ?? 0), 0);
 
     if (previousTotal <= 0) {
       return currentTotal > 0 ? '+100%' : '0%';
@@ -160,18 +316,21 @@ export default function AnalyticsPage() {
     const percent = ((currentTotal - previousTotal) / previousTotal) * 100;
     const rounded = Math.round(percent);
     return `${rounded > 0 ? '+' : ''}${rounded}%`;
-  }, [publishedArticles]);
+  }, [analyticsRange, filteredPublishedArticles, publishedArticles]);
 
   const signupSeries = useMemo(() => {
-    const days = signupWindow === 0 ? 30 : signupWindow;
-    const today = new Date();
+    const rangeDates = activeRangeDates;
+    const signupDates = signupUsers
+      .map((user) => new Date(user.createdAt))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .sort((left, right) => left.getTime() - right.getTime());
+    const today = startOfDay(new Date());
+    const seriesStart = rangeDates ? startOfDay(rangeDates.start) : (signupDates[0] ? startOfDay(signupDates[0]) : today);
+    const seriesEnd = rangeDates ? endOfDay(rangeDates.end) : endOfDay(today);
     const buckets = new Map<string, { dia: string; cadastros: number }>();
 
-    for (let index = days - 1; index >= 0; index -= 1) {
-      const date = new Date(today);
-      date.setHours(0, 0, 0, 0);
-      date.setDate(today.getDate() - index);
-      const key = formatDay(date);
+    for (let cursor = new Date(seriesStart); cursor <= seriesEnd; cursor.setDate(cursor.getDate() + 1)) {
+      const key = formatDay(cursor);
       buckets.set(key, { dia: key, cadastros: 0 });
     }
 
@@ -181,11 +340,7 @@ export default function AnalyticsPage() {
         return;
       }
 
-      const cutoff = new Date(today);
-      cutoff.setHours(0, 0, 0, 0);
-      cutoff.setDate(today.getDate() - (days - 1));
-
-      if (createdAt < cutoff) {
+      if (!isWithinRange(createdAt, rangeDates)) {
         return;
       }
 
@@ -197,36 +352,24 @@ export default function AnalyticsPage() {
     });
 
     return [...buckets.values()];
-  }, [signupUsers, signupWindow]);
+  }, [signupUsers, activeRangeDates]);
 
   const filteredSignupUsers = useMemo(() => {
-    if (signupWindow === 0) {
-      return [...signupUsers].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
-    }
-
-    const rangeMs = signupWindow * 24 * 60 * 60 * 1000;
-    const now = new Date();
-    const nowMs = now.getTime();
-
     return [...signupUsers]
-      .filter((user) => {
-        const createdAt = new Date(user.createdAt).getTime();
-        if (Number.isNaN(createdAt)) {
-          return false;
-        }
-        return nowMs - createdAt <= rangeMs;
-      })
+      .filter((user) => isWithinRange(user.createdAt, activeRangeDates))
       .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
-  }, [signupUsers, signupWindow]);
+  }, [signupUsers, activeRangeDates]);
 
   const signupTotal = filteredSignupUsers.length;
 
+  const analyticsFilterLabel = analyticsRangeOptions.find((item) => item.value === analyticsRange)?.label ?? 'Últimos 7 dias';
+
   const stats: AnalyticsStat[] = [
-    { label: 'Total de Visualizações', value: totalViews.toLocaleString('pt-BR'), icon: Eye, color: 'text-[#2F7EA1]' },
-    { label: 'Total de Compartilhamentos', value: totalShares.toLocaleString('pt-BR'), icon: Share2, color: 'text-green-600' },
-    { label: 'Total de Comentários', value: '0', icon: MessageCircle, color: 'text-purple-600' },
-    { label: `Cadastros (${signupWindow === 0 ? 'total' : `últimos ${signupWindow} dias`})`, value: signupTotal.toLocaleString('pt-BR'), icon: Users, color: 'text-[#991B1B]' },
-    { label: 'Taxa de Crescimento', value: growth, icon: TrendingUp, color: 'text-[#991B1B]' },
+    { label: `Total de Visualizações (${analyticsFilterLabel})`, value: totalViews.toLocaleString('pt-BR'), icon: Eye, color: 'text-[#2F7EA1]' },
+    { label: `Total de Compartilhamentos (${analyticsFilterLabel})`, value: totalShares.toLocaleString('pt-BR'), icon: Share2, color: 'text-green-600' },
+    { label: `Total de Comentários (${analyticsFilterLabel})`, value: totalComments.toLocaleString('pt-BR'), icon: MessageCircle, color: 'text-purple-600' },
+    { label: `Cadastros (${analyticsFilterLabel})`, value: signupTotal.toLocaleString('pt-BR'), icon: Users, color: 'text-[#991B1B]' },
+    { label: `Taxa de Crescimento (${analyticsFilterLabel})`, value: growth, icon: TrendingUp, color: 'text-[#991B1B]' },
   ];
 
   const resetAnalytics = () => {
@@ -242,17 +385,8 @@ export default function AnalyticsPage() {
     });
   };
 
-  const rangeOptions = [
-    { value: 7, label: 'Últimos 7 dias' },
-    { value: 14, label: 'Últimos 14 dias' },
-    { value: 30, label: 'Últimos 30 dias' },
-    { value: 60, label: 'Últimos 60 dias' },
-    { value: 90, label: 'Últimos 90 dias' },
-    { value: 0, label: 'Total geral' },
-  ];
-
   const handleExportAnalyticsCsv = () => {
-    const hasAnalyticsData = publishedArticles.length > 0 || filteredSignupUsers.length > 0;
+    const hasAnalyticsData = filteredPublishedArticles.length > 0 || filteredSignupUsers.length > 0 || filteredComments.length > 0;
     if (!hasAnalyticsData) {
       return;
     }
@@ -261,18 +395,19 @@ export default function AnalyticsPage() {
       ['Métrica', 'Valor'],
       ['Total de visualizações', totalViews],
       ['Total de compartilhamentos', totalShares],
-      ['Artigos publicados', publishedArticles.length],
+      ['Total de comentários', totalComments],
+      ['Artigos publicados no período', filteredPublishedArticles.length],
       ['Cadastros no período', signupTotal],
       ['Cadastros totais', signupUsers.length],
       ['Taxa de crescimento', growth],
-      ['Filtro de cadastros', signupWindow === 0 ? 'Total geral' : `Últimos ${signupWindow} dias`],
+      ['Filtro aplicado', analyticsFilterLabel],
     ];
 
     const articleRows = [
       [],
       ['Matérias mais acessadas'],
       ['Título', 'Categoria', 'Autor', 'Status', 'Visualizações', 'Compartilhamentos', 'Data de publicação'],
-      ...[...publishedArticles]
+      ...[...filteredPublishedArticles]
         .sort((left, right) => (right.views ?? 0) - (left.views ?? 0))
         .map((article) => [
           article.title,
@@ -299,7 +434,22 @@ export default function AnalyticsPage() {
       ...filteredSignupUsers.map((user) => [user.name, user.email, new Date(user.createdAt).toLocaleString('pt-BR')]),
     ];
 
-    const csvRows = [...summaryRows, ...articleRows, ...categoryRows, ...signupRows].map((row) =>
+    const commentRows = [
+      [],
+      ['Comentários'],
+      ['Autor', 'Matéria', 'Comentário', 'Data'],
+      ...filteredComments.map((comment) => {
+        const article = articles.find((item) => item.id === comment.articleId);
+        return [
+          comment.author,
+          article?.title ?? 'Matéria não encontrada',
+          comment.text,
+          new Date(comment.createdAt).toLocaleString('pt-BR'),
+        ];
+      }),
+    ];
+
+    const csvRows = [...summaryRows, ...articleRows, ...categoryRows, ...signupRows, ...commentRows].map((row) =>
       row
         .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
         .join(',')
@@ -310,14 +460,14 @@ export default function AnalyticsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `analytics-rbn-${signupWindow === 0 ? 'geral' : `${signupWindow}-dias`}.csv`);
+    link.setAttribute('download', `analytics-rbn-${analyticsRange}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 
-  if (!isArticlesLoaded || !isAdsLoaded) {
+  if (!isArticlesLoaded || !isAdsLoaded || !isCommentsLoaded) {
     return <div className="p-6 text-sm text-gray-600">Carregando métricas...</div>;
   }
 
@@ -332,14 +482,35 @@ export default function AnalyticsPage() {
               <p className="text-gray-600 text-sm mt-1">Acompanhe o desempenho real de matérias, cadastros e publicidades</p>
             </div>
             <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-              <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
-                <span>Filtrar cadastros</span>
-                <select value={signupWindow} onChange={(event) => setSignupWindow(Number(event.target.value))} className="rounded border border-gray-300 bg-white px-2 py-1 text-sm font-medium text-gray-900 focus:border-[#991B1B] focus:outline-none">
-                  {rangeOptions.map((option) => (
-                    <option key={option.label} value={option.value}>{option.label}</option>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="text-sm font-medium text-gray-700" htmlFor="analytics-range">
+                  Filtrar
+                </label>
+                <select
+                  id="analytics-range"
+                  value={analyticsRange}
+                  onChange={(event) => setAnalyticsRange(event.target.value as AnalyticsRangeKey)}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                >
+                  {analyticsRangeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
                 </select>
-              </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-2">
+                {analyticsRangeOptions.map((option) => (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => setAnalyticsRange(option.value)}
+                    className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${analyticsRange === option.value ? 'bg-[#991B1B] text-white shadow-sm' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <button type="button" onClick={resetAnalytics} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100">
                 <RotateCcw className="h-4 w-4" />
                 Zerar Analytics
@@ -368,7 +539,7 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Visualizações vs Compartilhamentos</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Visualizações vs Compartilhamentos ({analyticsFilterLabel})</h2>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={viewsData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -383,7 +554,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Visualizações por Categoria</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Visualizações por Categoria ({analyticsFilterLabel})</h2>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie data={categoryData} cx="50%" cy="50%" labelLine={false} label={renderPieLabel} outerRadius={80} fill="#8884d8" dataKey="value">
@@ -399,7 +570,7 @@ export default function AnalyticsPage() {
 
           <div className="mb-8 bg-white rounded-lg shadow p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
-              <h2 className="text-lg font-bold text-gray-900">Cadastros por dia</h2>
+              <h2 className="text-lg font-bold text-gray-900">Cadastros por dia ({analyticsFilterLabel})</h2>
               <span className="rounded-full bg-[#991B1B]/10 px-3 py-1 text-xs font-semibold text-[#991B1B]">
                 {signupTotal.toLocaleString('pt-BR')} no período
               </span>
@@ -421,7 +592,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-lg font-bold text-gray-900">Cadastros recentes</h2>
                 <p className="text-sm text-gray-500">{filteredSignupUsers.length} nomes no período</p>
               </div>
-              {(filteredSignupUsers.length > 0 || publishedArticles.length > 0) && (
+              {(filteredSignupUsers.length > 0 || filteredPublishedArticles.length > 0 || filteredComments.length > 0) && (
                 <button type="button" onClick={handleExportAnalyticsCsv} className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
                   <Download className="h-4 w-4" />
                   Exportar dados completos
@@ -446,7 +617,7 @@ export default function AnalyticsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Top 5 Artigos</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Top 5 Artigos ({analyticsFilterLabel})</h2>
               <div className="space-y-3">
                 {topArticles.map((article, index) => (
                   <div key={`${article.title}-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">

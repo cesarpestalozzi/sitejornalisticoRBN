@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -22,7 +25,10 @@ export async function GET() {
   const adminClient = getAdminClient();
 
   if (!adminClient) {
-    return NextResponse.json({ error: 'Supabase service role not configured.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Supabase service role not configured.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   }
 
   const { data, error } = await adminClient
@@ -31,17 +37,26 @@ export async function GET() {
     .order('updated_at', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   }
 
-  return NextResponse.json(data ?? [], { status: 200 });
+  return NextResponse.json(data ?? [], {
+    status: 200,
+    headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+  });
 }
 
 export async function POST(request: NextRequest) {
   const adminClient = getAdminClient();
 
   if (!adminClient) {
-    return NextResponse.json({ error: 'Supabase service role not configured.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Supabase service role not configured.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   }
 
   try {
@@ -50,7 +65,10 @@ export async function POST(request: NextRequest) {
     const deleted = Boolean(body?.deleted);
 
     if (!article || !article.id) {
-      return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Payload inválido.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
     }
 
     const { error } = await adminClient.from('pz_news_articles').upsert(
@@ -66,13 +84,19 @@ export async function POST(request: NextRequest) {
     );
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    return NextResponse.json({ ok: true }, { status: 200, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro ao salvar artigo.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   }
 }
 
@@ -80,7 +104,10 @@ export async function DELETE(request: NextRequest) {
   const adminClient = getAdminClient();
 
   if (!adminClient) {
-    return NextResponse.json({ error: 'Supabase service role not configured.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Supabase service role not configured.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   }
 
   const { searchParams } = new URL(request.url);
@@ -91,23 +118,35 @@ export async function DELETE(request: NextRequest) {
     if (trash) {
       const { error } = await adminClient.from('pz_news_articles').delete().eq('deleted', true);
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json(
+          { error: error.message },
+          { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+        );
       }
-      return NextResponse.json({ ok: true }, { status: 200 });
+      return NextResponse.json({ ok: true }, { status: 200, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } });
     }
 
     if (!id) {
-      return NextResponse.json({ error: 'ID obrigatório.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'ID obrigatório.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
     }
 
     const { error } = await adminClient.from('pz_news_articles').delete().eq('id', id);
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
     }
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    return NextResponse.json({ ok: true }, { status: 200, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erro ao remover artigo.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   }
 }
