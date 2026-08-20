@@ -3,14 +3,12 @@
 import { useMemo } from 'react';
 import Hero from './Hero';
 import NewsGrid from './NewsGrid';
-import Podcasts from './Podcasts';
 import Sidebar from './Sidebar';
-import { usePodcasts } from '@/app/hooks/usePodcasts';
 import { defaultSettings } from '@/app/lib/settings';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import type { Article, NewsCard } from '@/app/types';
 import { useSettingsContext } from '@/app/contexts/SettingsContext';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 interface HomeArticle {
   id: string;
@@ -70,12 +68,12 @@ function toNewsCard(article: HomeArticle): NewsCard {
 export default function HomeClient({ initialArticles }: { initialArticles: HomeArticle[] }) {
   const [articles, setArticles] = useState<HomeArticle[]>(initialArticles);
   const [isLoaded, setIsLoaded] = useState(true);
-  const { publishedEpisodes, isLoaded: podcastsLoaded } = usePodcasts();
   const { settings: contextSettings } = useSettingsContext();
   const settings = contextSettings ?? defaultSettings;
   const showAdsOnHomepage = settings.content.showAdsOnHomepage;
   const showWeatherOnHomepage = settings.content.showWeatherOnHomepage;
-  const showPodcastsOnHomepage = podcastsLoaded && settings.content.showPodcastsOnHomepage && publishedEpisodes.length > 0;
+  // Desabilita podcasts na homepage inicial para melhorar performance
+  const showPodcastsOnHomepage = false;
   const showSidebar = showAdsOnHomepage || showWeatherOnHomepage;
   const contentGridClass = showSidebar ? 'lg:grid-cols-3' : 'lg:grid-cols-1';
   const contentColumnClass = showSidebar ? 'lg:col-span-2' : 'lg:col-span-1';
@@ -132,19 +130,8 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
   }, [publishedArticles]);
 
   const homePodcasts = useMemo(
-    () =>
-      publishedEpisodes.map((episode) => ({
-        id: episode.id,
-        title: episode.title,
-        episode: episode.episode,
-        season: 1,
-        description: episode.description,
-        audioUrl: episode.audioUrl,
-        thumbnail: episode.image || 'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&h=630&fit=crop',
-        date: new Date(episode.updatedAt || episode.createdAt),
-        duration: episode.duration || 25,
-      })),
-    [publishedEpisodes]
+    () => [],
+    []
   );
 
   return (
@@ -199,7 +186,7 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
         </div>
       </div>
 
-      {showPodcastsOnHomepage && <Podcasts podcasts={homePodcasts} />}
+      {showPodcastsOnHomepage && null}
     </>
   );
 }
