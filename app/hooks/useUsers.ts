@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { AdminRole, ROLE_LEVELS, getCurrentAdminUser, getDefaultPermissionsForRole } from '@/app/lib/adminPermissions';
 
 export type UserRole = AdminRole;
@@ -57,9 +57,6 @@ export interface User {
 }
 
 const USERS_KEY = 'pz_news_users';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SUPABASE_TABLE = 'pz_news_users';
 
 type SupabaseUserRow = {
   id: string;
@@ -67,28 +64,28 @@ type SupabaseUserRow = {
   updated_at?: string;
 };
 
-function hasSupabaseConfig() {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-}
-
-function getSupabaseEndpoint(query = '') {
-  return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}${query}`;
-}
-
-function getSupabaseHeaders() {
-  const headers: Record<string, string> = {
-    apikey: SUPABASE_ANON_KEY as string,
-    'Content-Type': 'application/json',
-  };
-
-  const key = SUPABASE_ANON_KEY as string;
-  if (key.startsWith('eyJ')) {
-    headers.Authorization = `Bearer ${key}`;
+async function readRemoteUsersViaApi(): Promise<SupabaseUserRow[] | null> {
+  try {
+    const response = await fetch('/api/admin/users', { method: 'GET' });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.ok ? (data.rows as SupabaseUserRow[]) : null;
+  } catch {
+    return null;
   }
-
-  return headers;
 }
 
+async function upsertRemoteUserViaApi(user: User): Promise<void> {
+  await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: user.id, payload: user }),
+  });
+}
+
+async function deleteRemoteUserByIdViaApi(id: string): Promise<void> {
+  await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
 function svgToBase64DataUrl(svg: string) {
   const bytes = new TextEncoder().encode(svg);
   let binary = '';
@@ -315,68 +312,24 @@ function readLocalUsers() {
 }
 
 async function readRemoteUsers() {
-  if (!hasSupabaseConfig()) {
-    return null;
-  }
-
-  const response = await fetch(getSupabaseEndpoint('?select=id,payload,updated_at&order=updated_at.desc'), {
-    method: 'GET',
-    headers: getSupabaseHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Erro ao ler usuários remotos: ${response.status}`);
-  }
-
-  const rows = (await response.json()) as SupabaseUserRow[];
+  const rows = await readRemoteUsersViaApi();
+  if (!rows) return null;
   const parsedUsers = rows
     .filter((row) => row && row.payload)
     .map((row) => normalizeUserRecord({ ...row.payload, id: row.id }));
-
   return ensureOfficialAdminUser(parsedUsers).map(normalizeUserRecord);
 }
 
 async function upsertRemoteUser(user: User) {
-  if (!hasSupabaseConfig()) {
-    return;
-  }
-
-  const response = await fetch(getSupabaseEndpoint('?on_conflict=id'), {
-    method: 'POST',
-    headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'resolution=merge-duplicates,return=minimal',
-    },
-    body: JSON.stringify([
-      {
-        id: user.id,
-        payload: user,
-        updated_at: new Date().toISOString(),
-      },
-    ]),
+  await upsertRemoteUserViaApi(user).catch((error) => {
+    console.error('Erro ao salvar usuario remoto:', error);
   });
-
-  if (!response.ok) {
-    throw new Error(`Erro ao salvar usuário remoto: ${response.status}`);
-  }
 }
 
 async function deleteRemoteUserById(id: string) {
-  if (!hasSupabaseConfig()) {
-    return;
-  }
-
-  const response = await fetch(getSupabaseEndpoint(`?id=eq.${encodeURIComponent(id)}`), {
-    method: 'DELETE',
-    headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'return=minimal',
-    },
+  await deleteRemoteUserByIdViaApi(id).catch((error) => {
+    console.error('Erro ao excluir usuario remoto:', error);
   });
-
-  if (!response.ok) {
-    throw new Error(`Erro ao excluir usuário remoto: ${response.status}`);
-  }
 }
 
 function syncCurrentAdminSession(nextUser: User) {
