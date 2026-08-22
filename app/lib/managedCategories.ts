@@ -33,6 +33,7 @@ export const defaultManagedCategories: ManagedCategory[] = [
   { id: 20, name: 'Famosos', slug: 'famosos', color: '#DB2777', articles: 0 },
   { id: 21, name: 'Turismo', slug: 'turismo', color: '#0F766E', articles: 0 },
   { id: 22, name: 'Gastronomia', slug: 'gastronomia', color: '#B45309', articles: 0 },
+  { id: 23, name: 'Clima e Tempo', slug: 'clima-e-tempo', color: '#16A34A', articles: 0 },
 ];
 
 function normalizeManagedCategory(raw: unknown, index: number): ManagedCategory | null {

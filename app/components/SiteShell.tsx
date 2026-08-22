@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Header from './Header';
 import Footer from './Footer';
+import PwaInstallPrompt from './PwaInstallPrompt';
 import { useSettings } from '@/app/lib/settings';
 
 const COOKIE_KEY = 'pz_news_cookie_consent';
@@ -86,6 +87,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
       {!isAdminRoute && <Header />}
       <main className="flex-1">{children}</main>
       {!isAdminRoute && <Footer />}
+      {!isAdminRoute && <PwaInstallPrompt />}
 
       {!isAdminRoute && cookieConsent === null && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[#d9d2c4] bg-[#111111] px-4 py-4 shadow-[0_-12px_30px_rgba(17,17,17,0.2)] text-white">

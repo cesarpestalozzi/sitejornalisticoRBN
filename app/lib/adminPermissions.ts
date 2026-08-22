@@ -33,6 +33,8 @@ export interface AdminSessionUser {
   avatar?: string;
   login?: string;
   permissions?: string[];
+  mustChangePassword?: boolean;
+  onboardingStatus?: 'invite-sent' | 'first-access-pending' | 'password-changed' | 'active';
 }
 
 const ADMIN_USER_KEY = 'adminUser';
@@ -169,6 +171,14 @@ export function getCurrentAdminUser(): AdminSessionUser | null {
       avatar: typeof parsed.avatar === 'string' ? parsed.avatar : undefined,
       login: typeof parsed.login === 'string' ? parsed.login : undefined,
       permissions: normalizePermissions(role, parsed.permissions),
+      mustChangePassword: Boolean(parsed.mustChangePassword),
+      onboardingStatus:
+        parsed.onboardingStatus === 'invite-sent' ||
+        parsed.onboardingStatus === 'first-access-pending' ||
+        parsed.onboardingStatus === 'password-changed' ||
+        parsed.onboardingStatus === 'active'
+          ? parsed.onboardingStatus
+          : 'active',
     };
   } catch {
     return null;
@@ -229,6 +239,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return true;
   }
 
+  if (user.mustChangePassword) {
+    return pathname === '/admin/alterar-senha' || pathname === '/admin/login';
+  }
+
   if (pathname === '/admin' || pathname === '/admin/') {
     return hasPermission(user, 'dashboard:view');
   }
@@ -283,6 +297,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
 
   if (pathname.startsWith('/admin/configuracoes')) {
     return hasPermission(user, 'settings:manage');
+  }
+
+  if (pathname.startsWith('/admin/alterar-senha')) {
+    return true;
   }
 
   return hasPermission(user, 'dashboard:view');

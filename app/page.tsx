@@ -1,8 +1,9 @@
-// ISR (Incremental Static Regeneration) - regenera a cada 5 minutos
-export const revalidate = 300;
+// ISR (Incremental Static Regeneration) - atualiza com mais frequência para refletir publicações.
+export const revalidate = 60;
 
 import HomeClientOptimized from './components/HomeClientOptimized';
 import { createClient } from '@supabase/supabase-js';
+import { isScheduledArticleDue, promoteScheduledArticle } from '@/app/lib/articlePublishing';
 
 interface HomeArticle {
   id: string;
@@ -45,8 +46,27 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
       return [];
     }
 
+    const now = Date.now();
+    const nowIso = new Date().toISOString();
+    const scheduledRows = data.filter((row: any) => isScheduledArticleDue(row?.payload, now));
+
+    if (scheduledRows.length > 0) {
+      const updates = scheduledRows.map((row: any) => ({
+        id: row.id,
+        payload: promoteScheduledArticle(row.payload, nowIso),
+        deleted: false,
+        updated_at: nowIso,
+      }));
+
+      const { error: publishError } = await supabase.from('pz_news_articles').upsert(updates, { onConflict: 'id' });
+      if (publishError) {
+        console.error('Erro ao publicar artigos agendados da homepage:', publishError);
+      }
+    }
+
     // Extrai apenas campos necessários e filtra artigos publicados
     const articles = data
+      .map((row: any) => (isScheduledArticleDue(row?.payload, now) ? { ...row, payload: promoteScheduledArticle(row.payload, nowIso) } : row))
       .filter((row: any) => row.payload?.status === 'publicado')
       .map((row: any) => {
         const payload = row.payload;

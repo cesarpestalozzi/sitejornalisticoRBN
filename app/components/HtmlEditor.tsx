@@ -146,16 +146,29 @@ function normalizeEditorHtml(content: string) {
 }
 
 const editorFontOptions = [
-  { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
-  { label: 'Calibri', value: 'Calibri, Arial, sans-serif' },
-  { label: 'Cambria', value: 'Cambria, Georgia, serif' },
-  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
-  { label: 'Garamond', value: 'Garamond, Georgia, serif' },
-  { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
-  { label: 'Verdana', value: 'Verdana, Geneva, sans-serif' },
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Calibri', value: 'Calibri' },
+  { label: 'Cambria', value: 'Cambria' },
+  { label: 'Georgia', value: 'Georgia' },
+  { label: 'Garamond', value: 'Garamond' },
+  { label: 'Times New Roman', value: 'Times New Roman' },
+  { label: 'Verdana', value: 'Verdana' },
 ];
 
 const editorFontSizes = ['12', '14', '16', '18', '20', '22', '24', '28', '32', '36', '48'];
+const editorFontSizeMap: Record<string, number> = {
+  '12': 1,
+  '14': 2,
+  '16': 3,
+  '18': 4,
+  '20': 5,
+  '22': 6,
+  '24': 7,
+  '28': 7,
+  '32': 7,
+  '36': 7,
+  '48': 7,
+};
 
 export default function HtmlEditor({
   value,
@@ -361,10 +374,20 @@ export default function HtmlEditor({
   };
 
   const applyFontFamily = () => {
+    if (typeof document !== 'undefined' && document.queryCommandSupported?.('fontName')) {
+      runEditorCommand('fontName', selectedFontFamily);
+      return;
+    }
+
     applyInlineStyle({ 'font-family': selectedFontFamily }, 'Texto');
   };
 
   const applyFontSize = () => {
+    if (typeof document !== 'undefined' && document.queryCommandSupported?.('fontSize')) {
+      runEditorCommand('fontSize', String(editorFontSizeMap[selectedFontSize] ?? 3));
+      return;
+    }
+
     applyInlineStyle({ 'font-size': `${selectedFontSize}px`, 'line-height': '1.8' }, 'Texto');
   };
 

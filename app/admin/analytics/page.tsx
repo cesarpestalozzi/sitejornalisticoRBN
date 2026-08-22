@@ -155,7 +155,7 @@ export default function AnalyticsPage() {
     }
 
     try {
-      const raw = window.localStorage.getItem('rbn_users');
+      const raw = window.localStorage.getItem('pz_news_users');
       if (!raw) {
         return [] as SignupUser[];
       }

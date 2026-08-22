@@ -4,7 +4,7 @@ import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLe
 import { useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { ToastContainer, useToast } from '@/app/components/Toast';
-import { useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
+import { generateTemporaryPassword, useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
 
 const MAX_PASSWORD_LENGTH = 8;
 
@@ -16,6 +16,20 @@ const roleConfig: Record<UserRole, { label: string; ribbon: string; text: string
   colaborador: { label: 'Colaborador', ribbon: 'from-[#F59E0B] to-[#D97706]', text: 'text-[#92400E]' },
   estagiario: { label: 'Estagiário', ribbon: 'from-[#6B7280] to-[#4B5563]', text: 'text-[#374151]' },
 };
+
+function getOnboardingLabel(status?: User['onboardingStatus']) {
+  switch (status) {
+    case 'invite-sent':
+      return 'Convite enviado';
+    case 'first-access-pending':
+      return 'Primeiro acesso pendente';
+    case 'password-changed':
+      return 'Senha alterada';
+    case 'active':
+    default:
+      return 'Usuário ativo';
+  }
+}
 
 const brazilianStates = [
   'Acre - AC',
@@ -50,6 +64,7 @@ const brazilianStates = [
 const initialFormData = {
   name: '',
   email: '',
+  phone: '',
   cpf: '',
   login: '',
   passwordHash: '',
@@ -62,6 +77,8 @@ const initialFormData = {
   articlesCount: 0,
   specialization: '',
   location: '',
+  passwordChangeRequired: false,
+  onboardingStatus: 'active' as User['onboardingStatus'],
 };
 
 function hashPassword(value: string) {
@@ -275,6 +292,7 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState(initialFormData);
   const [passwordInput, setPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [avatarPreview, setAvatarPreview] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [changingPasswordUser, setChangingPasswordUser] = useState<User | null>(null);
@@ -295,6 +313,7 @@ export default function UsersPage() {
     setEditingId(null);
     setFormData(initialFormData);
     setPasswordInput('');
+    setConfirmPasswordInput('');
     setAvatarPreview('');
     setErrors({});
     setShowForm(true);
@@ -305,6 +324,7 @@ export default function UsersPage() {
     setFormData({
       name: user.name,
       email: user.email,
+      phone: user.phone ?? '',
       cpf: user.cpf,
       login: user.login,
       passwordHash: user.passwordHash,
@@ -317,8 +337,11 @@ export default function UsersPage() {
       articlesCount: user.articlesCount,
       specialization: user.specialization ?? '',
       location: user.location ?? '',
+      passwordChangeRequired: user.passwordChangeRequired ?? false,
+      onboardingStatus: user.onboardingStatus ?? 'active',
     });
     setPasswordInput('');
+    setConfirmPasswordInput('');
     setAvatarPreview(user.avatar);
     setErrors({});
     setShowForm(true);
@@ -349,8 +372,20 @@ export default function UsersPage() {
       nextErrors.bio = 'Descreva a função ou especialidade do usuário.';
     }
 
-    if (passwordInput.trim() && passwordInput.trim().length > MAX_PASSWORD_LENGTH) {
+    if (editingId && passwordInput.trim() && passwordInput.trim().length > MAX_PASSWORD_LENGTH) {
       nextErrors.password = `A senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres.`;
+    }
+
+    if (editingId && confirmPasswordInput.trim() && !passwordInput.trim()) {
+      nextErrors.confirmPassword = 'Informe a senha antes de confirmar.';
+    }
+
+    if (editingId && passwordInput.trim() && !confirmPasswordInput.trim()) {
+      nextErrors.confirmPassword = 'Confirme a nova senha.';
+    }
+
+    if (editingId && passwordInput.trim() && confirmPasswordInput.trim() && passwordInput.trim() !== confirmPasswordInput.trim()) {
+      nextErrors.confirmPassword = 'As senhas não coincidem.';
     }
 
     setErrors(nextErrors);
@@ -375,25 +410,52 @@ export default function UsersPage() {
       return;
     }
 
-    const nextPasswordHash = passwordInput.trim()
-      ? hashPassword(passwordInput.trim())
-      : editingId
-        ? formData.passwordHash
-        : hashPassword('12345678');
-
     const payload = {
       ...formData,
+      phone: '',
       avatar: avatarPreview || formData.avatar,
-      passwordHash: nextPasswordHash,
     };
 
     try {
       if (editingId) {
-        updateUser(editingId, payload);
+        const nextPasswordHash = passwordInput.trim() ? hashPassword(passwordInput.trim()) : formData.passwordHash;
+        updateUser(editingId, {
+          ...payload,
+          passwordHash: nextPasswordHash,
+          passwordChangeRequired: passwordInput.trim() ? false : formData.passwordChangeRequired,
+          onboardingStatus: passwordInput.trim() ? 'password-changed' : formData.onboardingStatus,
+        });
         addToast('Usuário atualizado com sucesso.', 'success', 2500);
       } else {
-        addUser(payload);
-        addToast('Usuário criado com sucesso.', 'success', 2500);
+        const temporaryPassword = generateTemporaryPassword(10);
+        const onboardingPayload = {
+          ...payload,
+          passwordHash: hashPassword(temporaryPassword),
+          passwordChangeRequired: true,
+          onboardingStatus: 'invite-sent' as const,
+        };
+
+        addUser(onboardingPayload);
+        void fetch('/api/welcome-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: onboardingPayload.email,
+            name: onboardingPayload.name,
+            login: onboardingPayload.login,
+            temporaryPassword,
+            accessUrl: `${window.location.origin}/admin/login`,
+          }),
+        }).then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || 'Não foi possível enviar o e-mail de boas-vindas.');
+          }
+        }).catch((error) => {
+          addToast(error instanceof Error ? error.message : 'Usuário criado, mas o e-mail de boas-vindas não foi enviado.', 'warning', 4000);
+        });
+
+        addToast('Usuário criado com sucesso. O acesso foi enviado por e-mail.', 'success', 3000);
       }
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Sem permissão para salvar este usuário.', 'error', 3000);
@@ -403,6 +465,7 @@ export default function UsersPage() {
     setShowForm(false);
     setFormData(initialFormData);
     setPasswordInput('');
+    setConfirmPasswordInput('');
     setAvatarPreview('');
   };
 
@@ -478,7 +541,12 @@ export default function UsersPage() {
                 <div className="px-6 pb-6">
                   <div className="-mt-10 flex items-start justify-between gap-4">
                     <img src={user.avatar} alt={user.name} className="h-20 w-20 rounded-full border-4 border-white object-cover shadow" />
-                    <span className={`mt-12 rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{user.status}</span>
+                    <div className="mt-12 flex flex-col items-end gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${user.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>{user.status}</span>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${user.onboardingStatus === 'active' ? 'bg-[#E0F2FE] text-[#0369A1]' : 'bg-amber-100 text-amber-700'}`}>
+                        {getOnboardingLabel(user.onboardingStatus)}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-4 space-y-2">
@@ -591,21 +659,42 @@ export default function UsersPage() {
                       <input type="text" value={formData.login} onChange={(event) => setFormData((current) => ({ ...current, login: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                       {errors.login && <p className="mt-2 text-xs text-[#991B1B]">{errors.login}</p>}
                     </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-semibold text-gray-900">
-                        Senha inicial <span className="font-normal text-gray-500">(máx. {MAX_PASSWORD_LENGTH} chars)</span>
-                      </label>
-                      <input
-                        type="password"
-                        value={passwordInput}
-                        onChange={(event) => setPasswordInput(event.target.value.slice(0, MAX_PASSWORD_LENGTH))}
-                        placeholder={editingId ? 'Deixe em branco para manter a senha atual' : 'Informe a senha inicial'}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
-                        maxLength={MAX_PASSWORD_LENGTH}
-                      />
-                      <p className="mt-1 text-xs text-gray-500">{passwordInput.length}/{MAX_PASSWORD_LENGTH} caracteres</p>
-                      {errors.password && <p className="mt-1 text-xs text-[#991B1B]">{errors.password}</p>}
-                    </div>
+                    {editingId ? (
+                      <>
+                        <div>
+                          <label className="mb-2 block text-sm font-semibold text-gray-900">
+                            Nova senha <span className="font-normal text-gray-500">(máx. {MAX_PASSWORD_LENGTH} chars)</span>
+                          </label>
+                          <input
+                            type="password"
+                            value={passwordInput}
+                            onChange={(event) => setPasswordInput(event.target.value.slice(0, MAX_PASSWORD_LENGTH))}
+                            placeholder="Deixe em branco para manter a senha atual"
+                            className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                            maxLength={MAX_PASSWORD_LENGTH}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">{passwordInput.length}/{MAX_PASSWORD_LENGTH} caracteres</p>
+                          {errors.password && <p className="mt-1 text-xs text-[#991B1B]">{errors.password}</p>}
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-sm font-semibold text-gray-900">Confirmar senha</label>
+                          <input
+                            type="password"
+                            value={confirmPasswordInput}
+                            onChange={(event) => setConfirmPasswordInput(event.target.value.slice(0, MAX_PASSWORD_LENGTH))}
+                            placeholder="Repita a nova senha"
+                            className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                            maxLength={MAX_PASSWORD_LENGTH}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">{confirmPasswordInput.length}/{MAX_PASSWORD_LENGTH} caracteres</p>
+                          {errors.confirmPassword && <p className="mt-1 text-xs text-[#991B1B]">{errors.confirmPassword}</p>}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-600">
+                        O sistema vai gerar uma senha temporária segura automaticamente e enviar para o e-mail cadastrado.
+                      </div>
+                    )}
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-gray-900">Status</label>
                       <select value={formData.status} onChange={(event) => setFormData((current) => ({ ...current, status: event.target.value as User['status'] }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">

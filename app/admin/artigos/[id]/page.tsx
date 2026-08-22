@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CheckCircle2, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Save, Trash2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import ArticleMediaManager, { type ArticleImage, type ArticleVideo } from '@/app/components/ArticleMediaManager';
@@ -32,6 +32,13 @@ function fileToDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
+
+type AudienceRecipient = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+};
 
 export default function EditArticlePage() {
   const params = useParams<{ id: string }>();
@@ -71,6 +78,11 @@ export default function EditArticlePage() {
     'Tocantins',
   ];
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [notifyByEmail, setNotifyByEmail] = useState(true);
+  const [audienceRecipients, setAudienceRecipients] = useState<AudienceRecipient[]>([]);
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [isLoadingAudience, setIsLoadingAudience] = useState(true);
+  const [audienceError, setAudienceError] = useState('');
   const [availableCategories, setAvailableCategories] = useState<ManagedCategory[]>(defaultManagedCategories);
   const [mediaState, setMediaState] = useState<{ images: ArticleImage[]; videos: ArticleVideo[]; primaryImage: string }>({
     images: [],
@@ -111,6 +123,64 @@ export default function EditArticlePage() {
     return () => {
       window.removeEventListener('categoriesChanged', syncCategories);
       window.removeEventListener('storage', syncCategories);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!article) {
+      return;
+    }
+
+    setNotifyByEmail(Boolean(article.notificationEnabled ?? article.notificationRecipients?.length));
+
+    if (article.notificationRecipients && article.notificationRecipients.length > 0) {
+      setSelectedRecipientIds(article.notificationRecipients.map((recipient) => recipient.id));
+      return;
+    }
+
+    if (audienceRecipients.length > 0) {
+      setSelectedRecipientIds(audienceRecipients.map((recipient) => recipient.id));
+    }
+  }, [article?.id, article?.notificationEnabled, article?.notificationRecipients, audienceRecipients]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadAudience = async () => {
+      setIsLoadingAudience(true);
+      setAudienceError('');
+
+      try {
+        const response = await fetch('/api/admin/audience', { method: 'GET', headers: { Accept: 'application/json' } });
+        const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; users?: AudienceRecipient[]; error?: string };
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || 'Não foi possível carregar os usuários cadastrados.');
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        const users = Array.isArray(payload.users) ? payload.users : [];
+        setAudienceRecipients(users);
+        setSelectedRecipientIds(users.map((user) => user.id));
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+        setAudienceError(error instanceof Error ? error.message : 'Erro ao carregar público.');
+      } finally {
+        if (isActive) {
+          setIsLoadingAudience(false);
+        }
+      }
+    };
+
+    loadAudience();
+
+    return () => {
+      isActive = false;
     };
   }, []);
 
@@ -213,10 +283,51 @@ export default function EditArticlePage() {
         videos: mediaState.videos,
         featured: formData.featured,
         location: formData.location,
+        notificationEnabled: notifyByEmail,
+        notificationRecipients: notifyByEmail ? audienceRecipients.filter((recipient) => selectedRecipientIds.includes(recipient.id)) : [],
         status: formData.status,
         scheduledDate: formData.scheduledDate,
         scheduledTime: formData.scheduledTime,
       });
+
+      if (formData.status === 'publicado' && notifyByEmail && selectedRecipientIds.length > 0) {
+        void (async () => {
+          const selectedRecipients = audienceRecipients.filter((recipient) => selectedRecipientIds.includes(recipient.id));
+          const response = await fetch('/api/admin/article-notify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              articleId: formData.id,
+              articleUrl: `${window.location.origin}/artigo/${encodeURIComponent(formData.id)}`,
+              title: formData.title,
+              excerpt: formData.excerpt || plainContent.slice(0, 180),
+              recipients: selectedRecipients,
+              siteUrl: window.location.origin,
+            }),
+          });
+
+          const payload = (await response.json().catch(() => ({}))) as {
+            ok?: boolean;
+            error?: string;
+            sentCount?: number;
+            failureCount?: number;
+          };
+
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || 'Falha ao enviar notificações por e-mail.');
+          }
+
+          const sentCount = Number(payload.sentCount ?? 0);
+          const failureCount = Number(payload.failureCount ?? 0);
+          if (failureCount > 0) {
+            addToast(`Notificações enviadas para ${sentCount} pessoa(s). ${failureCount} envio(s) falharam.`, 'warning', 4000);
+          }
+        })().catch((error) => {
+          addToast(error instanceof Error ? error.message : 'Não foi possível disparar os e-mails da notícia.', 'error', 3000);
+        });
+      }
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Sem permissão para salvar este artigo.', 'error', 3000);
       return;
@@ -458,6 +569,90 @@ export default function EditArticlePage() {
                     </div>
                   )}
                 </div>
+              </section>
+
+              <section className="rounded-xl bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Disparo rápido por e-mail</h2>
+                    <p className="text-sm text-gray-500">Escolha para quem enviar a notícia ao publicar.</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                    <Users className="h-3.5 w-3.5" />
+                    {audienceRecipients.length} cadastrados
+                  </div>
+                </div>
+
+                <label className="mb-3 flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={notifyByEmail}
+                    onChange={(event) => setNotifyByEmail(event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]"
+                  />
+                  <span>
+                    <span className="block font-semibold text-gray-900">Enviar notícia por e-mail ao publicar</span>
+                    <span className="text-sm text-gray-500">Você pode ativar/desativar esse disparo nesta matéria.</span>
+                  </span>
+                </label>
+
+                {notifyByEmail && (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-gray-800">Destinatários selecionados: {selectedRecipientIds.length}</p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecipientIds(audienceRecipients.map((recipient) => recipient.id))}
+                          className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Selecionar todos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRecipientIds([])}
+                          className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    </div>
+
+                    {isLoadingAudience ? (
+                      <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">Carregando usuários cadastrados...</p>
+                    ) : audienceError ? (
+                      <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">{audienceError}</p>
+                    ) : audienceRecipients.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3 text-sm text-gray-600">Nenhum usuário cadastrado encontrado.</p>
+                    ) : (
+                      <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                        {audienceRecipients.map((recipient) => {
+                          const checked = selectedRecipientIds.includes(recipient.id);
+                          return (
+                            <label key={recipient.id} className="flex items-start gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  if (event.target.checked) {
+                                    setSelectedRecipientIds((current) => (current.includes(recipient.id) ? current : [...current, recipient.id]));
+                                    return;
+                                  }
+                                  setSelectedRecipientIds((current) => current.filter((id) => id !== recipient.id));
+                                }}
+                                className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]"
+                              />
+                              <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold text-gray-900">{recipient.name}</span>
+                                <span className="block truncate text-xs text-gray-600">{recipient.email}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </section>
 
               <button type="button" onClick={handleSave} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700">

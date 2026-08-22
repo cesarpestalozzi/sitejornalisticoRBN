@@ -32,6 +32,10 @@ function signPayload(payload: string) {
   return createHmac('sha256', resetSecret).update(payload).digest('hex');
 }
 
+function hashPassword(value: string) {
+  return Buffer.from(new TextEncoder().encode(value)).toString('base64');
+}
+
 type ResetCookiePayload = {
   email: string;
   codeHash: string;
@@ -135,6 +139,40 @@ export async function POST(request: Request) {
     });
     if (updateError) {
       return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 });
+    }
+
+    const { data: localUsers, error: localLookupError } = await adminClient
+      .from('pz_news_users')
+      .select('id,payload,deleted,updated_at')
+      .eq('payload->>email', email)
+      .limit(1);
+    if (localLookupError) {
+      return NextResponse.json({ ok: false, error: localLookupError.message }, { status: 500 });
+    }
+
+    const existingLocalUser = Array.isArray(localUsers) ? localUsers[0] : null;
+    if (existingLocalUser?.id) {
+      const { error: localUserError } = await adminClient.from('pz_news_users').upsert(
+        [
+          {
+            id: existingLocalUser.id,
+            payload: {
+              ...(existingLocalUser.payload ?? {}),
+              email,
+              passwordHash: hashPassword(newPassword),
+              passwordChangeRequired: false,
+              onboardingStatus: 'active',
+            },
+            deleted: Boolean(existingLocalUser.deleted),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+        { onConflict: 'id' }
+      );
+
+      if (localUserError) {
+        return NextResponse.json({ ok: false, error: localUserError.message }, { status: 500 });
+      }
     }
 
     const response = NextResponse.json({ ok: true, message: 'Senha redefinida com sucesso.' }, { status: 200 });

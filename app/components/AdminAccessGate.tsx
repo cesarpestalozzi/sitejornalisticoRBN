@@ -28,6 +28,13 @@ export default function AdminAccessGate({ children }: { children: ReactNode }) {
       return;
     }
 
+    if (user.mustChangePassword && pathname !== '/admin/alterar-senha') {
+      router.replace('/admin/alterar-senha');
+      setAllowed(false);
+      setReady(true);
+      return;
+    }
+
     setAllowed(canAccessAdminRoute(user, pathname));
     setReady(true);
   }, [pathname, router]);

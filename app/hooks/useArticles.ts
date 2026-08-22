@@ -47,6 +47,9 @@ export interface Article {
   scheduledDate?: string;
   scheduledTime?: string;
   location?: string;
+  notificationEnabled?: boolean;
+  notificationRecipients?: Array<{ id: string; name: string; email: string; createdAt?: string }>;
+  notificationSentAt?: string;
   publishedAt?: string;
   lastUpdatedAt?: string;
   podcastId?: string;
@@ -544,66 +547,30 @@ export function useArticles() {
           const local = readLocalData();
           const localArticles = local.active ?? [];
           const localDeletedArticles = local.deleted ?? [];
-          const localHasArticles = localArticles.length > 0;
           const localDeletedIds = new Set(localDeletedArticles.map((article) => article.id));
           const remoteActiveWithoutLocallyDeleted = remoteData.active.filter((article) => !localDeletedIds.has(article.id));
+          const mergedActive = [...remoteActiveWithoutLocallyDeleted];
 
-          if (hasSupabaseConfig) {
-            const nextArticles = remoteActiveWithoutLocallyDeleted;
-            const nextDeletedArticles = [...new Map([...remoteData.deleted, ...localDeletedArticles].map((article) => [article.id, article])).values()];
-
-            setArticles(nextArticles);
-            setDeletedArticles(nextDeletedArticles);
-            syncLocalStorageSnapshot(nextArticles, nextDeletedArticles);
-            setIsLoaded(true);
-            return;
-          }
-
-          if (remoteData.active.length === 0) {
-            const nextLocalArticles = localHasArticles ? localArticles.filter((article) => !localDeletedIds.has(article.id)) : [];
-            if (nextLocalArticles.length > 0 && remoteData.deleted.length === 0) {
-              setArticles(nextLocalArticles);
-              setDeletedArticles(localDeletedArticles);
-
-              nextLocalArticles.forEach((article) => {
-                void upsertRemoteArticle(article, false).catch((syncError) => {
-                  console.error('Erro ao semear artigo local no remoto:', syncError);
-                });
-              });
-              localDeletedArticles.forEach((article) => {
-                void upsertRemoteArticle(article, true).catch((syncError) => {
-                  console.error('Erro ao semear lixeira local no remoto:', syncError);
-                });
-              });
-            } else {
-              setArticles([]);
-              setDeletedArticles(remoteData.deleted.length > 0 ? remoteData.deleted : localDeletedArticles);
-              syncLocalStorageSnapshot([], remoteData.deleted.length > 0 ? remoteData.deleted : localDeletedArticles);
+          localArticles.forEach((localArticle) => {
+            if (localDeletedIds.has(localArticle.id)) {
+              return;
             }
-          } else {
-            const mergedActive = [...remoteActiveWithoutLocallyDeleted];
 
-            localArticles.forEach((localArticle) => {
-              if (localDeletedIds.has(localArticle.id)) {
-                return;
+            const remoteMatch = remoteData.active.find((article) => article.id === localArticle.id);
+            const remoteUpdatedAt = remoteMatch ? new Date(remoteMatch.updatedAt).getTime() : 0;
+            const localUpdatedAt = new Date(localArticle.updatedAt).getTime();
+
+            if (!remoteMatch || localUpdatedAt >= remoteUpdatedAt) {
+              if (!mergedActive.some((article) => article.id === localArticle.id)) {
+                mergedActive.push(localArticle);
               }
+            }
+          });
 
-              const remoteMatch = remoteData.active.find((article) => article.id === localArticle.id);
-              const remoteUpdatedAt = remoteMatch ? new Date(remoteMatch.updatedAt).getTime() : 0;
-              const localUpdatedAt = new Date(localArticle.updatedAt).getTime();
-
-              if (!remoteMatch || localUpdatedAt >= remoteUpdatedAt) {
-                if (!mergedActive.some((article) => article.id === localArticle.id)) {
-                  mergedActive.push(localArticle);
-                }
-              }
-            });
-
-            const mergedDeleted = [...new Map([...remoteData.deleted, ...localDeletedArticles].map((article) => [article.id, article])).values()];
-            setArticles(mergedActive);
-            setDeletedArticles(mergedDeleted);
-            syncLocalStorageSnapshot(mergedActive, mergedDeleted);
-          }
+          const mergedDeleted = [...new Map([...remoteData.deleted, ...localDeletedArticles].map((article) => [article.id, article])).values()];
+          setArticles(mergedActive);
+          setDeletedArticles(mergedDeleted);
+          syncLocalStorageSnapshot(mergedActive, mergedDeleted);
           setIsLoaded(true);
           return;
         }

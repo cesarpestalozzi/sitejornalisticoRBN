@@ -182,7 +182,7 @@ deleteArticle(id); // Move para lixo
 ## 📊 DADOS MOCK
 
 Artigos de exemplo já pré-carregados:
-1. "Brasil avança em energia renovável" (Marina Silva)
+1. "Brasil avança em energia renovável" (Equipe RBN)
 2. "Mercado de tecnologia cresce 12%" (Carlos Mendes)
 
 Você pode criar, editar, deletar e restaurar!

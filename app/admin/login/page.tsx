@@ -39,7 +39,7 @@ function matchesPassword(storedHash: string, inputPassword: string) {
   );
 }
 
-type LoginStep = 'credentials' | 'mfa';
+type LoginStep = 'credentials' | 'mfa' | 'email';
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -47,6 +47,7 @@ export default function AdminLogin() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [mfaCode, setMfaCode] = useState('');
+  const [emailCode, setEmailCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<LoginStep>('credentials');
@@ -61,17 +62,33 @@ export default function AdminLogin() {
     return `Ex.: ${users[0].login}`;
   }, [isLoaded, users]);
 
+  const resolveUserByIdentifier = (value: string) => {
+    const cleanIdentifier = value.trim();
+    if (!cleanIdentifier) {
+      return null;
+    }
+
+    const loginCandidate = cleanIdentifier.toUpperCase();
+    const credential = cleanIdentifier.startsWith('RBN') ? loginCandidate : buildUserLogin(normalizeCpf(cleanIdentifier));
+
+    return users.find(
+      (item) =>
+        item.login.toUpperCase() === credential ||
+        normalizeCpf(item.cpf) === normalizeCpf(cleanIdentifier) ||
+        item.email.toLowerCase() === cleanIdentifier.toLowerCase()
+    );
+  };
+
+  const shouldForcePasswordChange = (user: { passwordChangeRequired?: boolean; onboardingStatus?: string }) => {
+    return Boolean(user.passwordChangeRequired) || user.onboardingStatus === 'invite-sent' || user.onboardingStatus === 'first-access-pending';
+  };
+
   const handleSubmitCredentials = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
     setLoading(true);
 
-    const cleanIdentifier = identifier.trim();
-    const loginCandidate = cleanIdentifier.toUpperCase();
-    const credential = cleanIdentifier.startsWith('RBN') ? loginCandidate : buildUserLogin(normalizeCpf(cleanIdentifier));
-    const user = users.find(
-      (item) => item.login.toUpperCase() === credential || normalizeCpf(item.cpf) === normalizeCpf(cleanIdentifier)
-    );
+    const user = resolveUserByIdentifier(identifier);
 
     if (!user || !matchesPassword(user.passwordHash, password)) {
       setError('Identificacao ou senha invalidos. Use o login RBN + CPF e a senha cadastrada.');
@@ -83,11 +100,14 @@ export default function AdminLogin() {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone || '',
       role: user.role,
       roleLevel: user.roleLevel,
       avatar: user.avatar,
       login: user.login,
       permissions: user.permissions,
+      mustChangePassword: shouldForcePasswordChange(user),
+      onboardingStatus: user.onboardingStatus,
     };
 
     try {
@@ -111,7 +131,58 @@ export default function AdminLogin() {
     }
 
     localStorage.setItem('adminUser', JSON.stringify(userData));
-    router.push('/admin/dashboard');
+    if (shouldForcePasswordChange(user)) {
+      router.push('/admin/alterar-senha');
+    } else {
+      router.push('/admin/dashboard');
+    }
+    setLoading(false);
+  };
+
+  const handleLoginByEmailCode = async () => {
+    const user = resolveUserByIdentifier(identifier);
+
+    if (!user) {
+      setError('Usuario nao encontrado para o identificador informado.');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+    setPendingUserId(user.id);
+    setPendingUserData({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      role: user.role,
+      roleLevel: user.roleLevel,
+      avatar: user.avatar,
+      login: user.login,
+      permissions: user.permissions,
+    });
+
+    try {
+      const response = await fetch('/api/admin/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send-email-code', userId: user.id, email: user.email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        setError(data.error || 'Nao foi possivel enviar o codigo por e-mail.');
+        setLoading(false);
+        return;
+      }
+
+      setStep('email');
+      setEmailCode(data.debugCode || '');
+      setError(data.fallback ? 'Codigo de emergencia gerado para acesso administrativo.' : '');
+    } catch {
+      setError('Erro ao enviar o codigo por e-mail. Tente novamente.');
+    }
+
     setLoading(false);
   };
 
@@ -142,9 +213,79 @@ export default function AdminLogin() {
       }
 
       localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
-      router.push('/admin/dashboard');
+      router.push(pendingUserData?.mustChangePassword ? '/admin/alterar-senha' : '/admin/dashboard');
     } catch {
       setError('Erro ao verificar codigo. Tente novamente.');
+    }
+
+    setLoading(false);
+  };
+
+  const handleSendEmailCode = async () => {
+    if (!pendingUserId) {
+      setError('Necessário validar o usuário antes de solicitar o código por e-mail.');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send-email-code',
+          userId: pendingUserId,
+          email: pendingUserData?.email || ADMIN_EMAIL,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        setError(data.error || 'Não foi possível enviar o código por e-mail.');
+        setLoading(false);
+        return;
+      }
+
+      setStep('email');
+      setEmailCode(data.debugCode || '');
+      setError(data.fallback ? 'Código de emergência gerado. Use o código preenchido no campo abaixo.' : '');
+    } catch {
+      setError('Erro ao enviar o código por e-mail. Tente novamente.');
+    }
+
+    setLoading(false);
+  };
+
+  const handleSubmitEmailCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    if (emailCode.length !== 6) {
+      setError('Informe os 6 digitos do código enviado para o e-mail.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-email-code', userId: pendingUserId, token: emailCode }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        setError(data.error || 'Código de e-mail inválido ou expirado.');
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
+      router.push(pendingUserData?.mustChangePassword ? '/admin/alterar-senha' : '/admin/dashboard');
+    } catch {
+      setError('Erro ao validar o código enviado por e-mail.');
     }
 
     setLoading(false);
@@ -214,6 +355,15 @@ export default function AdminLogin() {
             >
               {loading ? 'Verificando...' : 'Entrar no Painel'}
             </button>
+
+            <button
+              type="button"
+              onClick={handleLoginByEmailCode}
+              disabled={loading || !isLoaded || !identifier.trim()}
+              className="w-full text-sm font-semibold text-[#991B1B] hover:text-[#7F1D1D] transition"
+            >
+              {loading ? 'Enviando...' : 'Entrar com código do e-mail'}
+            </button>
           </form>
         )}
 
@@ -251,7 +401,67 @@ export default function AdminLogin() {
 
             <button
               type="button"
+              onClick={handleSendEmailCode}
+              disabled={loading}
+              className="w-full text-sm text-blue-700 hover:text-blue-900 transition"
+            >
+              {loading ? 'Enviando...' : 'Usar código enviado por e-mail'}
+            </button>
+
+            <button
+              type="button"
               onClick={() => { setStep('credentials'); setMfaCode(''); setError(''); }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700 transition"
+            >
+              Voltar ao login
+            </button>
+          </form>
+        )}
+
+        {step === 'email' && (
+          <form onSubmit={handleSubmitEmailCode} className="space-y-5">
+            <div className="flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+              <Lock className="h-5 w-5 text-amber-700 shrink-0" />
+              <p className="text-sm text-amber-800">
+                Enviamos um código de 6 dígitos para o e-mail do administrador.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-gray-900 font-semibold mb-2 text-center">Código por e-mail</label>
+              <input
+                type="text"
+                value={emailCode}
+                onChange={(event) => setEmailCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                className="w-full py-4 border border-gray-300 rounded-lg focus:outline-none focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10 text-center text-3xl font-bold tracking-[0.5em]"
+                maxLength={6}
+                autoFocus
+                required
+              />
+              <p className="text-xs text-center text-gray-500 mt-1">Use o código do e-mail para entrar no painel</p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || emailCode.length !== 6}
+              className="w-full bg-[#111111] text-white font-bold py-2 rounded-lg hover:bg-[#2a2a2a] transition disabled:opacity-50"
+            >
+              {loading ? 'Validando...' : 'Entrar com código do e-mail'}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSendEmailCode}
+              disabled={loading}
+              className="w-full text-sm text-blue-700 hover:text-blue-900 transition"
+            >
+              Reenviar código
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('credentials'); setEmailCode(''); setError(''); }}
               className="w-full text-sm text-gray-500 hover:text-gray-700 transition"
             >
               Voltar ao login

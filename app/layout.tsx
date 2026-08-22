@@ -7,6 +7,22 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.rbnbrasil.com.br"),
   title: "RBN | Jornalismo • Informação • Entretenimento",
   description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/rbn-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/rbn-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/rbn-icon-192.png",
+    apple: "/rbn-icon-192.png",
+  },
+  themeColor: "#991B1B",
+  applicationName: "RBN Brasil",
+  appleWebApp: {
+    capable: true,
+    title: "RBN Brasil",
+    statusBarStyle: "default",
+  },
   openGraph: {
     title: "RBN | Jornalismo • Informação • Entretenimento",
     description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",

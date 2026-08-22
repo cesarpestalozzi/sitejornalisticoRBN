@@ -72,10 +72,7 @@ export default function NewArticlePage() {
     'Sergipe',
     'Tocantins',
   ];
-  const defaultAuthor =
-    currentUser && !canViewAllArticles(currentUser)
-      ? currentUser.name
-      : users.find((user) => user.status === 'ativo')?.name ?? 'Marina Silva';
+  const defaultAuthor = currentUser?.name ?? users.find((user) => user.status === 'ativo')?.name ?? 'César Pestalozzi';
   const [formData, setFormData] = useState({
     title: '',
     subtitle: '',
@@ -278,6 +275,8 @@ export default function NewArticlePage() {
         videos: mediaState.videos,
         featured: formData.featured,
         location: formData.location,
+        notificationEnabled: notifyByEmail,
+        notificationRecipients: notifyByEmail ? selectedRecipients : [],
         status: publishStatus,
         scheduledDate: publishStatus === 'agendado' ? scheduledDate : undefined,
         scheduledTime: publishStatus === 'agendado' ? scheduledTime : undefined,

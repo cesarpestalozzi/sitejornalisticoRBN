@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { isScheduledArticleDue, promoteScheduledArticle } from '@/app/lib/articlePublishing';
+import { notifyArticleRecipients } from '@/app/lib/articleNotifications';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -45,9 +47,50 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
 
+  if (error) {
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
+  }
+
+  const now = Date.now();
+  const nowIso = new Date().toISOString();
+  const scheduledRows = (data ?? []).filter((row: any) => isScheduledArticleDue(row?.payload, now));
+
+  if (scheduledRows.length > 0) {
+    const updates = scheduledRows.map((row: any) => ({
+      id: row.id,
+      payload: promoteScheduledArticle(row.payload, nowIso),
+      deleted: false,
+      updated_at: nowIso,
+    }));
+
+    const { error: publishError } = await adminClient.from('pz_news_articles').upsert(updates, { onConflict: 'id' });
+    if (publishError) {
+      console.error('Erro ao publicar artigos agendados automaticamente:', publishError);
+    } else {
+      for (const row of scheduledRows) {
+        await notifyArticleRecipients(request.url, promoteScheduledArticle(row.payload, nowIso), nowIso);
+      }
+    }
+  }
+
+  const normalizedRows = (data ?? []).map((row: any) => {
+    if (isScheduledArticleDue(row?.payload, now)) {
+      return {
+        ...row,
+        payload: promoteScheduledArticle(row.payload, nowIso),
+        deleted: false,
+        updated_at: nowIso,
+      };
+    }
+    return row;
+  });
+
   if (requestedCategory) {
     const normalizedCategory = requestedCategory.trim().toLowerCase();
-    const filteredRows = (data ?? []).filter((row: any) => {
+    const filteredRows = normalizedRows.filter((row: any) => {
       const payload = row?.payload;
       if (!payload || typeof payload !== 'object') {
         return false;
@@ -71,14 +114,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  if (error) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
-    );
-  }
-
-  const normalizedRows = (data ?? []).filter((row: any) => {
+  const normalizedIdRows = normalizedRows.filter((row: any) => {
     if (!requestedId) {
       return true;
     }
@@ -86,7 +122,7 @@ export async function GET(request: NextRequest) {
     return row?.id === requestedId || row?.payload?.id === requestedId;
   });
 
-  return NextResponse.json(normalizedRows, {
+  return NextResponse.json(normalizedIdRows, {
     status: 200,
     headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
   });

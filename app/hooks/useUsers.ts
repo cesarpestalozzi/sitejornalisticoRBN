@@ -1,8 +1,9 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminRole, ROLE_LEVELS, getCurrentAdminUser, getDefaultPermissionsForRole } from '@/app/lib/adminPermissions';
 
 export type UserRole = AdminRole;
 export type UserStatus = 'ativo' | 'inativo';
+export type UserOnboardingStatus = 'invite-sent' | 'first-access-pending' | 'password-changed' | 'active';
 
 export const DEFAULT_PASSWORD = '123456';
 export const ADMIN_LOGIN = 'RBN54078879837';
@@ -10,6 +11,11 @@ export const ADMIN_EMAIL = 'admin@rbn.com.br';
 
 export function normalizeCpf(value: string) {
   return (value ?? '').replace(/\D/g, '');
+}
+
+export function normalizePhone(value?: string | null) {
+  const digits = (value ?? '').replace(/\D/g, '');
+  return digits;
 }
 
 export function formatCpf(value?: string | null) {
@@ -39,6 +45,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   cpf: string;
   login: string;
   passwordHash: string;
@@ -54,6 +61,8 @@ export interface User {
   location?: string;
   createdAt?: string;
   updatedAt?: string;
+  passwordChangeRequired?: boolean;
+  onboardingStatus?: UserOnboardingStatus;
 }
 
 const USERS_KEY = 'pz_news_users';
@@ -98,7 +107,7 @@ function svgToBase64DataUrl(svg: string) {
   return `data:image/svg+xml;base64,${btoa(binary)}`;
 }
 
-function hashPassword(value: string) {
+export function hashPassword(value: string) {
   const bytes = new TextEncoder().encode(value);
   let binary = '';
 
@@ -107,6 +116,13 @@ function hashPassword(value: string) {
   });
 
   return btoa(binary);
+}
+
+export function generateTemporaryPassword(length = 10) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
 }
 
 function createAvatar(name: string, background: string) {
@@ -147,46 +163,8 @@ function getMockUsers(): User[] {
       articlesCount: 45,
       specialization: 'Gestão editorial',
       location: 'São Paulo, SP',
-      createdAt: epoch,
-      updatedAt: epoch,
-    },
-    {
-      id: '2',
-      name: 'Maria Santos',
-      email: 'maria@rbn.com.br',
-      cpf: '98765432100',
-      login: buildUserLogin('98765432100'),
-      passwordHash: hashPassword(DEFAULT_PASSWORD),
-      role: 'editor-chefe',
-      roleLevel: 2,
-      permissions: getDefaultPermissionsForRole('editor-chefe'),
-      bio: 'Editora-chefe com foco em revisão, qualidade e operação editorial.',
-      avatar: createAvatar('Maria Santos', '#5b7cfa'),
-      status: 'ativo',
-      joinDate: '2026-02-20',
-      articlesCount: 62,
-      specialization: 'Política e Economia',
-      location: 'Rio de Janeiro, RJ',
-      createdAt: epoch,
-      updatedAt: epoch,
-    },
-    {
-      id: '3',
-      name: 'Carlos Oliveira',
-      email: 'carlos@rbn.com.br',
-      cpf: '11122233344',
-      login: buildUserLogin('11122233344'),
-      passwordHash: hashPassword(DEFAULT_PASSWORD),
-      role: 'jornalista',
-      roleLevel: 4,
-      permissions: getDefaultPermissionsForRole('jornalista'),
-      bio: 'Jornalista especializado em tecnologia, inovação e mercado digital.',
-      avatar: createAvatar('Carlos Oliveira', '#22c55e'),
-      status: 'ativo',
-      joinDate: '2026-03-10',
-      articlesCount: 38,
-      specialization: 'Tecnologia',
-      location: 'Recife, PE',
+      passwordChangeRequired: false,
+      onboardingStatus: 'active',
       createdAt: epoch,
       updatedAt: epoch,
     },
@@ -203,6 +181,7 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
     id: String(user?.id ?? `user-${Date.now()}-${Math.random().toString(16).slice(2)}`),
     name: typeof user?.name === 'string' ? user.name.trim() : '',
     email: typeof user?.email === 'string' ? user.email.trim() : ADMIN_EMAIL,
+    phone: normalizePhone(user?.phone),
     cpf: fallbackCpf,
     login: fallbackLogin || ADMIN_LOGIN,
     passwordHash: typeof user?.passwordHash === 'string' ? user.passwordHash : hashPassword(DEFAULT_PASSWORD),
@@ -221,6 +200,14 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
         : 0,
     specialization: typeof user?.specialization === 'string' ? user.specialization : '',
     location: typeof user?.location === 'string' ? user.location : '',
+    passwordChangeRequired: Boolean(user?.passwordChangeRequired),
+    onboardingStatus:
+      user?.onboardingStatus === 'invite-sent' ||
+      user?.onboardingStatus === 'first-access-pending' ||
+      user?.onboardingStatus === 'password-changed' ||
+      user?.onboardingStatus === 'active'
+        ? user.onboardingStatus
+        : 'active',
     createdAt,
     updatedAt: typeof user?.updatedAt === 'string' ? user.updatedAt : createdAt,
   };
@@ -257,6 +244,8 @@ function ensureOfficialAdminUser(nextUsers: User[]) {
     role: 'admin',
     roleLevel: 1,
     permissions: getDefaultPermissionsForRole('admin'),
+    passwordChangeRequired: false,
+    onboardingStatus: 'active',
   };
 
   return [officialAdmin, ...sanitized];
@@ -354,9 +343,18 @@ function syncCurrentAdminSession(nextUser: User) {
       avatar: nextUser.avatar,
       login: nextUser.login,
       permissions: nextUser.permissions,
+      mustChangePassword: Boolean(nextUser.passwordChangeRequired),
+      onboardingStatus: nextUser.onboardingStatus,
     })
   );
   window.dispatchEvent(new Event('adminUserChanged'));
+}
+
+function syncUpdatedUser(nextUser: User) {
+  void upsertRemoteUser(nextUser).catch((error) => {
+    console.error('Erro ao sincronizar usuário atual:', error);
+  });
+  syncCurrentAdminSession(nextUser);
 }
 
 export function useUsers() {
@@ -371,9 +369,10 @@ export function useUsers() {
         const remoteUsers = await readRemoteUsers();
         if (!isActive) return;
 
-        if (remoteUsers && remoteUsers.length > 0) {
-          // Supabase disponível — usa como fonte de verdade, sem merge com dados locais
-          setUsers(remoteUsers);
+        if (remoteUsers) {
+          const localUsers = readLocalUsers();
+          const mergedUsers = mergeUsers(localUsers, remoteUsers);
+          setUsers(mergedUsers);
           setIsLoaded(true);
           return;
         }
@@ -490,6 +489,7 @@ export function useUsers() {
       throw new Error('Sem permissão para editar usuários.');
     }
 
+    let nextUser: User | null = null;
     setUsers((current) =>
       current.map((user) => {
         if (user.id !== id) {
@@ -502,23 +502,59 @@ export function useUsers() {
           throw new Error('Não é possível salvar: já existe outro funcionário com este CPF.');
         }
 
-        const nextUser = {
+        nextUser = {
           ...user,
           ...updates,
           cpf: nextCpf,
           login: (updates.login ?? user.login ?? buildUserLogin(nextCpf)).toUpperCase(),
           permissions: updates.permissions?.length ? updates.permissions : user.permissions,
           id: user.id,
+          passwordChangeRequired:
+            typeof updates.passwordChangeRequired === 'boolean'
+              ? updates.passwordChangeRequired
+              : typeof updates.passwordHash === 'string'
+                ? false
+                : user.passwordChangeRequired,
+          onboardingStatus:
+            updates.onboardingStatus ??
+            (typeof updates.passwordHash === 'string'
+              ? 'password-changed'
+              : user.onboardingStatus),
           updatedAt: new Date().toISOString(),
         };
 
-        void upsertRemoteUser(nextUser).catch((error) => {
-          console.error('Erro ao sincronizar atualização do usuário:', error);
-        });
-        syncCurrentAdminSession(nextUser);
         return nextUser;
       })
     );
+
+    if (nextUser) {
+      syncUpdatedUser(nextUser);
+    }
+  };
+
+  const updateCurrentUserPassword = (passwordHash: string) => {
+    const currentUser = getCurrentAdminUser();
+    if (!currentUser) {
+      throw new Error('Sem sessão de usuário ativa.');
+    }
+
+    const now = new Date().toISOString();
+    const currentRecord = users.find((user) => user.id === currentUser.id);
+    if (!currentRecord) {
+      throw new Error('Usuário atual não encontrado.');
+    }
+
+    const nextUser = normalizeUserRecord({
+      ...currentRecord,
+      passwordHash,
+      passwordChangeRequired: false,
+      onboardingStatus: 'active',
+      updatedAt: now,
+    });
+
+    setUsers((current) => current.map((user) => (user.id === currentUser.id ? nextUser : user)));
+    syncUpdatedUser(nextUser);
+    return nextUser;
   };
 
   const updateCurrentUserAvatar = async (avatar: string) => {
@@ -594,6 +630,7 @@ export function useUsers() {
     isLoaded,
     addUser,
     updateUser,
+    updateCurrentUserPassword,
     updateCurrentUserAvatar,
     removeCurrentUserAvatar,
     deleteUser,

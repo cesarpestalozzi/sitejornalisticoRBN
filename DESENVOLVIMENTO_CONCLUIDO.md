@@ -43,7 +43,7 @@
 │  ┌─────────────────────────────────────────────────────┐  │
 │  │ GRANDE MANCHETE EM DESTAQUE                         │  │
 │  │ Subtítulo interessante que chama atenção            │  │
-│  │ Autor: Marina Silva | 14/08/2026 | 5 min leitura   │  │
+│  │ Autor: Equipe RBN | 14/08/2026 | 5 min leitura    │  │
 │  │ [Imagem em alta resolução 70% largura]              │  │
 │  │ [LER MAIS]                                          │  │
 │  └─────────────────────────────────────────────────────┘  │
@@ -135,7 +135,7 @@
 │                                                       │
 │ Categoria *            │ Autor *                     │
 │ ┌──────────────────┐   │ ┌──────────────────────┐   │
-│ │ Tecnologia ▼     │   │ │ Marina Silva         │   │
+│ │ Tecnologia ▼     │   │ │ Equipe RBN          │   │
 │ └──────────────────┘   │ └──────────────────────┘   │
 │                                                       │
 │ Imagem em Destaque                                   │
