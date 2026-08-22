@@ -3,7 +3,7 @@
   "buildCommand": "npm run build",
   "crons": [
     {
-      "path": "/api/cron/publish-scheduled",
+      "path": "/api/cron",
       "schedule": "*/1 * * * *"
     }
   ]
