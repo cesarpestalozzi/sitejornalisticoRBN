@@ -59,6 +59,8 @@ export interface User {
   articlesCount: number;
   specialization?: string;
   location?: string;
+  linked?: string;
+  teams?: string;
   createdAt?: string;
   updatedAt?: string;
   passwordChangeRequired?: boolean;
@@ -200,6 +202,8 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
         : 0,
     specialization: typeof user?.specialization === 'string' ? user.specialization : '',
     location: typeof user?.location === 'string' ? user.location : '',
+    linked: typeof user?.linked === 'string' ? user.linked.trim() : '',
+    teams: typeof user?.teams === 'string' ? user.teams.trim() : '',
     passwordChangeRequired: Boolean(user?.passwordChangeRequired),
     onboardingStatus:
       user?.onboardingStatus === 'invite-sent' ||
@@ -211,6 +215,13 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
     createdAt,
     updatedAt: typeof user?.updatedAt === 'string' ? user.updatedAt : createdAt,
   };
+}
+
+function canManageUsersDirectory(currentUser: ReturnType<typeof getCurrentAdminUser>) {
+  if (!currentUser) {
+    return false;
+  }
+  return currentUser.role === 'admin' || currentUser.role === 'editor-chefe';
 }
 
 function ensureOfficialAdminUser(nextUsers: User[]) {
@@ -447,7 +458,7 @@ export function useUsers() {
 
   const addUser = (user: Omit<User, 'id' | 'joinDate' | 'createdAt' | 'updatedAt'> & { joinDate?: string; createdAt?: string; updatedAt?: string }) => {
     const currentUser = getCurrentAdminUser();
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!canManageUsersDirectory(currentUser)) {
       throw new Error('Sem permissão para criar usuários.');
     }
 
@@ -485,7 +496,7 @@ export function useUsers() {
 
   const updateUser = (id: string, updates: Partial<User>) => {
     const currentUser = getCurrentAdminUser();
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!canManageUsersDirectory(currentUser)) {
       throw new Error('Sem permissão para editar usuários.');
     }
 
@@ -615,7 +626,7 @@ export function useUsers() {
 
   const deleteUser = (id: string) => {
     const currentUser = getCurrentAdminUser();
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!canManageUsersDirectory(currentUser)) {
       throw new Error('Sem permissão para excluir usuários.');
     }
 

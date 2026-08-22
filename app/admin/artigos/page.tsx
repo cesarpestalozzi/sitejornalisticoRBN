@@ -26,7 +26,9 @@ export default function AdminArticles() {
     const visibleArticles = currentUser && canViewAllArticles(currentUser)
       ? articles
       : currentUser
-        ? articles.filter((article) => article.author.toLowerCase() === currentUser.name.toLowerCase())
+        ? articles.filter((article) =>
+          article.status === 'publicado' || article.author.toLowerCase() === currentUser.name.toLowerCase()
+        )
         : [];
 
     return visibleArticles.filter((article) => {

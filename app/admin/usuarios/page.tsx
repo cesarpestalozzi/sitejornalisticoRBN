@@ -1,10 +1,11 @@
 'use client';
 
-import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-react';
+import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound, Linkedin, MessageSquare } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { ToastContainer, useToast } from '@/app/components/Toast';
 import { generateTemporaryPassword, useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
+import { useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
 const MAX_PASSWORD_LENGTH = 8;
 
@@ -77,12 +78,25 @@ const initialFormData = {
   articlesCount: 0,
   specialization: '',
   location: '',
+  linked: '',
+  teams: '',
   passwordChangeRequired: false,
   onboardingStatus: 'active' as User['onboardingStatus'],
 };
 
 function hashPassword(value: string) {
   return btoa(value);
+}
+
+function ensureExternalUrl(value?: string) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+  return `https://${normalized}`;
 }
 
 async function fileToDataUrl(file: File) {
@@ -287,6 +301,8 @@ function ChangePasswordModal({
 export default function UsersPage() {
   const { users, addUser, updateUser, deleteUser, isLoaded } = useUsers();
   const { toasts, addToast, removeToast } = useToast();
+  const currentUser = useCurrentAdminUser();
+  const canManageUsers = currentUser?.role === 'admin' || currentUser?.role === 'editor-chefe';
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -305,11 +321,18 @@ export default function UsersPage() {
         return true;
       }
 
-      return [user.name, user.email, user.role, user.specialization ?? '', user.login].join(' ').toLowerCase().includes(normalizedSearch);
+      return [user.name, user.email, user.role, user.specialization ?? '', user.login, user.location ?? '', user.linked ?? '', user.teams ?? '']
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch);
     });
   }, [searchTerm, users]);
 
   const openCreateModal = () => {
+    if (!canManageUsers) {
+      addToast('Somente admin e editor-chefe podem criar usuários.', 'error', 3000);
+      return;
+    }
     setEditingId(null);
     setFormData(initialFormData);
     setPasswordInput('');
@@ -320,6 +343,10 @@ export default function UsersPage() {
   };
 
   const openEditModal = (user: User) => {
+    if (!canManageUsers) {
+      addToast('Somente admin e editor-chefe podem editar usuários.', 'error', 3000);
+      return;
+    }
     setEditingId(user.id);
     setFormData({
       name: user.name,
@@ -337,6 +364,8 @@ export default function UsersPage() {
       articlesCount: user.articlesCount,
       specialization: user.specialization ?? '',
       location: user.location ?? '',
+      linked: user.linked ?? '',
+      teams: user.teams ?? '',
       passwordChangeRequired: user.passwordChangeRequired ?? false,
       onboardingStatus: user.onboardingStatus ?? 'active',
     });
@@ -405,6 +434,10 @@ export default function UsersPage() {
   };
 
   const handleSave = () => {
+    if (!canManageUsers) {
+      addToast('Somente admin e editor-chefe podem salvar alterações em usuários.', 'error', 3000);
+      return;
+    }
     if (!validateForm()) {
       addToast('Revise os campos obrigatórios antes de salvar.', 'error', 3000);
       return;
@@ -471,6 +504,10 @@ export default function UsersPage() {
   };
 
   const handleToggleStatus = (user: User) => {
+    if (!canManageUsers) {
+      addToast('Somente admin e editor-chefe podem alterar status de usuários.', 'error', 3000);
+      return;
+    }
     try {
       updateUser(user.id, { status: user.status === 'ativo' ? 'inativo' : 'ativo' });
       addToast('Status do usuário atualizado.', 'success', 2000);
@@ -480,6 +517,10 @@ export default function UsersPage() {
   };
 
   const handleDelete = (id: string) => {
+    if (!canManageUsers) {
+      addToast('Somente admin e editor-chefe podem remover usuários.', 'error', 3000);
+      return;
+    }
     if (!window.confirm('Deseja remover este usuário?')) {
       return;
     }
@@ -505,12 +546,14 @@ export default function UsersPage() {
           <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Usuários do RBN</h1>
-              <p className="mt-2 text-gray-600">Gerencie perfis, avatares, status e especializações da equipe.</p>
+              <p className="mt-2 text-gray-600">Equipe visível para todos. Edição liberada somente para admin e editor-chefe.</p>
             </div>
-            <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-6 py-3 font-semibold text-white transition hover:bg-[#2a2a2a]">
-              <Plus className="h-5 w-5" />
-              Novo usuário
-            </button>
+            {canManageUsers && (
+              <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-6 py-3 font-semibold text-white transition hover:bg-[#2a2a2a]">
+                <Plus className="h-5 w-5" />
+                Novo usuário
+              </button>
+            )}
           </div>
 
           <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -573,30 +616,58 @@ export default function UsersPage() {
                         <span>{user.location}</span>
                       </div>
                     )}
+                    {user.linked && (
+                      <div className="flex items-center gap-2">
+                        <Linkedin className="h-4 w-4 text-[#0A66C2]" />
+                        <a
+                          href={ensureExternalUrl(user.linked)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate font-medium text-[#0A66C2] underline-offset-2 hover:underline"
+                        >
+                          Linked
+                        </a>
+                      </div>
+                    )}
+                    {user.teams && (
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-[#6264A7]" />
+                        <a
+                          href={ensureExternalUrl(user.teams)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="truncate font-medium text-[#6264A7] underline-offset-2 hover:underline"
+                        >
+                          Teams
+                        </a>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                       <span>Artigos</span>
                       <span className="font-semibold text-gray-900">{user.articlesCount}</span>
                     </div>
                   </div>
 
-                  <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                    <button type="button" onClick={() => handleToggleStatus(user)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
-                      <ToggleLeft className="h-4 w-4" />
-                      {user.status === 'ativo' ? 'Desativar' : 'Ativar'}
-                    </button>
-                    <button type="button" onClick={() => openEditModal(user)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
-                      <PencilLine className="h-4 w-4" />
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => setChangingPasswordUser(user)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#991B1B] px-4 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#991B1B] hover:text-white">
-                      <KeyRound className="h-4 w-4" />
-                      Trocar senha
-                    </button>
-                    <button type="button" onClick={() => handleDelete(user.id)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">
-                      <Trash2 className="h-4 w-4" />
-                      Remover
-                    </button>
-                  </div>
+                  {canManageUsers && (
+                    <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                      <button type="button" onClick={() => handleToggleStatus(user)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
+                        <ToggleLeft className="h-4 w-4" />
+                        {user.status === 'ativo' ? 'Desativar' : 'Ativar'}
+                      </button>
+                      <button type="button" onClick={() => openEditModal(user)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
+                        <PencilLine className="h-4 w-4" />
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => setChangingPasswordUser(user)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#991B1B] px-4 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#991B1B] hover:text-white">
+                        <KeyRound className="h-4 w-4" />
+                        Trocar senha
+                      </button>
+                      <button type="button" onClick={() => handleDelete(user.id)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">
+                        <Trash2 className="h-4 w-4" />
+                        Remover
+                      </button>
+                    </div>
+                  )}
                 </div>
               </article>
             ))}
@@ -736,6 +807,14 @@ export default function UsersPage() {
                         <option key={state} value={state}>{state}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Linked</label>
+                    <input type="text" value={formData.linked ?? ''} onChange={(event) => setFormData((current) => ({ ...current, linked: event.target.value }))} placeholder="linkedin.com/in/usuario" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Teams</label>
+                    <input type="text" value={formData.teams ?? ''} onChange={(event) => setFormData((current) => ({ ...current, teams: event.target.value }))} placeholder="teams.microsoft.com/l/chat/..." className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Permissões</label>
