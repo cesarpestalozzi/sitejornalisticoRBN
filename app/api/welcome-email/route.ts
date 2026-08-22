@@ -12,6 +12,7 @@ function escapeHtml(value: string) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const inviteType = String(body?.inviteType || '').trim().toLowerCase();
     const email = String(body?.email || '').trim();
     const name = String(body?.name || '').trim();
     const login = String(body?.login || '').trim();
@@ -34,9 +35,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, skipped: true, message: 'Welcome email not sent because RESEND_API_KEY is not configured.' });
     }
 
+    const isAdminInvite = inviteType === 'admin-user';
     const hasOnboardingData = Boolean(login && temporaryPassword);
 
-    const html = hasOnboardingData
+    const html = (isAdminInvite || hasOnboardingData)
       ? `
       <div style="font-family: Arial, Helvetica, sans-serif; background:#f5f5f5; padding: 32px 16px; color:#111827;">
         <div style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb;">
@@ -47,8 +49,8 @@ export async function POST(request: Request) {
           <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7; color: #374151;">A partir de agora, você faz parte da nossa equipe e poderá acessar o sistema utilizando os dados abaixo:</p>
           <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin: 0 0 20px;">
             <p style="margin:0 0 10px; font-size:14px; font-weight:700; color:#111827;">Seu acesso</p>
-            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>E-mail/Login:</strong> ${escapeHtml(login)}</p>
-            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Senha temporária:</strong> ${escapeHtml(temporaryPassword)}</p>
+            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>E-mail/Login:</strong> ${escapeHtml(login || email)}</p>
+            <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Senha temporária:</strong> ${escapeHtml(temporaryPassword || 'Entre em contato com o administrador para receber a senha temporária.')}</p>
             <p style="margin:0; font-size:14px; color:#374151;"><strong>Acesse o sistema:</strong> <a href="${escapeHtml(accessUrl)}" style="color:#991b1b; word-break:break-all;">${escapeHtml(accessUrl)}</a></p>
           </div>
           <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.7; color: #374151;">Por segurança, essa é uma senha temporária e deverá ser alterada obrigatoriamente no seu primeiro acesso.</p>
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         from,
         to: [email],
-        subject: hasOnboardingData ? 'Bem-vindo ao time RBN — Seus dados de acesso' : 'Sua conta no RBN – Notícias foi criada com sucesso.',
+        subject: (isAdminInvite || hasOnboardingData) ? 'Bem-vindo ao time RBN — Seus dados de acesso' : 'Sua conta no RBN – Notícias foi criada com sucesso.',
         html,
       }),
     });

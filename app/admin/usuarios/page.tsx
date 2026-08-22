@@ -440,11 +440,12 @@ export default function UsersPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            inviteType: 'admin-user',
             email: onboardingPayload.email,
             name: onboardingPayload.name,
             login: onboardingPayload.login,
             temporaryPassword,
-            accessUrl: `${window.location.origin}/admin/login`,
+            accessUrl: 'https://www.rbnbrasil.com.br/admin/login',
           }),
         }).then(async (response) => {
           const data = await response.json().catch(() => ({}));
