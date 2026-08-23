@@ -264,7 +264,7 @@ export default function ArticlePageClient() {
 
   const relatedArticles: Array<{ id: string; title: string; updatedAt: string; category: string; image?: string }> = [];
 
-  const isLoadingArticle = !isLoaded || (!article && Boolean(params?.id));
+  const isLoadingArticle = !isLoaded;
 
   const mediaImages: MediaImageItem[] = Array.isArray(article?.images) && article.images.length > 0
     ? article.images
