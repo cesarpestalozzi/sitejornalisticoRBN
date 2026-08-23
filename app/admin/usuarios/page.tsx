@@ -1,7 +1,7 @@
 'use client';
 
-import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound, Linkedin, MessageSquare } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound, Linkedin, MessageSquare, Phone } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { ToastContainer, useToast } from '@/app/components/Toast';
 import { generateTemporaryPassword, useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
@@ -299,7 +299,7 @@ function ChangePasswordModal({
 }
 
 export default function UsersPage() {
-  const { users, addUser, updateUser, deleteUser, isLoaded } = useUsers();
+  const { users, addUser, updateUser, deleteUser, updateCurrentUserProfile, isLoaded } = useUsers();
   const { toasts, addToast, removeToast } = useToast();
   const currentUser = useCurrentAdminUser();
   const canManageUsers = currentUser?.role === 'admin' || currentUser?.role === 'editor-chefe';
@@ -312,6 +312,56 @@ export default function UsersPage() {
   const [avatarPreview, setAvatarPreview] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [changingPasswordUser, setChangingPasswordUser] = useState<User | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [connectingProvider, setConnectingProvider] = useState<'linkedin' | 'teams' | null>(null);
+
+  const currentUserRecord = useMemo(
+    () => users.find((user) => user.id === currentUser?.id) ?? null,
+    [users, currentUser?.id]
+  );
+  const [profileForm, setProfileForm] = useState({
+    phone: '',
+    extension: '',
+    phonePublic: false,
+    extensionPublic: false,
+    linkedinProfileUrl: '',
+    teamsLink: '',
+  });
+
+  useEffect(() => {
+    if (!currentUserRecord) {
+      return;
+    }
+    setProfileForm({
+      phone: currentUserRecord.phone ?? '',
+      extension: currentUserRecord.extension ?? '',
+      phonePublic: Boolean(currentUserRecord.phonePublic),
+      extensionPublic: Boolean(currentUserRecord.extensionPublic),
+      linkedinProfileUrl: currentUserRecord.linkedinProfileUrl || currentUserRecord.linked || '',
+      teamsLink: currentUserRecord.teams || '',
+    });
+  }, [currentUserRecord]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const integrationResult = url.searchParams.get('integration');
+    if (!integrationResult) {
+      return;
+    }
+
+    if (integrationResult === 'linkedin-connected') {
+      addToast('LinkedIn conectado com sucesso.', 'success', 3000);
+    } else if (integrationResult === 'teams-connected') {
+      addToast('Microsoft Teams conectado com sucesso.', 'success', 3000);
+    } else {
+      const reason = url.searchParams.get('reason');
+      addToast(reason ? decodeURIComponent(reason) : 'Não foi possível concluir a integração OAuth.', 'error', 5000);
+    }
+
+    url.searchParams.delete('integration');
+    url.searchParams.delete('reason');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`);
+  }, [addToast]);
 
   const filteredUsers = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -445,7 +495,7 @@ export default function UsersPage() {
 
     const payload = {
       ...formData,
-      phone: '',
+      phone: formData.phone,
       avatar: avatarPreview || formData.avatar,
     };
 
@@ -533,6 +583,86 @@ export default function UsersPage() {
     }
   };
 
+  const handleSaveCurrentProfile = () => {
+    if (!currentUserRecord) {
+      addToast('Sessão de usuário indisponível para salvar perfil.', 'error', 3000);
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      updateCurrentUserProfile({
+        phone: profileForm.phone,
+        extension: profileForm.extension,
+        phonePublic: profileForm.phonePublic,
+        extensionPublic: profileForm.extensionPublic,
+        linked: profileForm.linkedinProfileUrl,
+        linkedinProfileUrl: profileForm.linkedinProfileUrl,
+        teams: profileForm.teamsLink,
+      });
+      addToast('Seu perfil de contato foi atualizado.', 'success', 2500);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Não foi possível salvar seu perfil.', 'error', 3500);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleStartIntegration = async (provider: 'linkedin' | 'teams') => {
+    if (!currentUserRecord) {
+      addToast('Sessão de usuário indisponível para integrar conta.', 'error', 3000);
+      return;
+    }
+
+    setConnectingProvider(provider);
+    try {
+      const response = await fetch(`/api/admin/integrations/${provider}/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserRecord.id, returnTo: '/admin/usuarios' }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok || !data.authorizeUrl) {
+        throw new Error(data.error || `Não foi possível conectar ${provider}.`);
+      }
+      window.location.href = String(data.authorizeUrl);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : `Não foi possível conectar ${provider}.`, 'error', 3500);
+      setConnectingProvider(null);
+    }
+  };
+
+  const handleDisconnectIntegration = async (provider: 'linkedin' | 'teams') => {
+    if (!currentUserRecord) {
+      addToast('Sessão de usuário indisponível para desconectar conta.', 'error', 3000);
+      return;
+    }
+
+    setConnectingProvider(provider);
+    try {
+      const response = await fetch('/api/admin/integrations/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUserRecord.id, provider }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error || `Não foi possível desconectar ${provider}.`);
+      }
+
+      updateCurrentUserProfile(
+        provider === 'linkedin'
+          ? { linkedinConnectionStatus: 'disconnected' }
+          : { teamsConnectionStatus: 'disconnected' }
+      );
+      addToast(`${provider === 'linkedin' ? 'LinkedIn' : 'Teams'} desconectado.`, 'success', 2500);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : `Não foi possível desconectar ${provider}.`, 'error', 3500);
+    } finally {
+      setConnectingProvider(null);
+    }
+  };
+
   if (!isLoaded) {
     return <div className="p-6 text-sm text-gray-600">Carregando usuários...</div>;
   }
@@ -578,6 +708,120 @@ export default function UsersPage() {
             </div>
           </section>
 
+          {currentUserRecord && (
+            <section className="mb-8 rounded-xl bg-white p-6 shadow-sm">
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Meu perfil de comunicação</h2>
+                <p className="text-sm text-gray-500">Configure contato público e conecte LinkedIn/Teams no seu perfil.</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">Telefone</label>
+                  <input
+                    type="text"
+                    value={profileForm.phone}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))}
+                    placeholder="(11) 99999-9999"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                  />
+                  <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={profileForm.phonePublic}
+                      onChange={(event) => setProfileForm((current) => ({ ...current, phonePublic: event.target.checked }))}
+                    />
+                    Exibir telefone no perfil da equipe
+                  </label>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">Ramal</label>
+                  <input
+                    type="text"
+                    value={profileForm.extension}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, extension: event.target.value }))}
+                    placeholder="1234"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                  />
+                  <label className="mt-2 inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={profileForm.extensionPublic}
+                      onChange={(event) => setProfileForm((current) => ({ ...current, extensionPublic: event.target.checked }))}
+                    />
+                    Exibir ramal no perfil da equipe
+                  </label>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">URL pública do LinkedIn</label>
+                  <input
+                    type="text"
+                    value={profileForm.linkedinProfileUrl}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, linkedinProfileUrl: event.target.value }))}
+                    placeholder="linkedin.com/in/usuario"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">Link do Teams (opcional)</label>
+                  <input
+                    type="text"
+                    value={profileForm.teamsLink}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, teamsLink: event.target.value }))}
+                    placeholder="teams.microsoft.com/l/chat/..."
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleStartIntegration('linkedin')}
+                  disabled={connectingProvider !== null}
+                  className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {currentUserRecord.linkedinConnectionStatus === 'connected' ? 'Reconectar LinkedIn' : 'Conectar LinkedIn'}
+                </button>
+                {currentUserRecord.linkedinConnectionStatus === 'connected' && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDisconnectIntegration('linkedin')}
+                    disabled={connectingProvider !== null}
+                    className="rounded-lg border border-[#0A66C2] px-4 py-2 text-sm font-semibold text-[#0A66C2] transition hover:bg-[#0A66C2]/5 disabled:opacity-50"
+                  >
+                    Desconectar LinkedIn
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleStartIntegration('teams')}
+                  disabled={connectingProvider !== null}
+                  className="rounded-lg bg-[#6264A7] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {currentUserRecord.teamsConnectionStatus === 'connected' ? 'Reconectar Teams' : 'Conectar Teams'}
+                </button>
+                {currentUserRecord.teamsConnectionStatus === 'connected' && (
+                  <button
+                    type="button"
+                    onClick={() => void handleDisconnectIntegration('teams')}
+                    disabled={connectingProvider !== null}
+                    className="rounded-lg border border-[#6264A7] px-4 py-2 text-sm font-semibold text-[#6264A7] transition hover:bg-[#6264A7]/5 disabled:opacity-50"
+                  >
+                    Desconectar Teams
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveCurrentProfile}
+                  disabled={savingProfile || connectingProvider !== null}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {savingProfile ? 'Salvando...' : 'Salvar perfil'}
+                </button>
+              </div>
+            </section>
+          )}
+
           <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {filteredUsers.map((user) => (
               <article key={user.id} className="overflow-hidden rounded-2xl bg-white shadow-sm">
@@ -616,6 +860,15 @@ export default function UsersPage() {
                         <span>{user.location}</span>
                       </div>
                     )}
+                    {user.phonePublic && user.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-[#2F7EA1]" />
+                        <span>
+                          {user.phone}
+                          {user.extensionPublic && user.extension ? ` • Ramal ${user.extension}` : ''}
+                        </span>
+                      </div>
+                    )}
                     {user.linked && (
                       <div className="flex items-center gap-2">
                         <Linkedin className="h-4 w-4 text-[#0A66C2]" />
@@ -625,7 +878,7 @@ export default function UsersPage() {
                           rel="noreferrer"
                           className="truncate font-medium text-[#0A66C2] underline-offset-2 hover:underline"
                         >
-                          Linked
+                          LinkedIn
                         </a>
                       </div>
                     )}
@@ -645,6 +898,14 @@ export default function UsersPage() {
                     <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                       <span>Artigos</span>
                       <span className="font-semibold text-gray-900">{user.articlesCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>LinkedIn</span>
+                      <span>{user.linkedinConnectionStatus === 'connected' ? 'Conectado' : 'Não conectado'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Teams</span>
+                      <span>{user.teamsConnectionStatus === 'connected' ? 'Conectado' : 'Não conectado'}</span>
                     </div>
                   </div>
 

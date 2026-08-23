@@ -61,6 +61,12 @@ export interface User {
   location?: string;
   linked?: string;
   teams?: string;
+  extension?: string;
+  phonePublic?: boolean;
+  extensionPublic?: boolean;
+  linkedinProfileUrl?: string;
+  linkedinConnectionStatus?: 'connected' | 'disconnected';
+  teamsConnectionStatus?: 'connected' | 'disconnected';
   createdAt?: string;
   updatedAt?: string;
   passwordChangeRequired?: boolean;
@@ -204,6 +210,23 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
     location: typeof user?.location === 'string' ? user.location : '',
     linked: typeof user?.linked === 'string' ? user.linked.trim() : '',
     teams: typeof user?.teams === 'string' ? user.teams.trim() : '',
+    extension: typeof user?.extension === 'string' ? user.extension.trim() : '',
+    phonePublic: Boolean(user?.phonePublic),
+    extensionPublic: Boolean(user?.extensionPublic),
+    linkedinProfileUrl:
+      typeof user?.linkedinProfileUrl === 'string'
+        ? user.linkedinProfileUrl.trim()
+        : typeof user?.linked === 'string'
+          ? user.linked.trim()
+          : '',
+    linkedinConnectionStatus:
+      user?.linkedinConnectionStatus === 'connected' || user?.linkedinConnectionStatus === 'disconnected'
+        ? user.linkedinConnectionStatus
+        : 'disconnected',
+    teamsConnectionStatus:
+      user?.teamsConnectionStatus === 'connected' || user?.teamsConnectionStatus === 'disconnected'
+        ? user.teamsConnectionStatus
+        : 'disconnected',
     passwordChangeRequired: Boolean(user?.passwordChangeRequired),
     onboardingStatus:
       user?.onboardingStatus === 'invite-sent' ||
@@ -568,6 +591,48 @@ export function useUsers() {
     return nextUser;
   };
 
+  const updateCurrentUserProfile = (
+    updates: Partial<
+      Pick<
+        User,
+        | 'phone'
+        | 'extension'
+        | 'phonePublic'
+        | 'extensionPublic'
+        | 'linked'
+        | 'teams'
+        | 'linkedinProfileUrl'
+        | 'linkedinConnectionStatus'
+        | 'teamsConnectionStatus'
+      >
+    >
+  ) => {
+    const currentUser = getCurrentAdminUser();
+    if (!currentUser) {
+      throw new Error('Sem sessão de usuário ativa.');
+    }
+
+    const currentRecord = users.find((user) => user.id === currentUser.id) ?? null;
+    if (!currentRecord) {
+      throw new Error('Usuário atual não encontrado.');
+    }
+
+    const nextUser = normalizeUserRecord({
+      ...currentRecord,
+      ...updates,
+      linked: typeof updates.linkedinProfileUrl === 'string' ? updates.linkedinProfileUrl : updates.linked ?? currentRecord.linked,
+      linkedinProfileUrl:
+        typeof updates.linkedinProfileUrl === 'string'
+          ? updates.linkedinProfileUrl
+          : updates.linked ?? currentRecord.linkedinProfileUrl,
+      updatedAt: new Date().toISOString(),
+    });
+
+    setUsers((current) => current.map((user) => (user.id === currentUser.id ? nextUser : user)));
+    syncUpdatedUser(nextUser);
+    return nextUser;
+  };
+
   const updateCurrentUserAvatar = async (avatar: string) => {
     const currentUser = getCurrentAdminUser();
     if (!currentUser) {
@@ -642,6 +707,7 @@ export function useUsers() {
     addUser,
     updateUser,
     updateCurrentUserPassword,
+    updateCurrentUserProfile,
     updateCurrentUserAvatar,
     removeCurrentUserAvatar,
     deleteUser,
