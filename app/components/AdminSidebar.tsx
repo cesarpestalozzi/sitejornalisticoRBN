@@ -21,6 +21,7 @@ import {
   Volume2,
   X,
   Newspaper,
+  Radio,
 } from 'lucide-react';
 import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
@@ -37,6 +38,7 @@ const menuItems = [
   { label: 'Segurança', href: '/admin/seguranca', icon: Shield },
   { label: 'Publicidades', href: '/admin/publicidades', icon: Megaphone },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+  { label: 'Radar de Notícias', href: '/admin/radar-noticias', icon: Radio },
   { label: 'Lixo', href: '/admin/lixo', icon: Trash2 },
   { label: 'Configurações', href: '/admin/configuracoes', icon: Settings },
 ];

@@ -283,6 +283,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return hasPermission(user, 'analytics:view');
   }
 
+  if (pathname.startsWith('/admin/radar-noticias')) {
+    return hasPermission(user, 'analytics:view');
+  }
+
   if (pathname.startsWith('/admin/lixo')) {
     return hasPermission(user, 'articles:trash:manage');
   }

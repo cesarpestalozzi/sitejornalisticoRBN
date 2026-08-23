@@ -685,6 +685,7 @@ export default function GeradorCardPage() {
   const previewRequestIdRef = useRef(0);
   const uploadedVideoUrlRef = useRef<string | null>(null);
   const generatedVideoUrlRef = useRef<string | null>(null);
+  const initializedArticleIdRef = useRef<string | null>(null);
 
   const selectableArticles = useMemo(
     () =>
@@ -706,7 +707,8 @@ export default function GeradorCardPage() {
   );
 
   useEffect(() => {
-    if (!selectedArticle) {
+    if (!selectedArticleId) {
+      initializedArticleIdRef.current = null;
       if (uploadedVideoUrlRef.current) {
         URL.revokeObjectURL(uploadedVideoUrlRef.current);
         uploadedVideoUrlRef.current = null;
@@ -731,6 +733,16 @@ export default function GeradorCardPage() {
       setVideoTrimDuration(15);
       return;
     }
+
+    if (initializedArticleIdRef.current === selectedArticleId) {
+      return;
+    }
+
+    if (!selectedArticle) {
+      return;
+    }
+
+    initializedArticleIdRef.current = selectedArticleId;
 
     if (uploadedVideoUrlRef.current) {
       URL.revokeObjectURL(uploadedVideoUrlRef.current);
