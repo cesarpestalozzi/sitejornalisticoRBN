@@ -13,7 +13,14 @@ export const categories: Category[] = [
   { id: '8', name: 'Brasil', slug: 'brasil' },
 ];
 
-const baseDate = (daysAgo: number, hoursAgo = 0) => new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000 - hoursAgo * 60 * 60 * 1000);
+const BASE_FIXED_DATE = new Date('2025-01-15T12:00:00.000Z');
+
+const baseDate = (daysAgo: number, hoursAgo = 0) => {
+  const next = new Date(BASE_FIXED_DATE);
+  next.setUTCDate(next.getUTCDate() - daysAgo);
+  next.setUTCHours(next.getUTCHours() - hoursAgo);
+  return next;
+};
 
 export const featuredArticle: Article = {
   id: 'article-1',
