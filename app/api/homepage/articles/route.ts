@@ -6,10 +6,13 @@ import { isValidSupabaseUrl } from '@/app/lib/supabase';
 
 // Marcar como dinâmica para evitar pré-renderização
 export const dynamic = 'force-dynamic';
-export const revalidate = 60;
+export const revalidate = 0;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+};
 
 interface ArticlePayload {
   id: string;
@@ -56,9 +59,7 @@ export async function GET(request: NextRequest) {
       [],
       {
         status: 200,
-        headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-        },
+        headers: noStoreHeaders,
       }
     );
   }
@@ -75,9 +76,7 @@ export async function GET(request: NextRequest) {
       console.error('Erro ao buscar artigos para homepage:', error);
       return NextResponse.json([], {
         status: 200,
-        headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-        },
+        headers: noStoreHeaders,
       });
     }
 
@@ -136,17 +135,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(articles, {
       status: 200,
-      headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-      },
+      headers: noStoreHeaders,
     });
   } catch (err) {
     console.error('Erro na API de homepage:', err);
     return NextResponse.json([], {
       status: 200,
-      headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-      },
+      headers: noStoreHeaders,
     });
   }
 }

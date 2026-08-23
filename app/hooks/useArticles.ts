@@ -544,33 +544,11 @@ export function useArticles() {
         }
 
         if (remoteData) {
-          const local = readLocalData();
-          const localArticles = local.active ?? [];
-          const localDeletedArticles = local.deleted ?? [];
-          const localDeletedIds = new Set(localDeletedArticles.map((article) => article.id));
-          const remoteActiveWithoutLocallyDeleted = remoteData.active.filter((article) => !localDeletedIds.has(article.id));
-          const mergedActive = [...remoteActiveWithoutLocallyDeleted];
-
-          localArticles.forEach((localArticle) => {
-            if (localDeletedIds.has(localArticle.id)) {
-              return;
-            }
-
-            const remoteMatch = remoteData.active.find((article) => article.id === localArticle.id);
-            const remoteUpdatedAt = remoteMatch ? new Date(remoteMatch.updatedAt).getTime() : 0;
-            const localUpdatedAt = new Date(localArticle.updatedAt).getTime();
-
-            if (!remoteMatch || localUpdatedAt >= remoteUpdatedAt) {
-              if (!mergedActive.some((article) => article.id === localArticle.id)) {
-                mergedActive.push(localArticle);
-              }
-            }
-          });
-
-          const mergedDeleted = [...new Map([...remoteData.deleted, ...localDeletedArticles].map((article) => [article.id, article])).values()];
-          setArticles(mergedActive);
-          setDeletedArticles(mergedDeleted);
-          syncLocalStorageSnapshot(mergedActive, mergedDeleted);
+          // Fonte de verdade: remoto. Isso evita divergência entre dispositivos
+          // e elimina sobrescrita por snapshots locais antigos.
+          setArticles(remoteData.active);
+          setDeletedArticles(remoteData.deleted);
+          syncLocalStorageSnapshot(remoteData.active, remoteData.deleted);
           setIsLoaded(true);
           return;
         }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, Suspense, lazy } from 'react';
+import { useEffect, useMemo, Suspense, lazy } from 'react';
 import Hero from './Hero';
 import NewsGrid from './NewsGrid';
 import { defaultSettings } from '@/app/lib/settings';
@@ -135,6 +135,48 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
     () => [],
     []
   );
+
+  useEffect(() => {
+    let isActive = true;
+
+    const syncHomepageArticles = async () => {
+      try {
+        const response = await fetch('/api/homepage/articles', {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const nextArticles = (await response.json()) as HomeArticle[];
+        if (!isActive || !Array.isArray(nextArticles)) {
+          return;
+        }
+
+        setArticles(nextArticles);
+      } catch {
+        // mantém o último estado válido para evitar flicker
+      }
+    };
+
+    void syncHomepageArticles();
+    const intervalId = window.setInterval(syncHomepageArticles, 15000);
+    const onFocus = () => {
+      void syncHomepageArticles();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      isActive = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, []);
 
   return (
     <>

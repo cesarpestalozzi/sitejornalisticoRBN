@@ -1,5 +1,5 @@
-// ISR (Incremental Static Regeneration) - atualiza com mais frequência para refletir publicações.
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 import HomeClientOptimized from './components/HomeClientOptimized';
 import { createClient } from '@supabase/supabase-js';
