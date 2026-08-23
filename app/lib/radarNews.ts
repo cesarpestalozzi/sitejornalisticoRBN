@@ -65,12 +65,67 @@ export type RadarNewsItem = {
   matchedKeywords: string[];
 };
 
+export type RadarGroupSource = {
+  sourceName: string;
+  sourceUrl: string;
+  country: string;
+  reliability: number;
+  articleUrl: string;
+  publishedAt: string;
+  title: string;
+};
+
+export type RadarNewsGroup = {
+  id: string;
+  headline: string;
+  summary: string;
+  imageUrl: string;
+  category: RadarCategory;
+  country: string;
+  firstPublishedAt: string;
+  lastPublishedAt: string;
+  fetchedAt: string;
+  relevanceScore: number;
+  relevanceLevel: RadarRelevanceLevel;
+  isNew: boolean;
+  growthScore: number;
+  relatedSourcesCount: number;
+  matchedKeywords: string[];
+  sources: RadarGroupSource[];
+  sampleItemIds: string[];
+};
+
 export type RadarTopic = {
   id: string;
   label: string;
   relevanceLevel: RadarRelevanceLevel;
   mentions: number;
   growthScore: number;
+};
+
+export type RadarPautaStatus =
+  | 'nova-pauta'
+  | 'em-apuracao'
+  | 'em-producao'
+  | 'revisao'
+  | 'publicada'
+  | 'descartada';
+
+export type RadarPauta = {
+  id: string;
+  sourceGroupId: string;
+  provisionalTitle: string;
+  category: RadarCategory;
+  summary: string;
+  sources: Array<{ name: string; url: string; country: string; reliability: number }>;
+  links: string[];
+  confirmedInfo: string[];
+  pendingInfo: string[];
+  approachSuggestions: string[];
+  seoKeywords: string[];
+  discoveredAt: string;
+  updatedAt: string;
+  status: RadarPautaStatus;
 };
 
 export const RADAR_CATEGORIES: Array<{ id: RadarCategory; label: string }> = [
@@ -100,6 +155,15 @@ export const RADAR_TIME_FILTERS: Array<{ id: RadarTimeFilter; label: string }> =
 ];
 
 export const RADAR_REFRESH_OPTIONS = [5, 10, 15, 30, 60];
+
+export const RADAR_PAUTA_STATUS_OPTIONS: Array<{ id: RadarPautaStatus; label: string }> = [
+  { id: 'nova-pauta', label: 'Nova pauta' },
+  { id: 'em-apuracao', label: 'Em apuração' },
+  { id: 'em-producao', label: 'Em produção' },
+  { id: 'revisao', label: 'Revisão' },
+  { id: 'publicada', label: 'Publicada' },
+  { id: 'descartada', label: 'Descartada' },
+];
 
 export const RADAR_DEFAULT_SOURCES: RadarSource[] = [
   {
@@ -214,3 +278,6 @@ export function getRelevanceLevel(score: number): RadarRelevanceLevel {
   return 'baixa';
 }
 
+export function getRadarCategoryLabel(category: RadarCategory) {
+  return RADAR_CATEGORIES.find((item) => item.id === category)?.label ?? 'Geral';
+}

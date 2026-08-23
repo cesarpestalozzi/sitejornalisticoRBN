@@ -18,17 +18,18 @@ import {
   XCircle,
 } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
+import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
 import {
-  canAccessAdminRoute,
-  useCurrentAdminUser,
-} from '@/app/lib/adminPermissions';
-import {
+  getRadarCategoryLabel,
   RADAR_CATEGORIES,
   RADAR_DEFAULT_SOURCES,
+  RADAR_PAUTA_STATUS_OPTIONS,
   RADAR_REFRESH_OPTIONS,
   RADAR_TIME_FILTERS,
   type RadarCategory,
-  type RadarNewsItem,
+  type RadarNewsGroup,
+  type RadarPauta,
+  type RadarPautaStatus,
   type RadarSort,
   type RadarSource,
   type RadarTimeFilter,
@@ -36,7 +37,8 @@ import {
 } from '@/app/lib/radarNews';
 
 type RadarResponse = {
-  items: RadarNewsItem[];
+  items: unknown[];
+  groups: RadarNewsGroup[];
   topics: RadarTopic[];
   lastUpdatedAt: string;
   totalSources: number;
@@ -49,6 +51,7 @@ const SAVED_STORAGE_KEY = 'pz_news_radar_saved_ids';
 const IGNORED_STORAGE_KEY = 'pz_news_radar_ignored_ids';
 const REFRESH_STORAGE_KEY = 'pz_news_radar_refresh_minutes';
 const KEYWORDS_STORAGE_KEY = 'pz_news_radar_keywords';
+const PAUTAS_STORAGE_KEY = 'pz_news_radar_pautas';
 
 function loadJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') {
@@ -86,6 +89,7 @@ function formatRelative(value: string) {
   if (Number.isNaN(date.getTime())) {
     return '';
   }
+
   const diff = Date.now() - date.getTime();
   const minutes = Math.round(diff / (1000 * 60));
   if (minutes < 1) {
@@ -102,7 +106,7 @@ function formatRelative(value: string) {
   return `${days}d atrás`;
 }
 
-function getRelevanceBadge(level: RadarNewsItem['relevanceLevel']) {
+function getRelevanceBadge(level: RadarNewsGroup['relevanceLevel']) {
   if (level === 'muito-relevante') {
     return { label: '🔥 MUITO RELEVANTE', className: 'bg-red-100 text-red-800 border-red-200' };
   }
@@ -113,6 +117,44 @@ function getRelevanceBadge(level: RadarNewsItem['relevanceLevel']) {
     return { label: '🟡 ATENÇÃO', className: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
   }
   return { label: '⚪ BAIXA RELEVÂNCIA', className: 'bg-gray-100 text-gray-700 border-gray-200' };
+}
+
+function buildPautaFromGroup(group: RadarNewsGroup): RadarPauta {
+  const now = new Date().toISOString();
+  const primaryKeyword = group.matchedKeywords[0] ?? getRadarCategoryLabel(group.category);
+  return {
+    id: `${Date.now()}-${group.id}`,
+    sourceGroupId: group.id,
+    provisionalTitle: group.headline,
+    category: group.category,
+    summary: group.summary,
+    sources: group.sources.map((source) => ({
+      name: source.sourceName,
+      url: source.sourceUrl,
+      country: source.country,
+      reliability: source.reliability,
+    })),
+    links: group.sources.map((source) => source.articleUrl),
+    confirmedInfo: [
+      `O tema está sendo coberto por ${group.relatedSourcesCount} fontes.`,
+      `Última atualização encontrada em ${formatDateTime(group.lastPublishedAt)}.`,
+      `Fontes iniciais: ${group.sources.slice(0, 3).map((source) => source.sourceName).join(', ')}.`,
+    ],
+    pendingInfo: [
+      'Confirmar informações oficiais com fontes primárias.',
+      'Apurar impactos locais e desdobramentos para a audiência do RBN.',
+      'Buscar contrapontos e posicionamento das partes envolvidas.',
+    ],
+    approachSuggestions: [
+      'Abrir com o fato principal e contexto imediato.',
+      'Comparar versões entre fontes para identificar divergências.',
+      'Adicionar bloco de serviço explicando impacto para o leitor.',
+    ],
+    seoKeywords: [...new Set([primaryKeyword, ...group.matchedKeywords, getRadarCategoryLabel(group.category)])].slice(0, 8),
+    discoveredAt: group.firstPublishedAt,
+    updatedAt: now,
+    status: 'nova-pauta',
+  };
 }
 
 export default function RadarNoticiasPage() {
@@ -126,7 +168,7 @@ export default function RadarNoticiasPage() {
   const [sortBy, setSortBy] = useState<RadarSort>('relevantes');
   const [selectedCategories, setSelectedCategories] = useState<RadarCategory[]>([]);
   const [refreshMinutes, setRefreshMinutes] = useState(() => loadJson<number>(REFRESH_STORAGE_KEY, 10));
-  const [items, setItems] = useState<RadarNewsItem[]>([]);
+  const [groups, setGroups] = useState<RadarNewsGroup[]>([]);
   const [topics, setTopics] = useState<RadarTopic[]>([]);
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
   const [savedIds, setSavedIds] = useState<string[]>(() => loadJson<string[]>(SAVED_STORAGE_KEY, []));
@@ -135,8 +177,10 @@ export default function RadarNoticiasPage() {
   const [keywordAlerts, setKeywordAlerts] = useState<string[]>(() =>
     loadJson<string[]>(KEYWORDS_STORAGE_KEY, ['lula', 'congresso', 'stf', 'são paulo', 'eleições'])
   );
+  const [pautas, setPautas] = useState<RadarPauta[]>(() => loadJson<RadarPauta[]>(PAUTAS_STORAGE_KEY, []));
+  const [pautaMessage, setPautaMessage] = useState('');
   const [newKeyword, setNewKeyword] = useState('');
-  const [selectedItemForAnalysis, setSelectedItemForAnalysis] = useState<RadarNewsItem | null>(null);
+  const [selectedGroupForAnalysis, setSelectedGroupForAnalysis] = useState<RadarNewsGroup | null>(null);
   const [isSourcePanelOpen, setIsSourcePanelOpen] = useState(false);
 
   useEffect(() => {
@@ -165,9 +209,14 @@ export default function RadarNoticiasPage() {
     saveJson(KEYWORDS_STORAGE_KEY, keywordAlerts);
   }, [keywordAlerts]);
 
+  useEffect(() => {
+    saveJson(PAUTAS_STORAGE_KEY, pautas);
+  }, [pautas]);
+
   const fetchRadar = useCallback(async () => {
     setIsFetching(true);
     setErrorMessage('');
+    setPautaMessage('');
     try {
       const response = await fetch('/api/admin/radar-news', {
         method: 'POST',
@@ -187,7 +236,7 @@ export default function RadarNoticiasPage() {
         throw new Error(payload.error ?? 'Falha ao atualizar radar.');
       }
 
-      setItems(Array.isArray(payload.items) ? payload.items : []);
+      setGroups(Array.isArray(payload.groups) ? payload.groups : []);
       setTopics(Array.isArray(payload.topics) ? payload.topics : []);
       setWarnings(Array.isArray(payload.warnings) ? payload.warnings : []);
       setLastUpdatedAt(typeof payload.lastUpdatedAt === 'string' ? payload.lastUpdatedAt : new Date().toISOString());
@@ -218,12 +267,12 @@ export default function RadarNoticiasPage() {
     return () => window.clearInterval(timerId);
   }, [fetchRadar, refreshMinutes]);
 
-  const visibleItems = useMemo(() => {
-    const filtered = items.filter((item) => !ignoredIds.includes(item.id));
+  const visibleGroups = useMemo(() => {
+    const filtered = groups.filter((group) => !ignoredIds.includes(group.id));
     const sorted = [...filtered];
     sorted.sort((left, right) => {
       if (sortBy === 'recentes') {
-        return new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime();
+        return new Date(right.lastPublishedAt).getTime() - new Date(left.lastPublishedAt).getTime();
       }
       if (sortBy === 'crescimento') {
         return right.growthScore - left.growthScore;
@@ -234,25 +283,23 @@ export default function RadarNoticiasPage() {
       return right.relevanceScore - left.relevanceScore;
     });
     return sorted;
-  }, [ignoredIds, items, sortBy]);
+  }, [groups, ignoredIds, sortBy]);
 
-  const highRelevanceCount = visibleItems.filter((item) => item.relevanceLevel === 'muito-relevante').length;
+  const highRelevanceCount = visibleGroups.filter((group) => group.relevanceLevel === 'muito-relevante').length;
 
   const alerts = useMemo(() => {
     if (keywordAlerts.length === 0) {
       return [];
     }
     const normalized = keywordAlerts.map((keyword) => keyword.trim().toLowerCase()).filter(Boolean);
-    return visibleItems.filter((item) => {
-      const text = `${item.title} ${item.summary}`.toLowerCase();
-      return normalized.some((keyword) => text.includes(keyword)) && item.relevanceLevel !== 'baixa';
+    return visibleGroups.filter((group) => {
+      const text = `${group.headline} ${group.summary}`.toLowerCase();
+      return normalized.some((keyword) => text.includes(keyword)) && group.relevanceLevel !== 'baixa';
     });
-  }, [keywordAlerts, visibleItems]);
+  }, [keywordAlerts, visibleGroups]);
 
   const toggleCategory = (category: RadarCategory) => {
-    setSelectedCategories((current) =>
-      current.includes(category) ? current.filter((item) => item !== category) : [...current, category]
-    );
+    setSelectedCategories((current) => (current.includes(category) ? current.filter((item) => item !== category) : [...current, category]));
   };
 
   const addKeyword = () => {
@@ -262,6 +309,38 @@ export default function RadarNoticiasPage() {
     }
     setKeywordAlerts((current) => (current.includes(keyword) ? current : [...current, keyword]));
     setNewKeyword('');
+  };
+
+  const createStructuredPauta = (group: RadarNewsGroup) => {
+    setPautas((current) => {
+      const existing = current.find((pauta) => pauta.sourceGroupId === group.id);
+      if (existing) {
+        setPautaMessage(`Pauta já existente: "${existing.provisionalTitle}".`);
+        return current;
+      }
+
+      const pauta = buildPautaFromGroup(group);
+      setPautaMessage(`Pauta "${pauta.provisionalTitle}" criada com sucesso.`);
+      return [pauta, ...current];
+    });
+  };
+
+  const updatePautaStatus = (pautaId: string, status: RadarPautaStatus) => {
+    setPautas((current) =>
+      current.map((pauta) =>
+        pauta.id === pautaId
+          ? {
+              ...pauta,
+              status,
+              updatedAt: new Date().toISOString(),
+            }
+          : pauta
+      )
+    );
+  };
+
+  const removePauta = (pautaId: string) => {
+    setPautas((current) => current.filter((pauta) => pauta.id !== pautaId));
   };
 
   return (
@@ -275,9 +354,7 @@ export default function RadarNoticiasPage() {
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#991B1B]">Monitoramento editorial</p>
                 <h1 className="mt-1 text-3xl font-bold text-gray-900">Radar de Notícias</h1>
-                <p className="mt-2 text-sm text-gray-600">
-                  Acompanhe acontecimentos em tempo real para transformar em pauta com decisão editorial.
-                </p>
+                <p className="mt-2 text-sm text-gray-600">Acompanhe acontecimentos em tempo real para transformar em pauta com decisão editorial.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -309,8 +386,8 @@ export default function RadarNoticiasPage() {
                 <p className="mt-1 text-sm font-semibold text-gray-900">{lastUpdatedAt ? formatDateTime(lastUpdatedAt) : 'Aguardando'}</p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">Notícias encontradas</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{visibleItems.length}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">Acontecimentos agrupados</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{visibleGroups.length}</p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">Assuntos em alta</p>
@@ -363,9 +440,7 @@ export default function RadarNoticiasPage() {
                     type="button"
                     onClick={() => toggleCategory(category.id)}
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      active
-                        ? 'border-[#991B1B] bg-[#fff1f1] text-[#991B1B]'
-                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      active ? 'border-[#991B1B] bg-[#fff1f1] text-[#991B1B]' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     {category.label}
@@ -386,9 +461,7 @@ export default function RadarNoticiasPage() {
                     type="button"
                     onClick={() => setRefreshMinutes(option)}
                     className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                      refreshMinutes === option
-                        ? 'bg-[#111111] text-white'
-                        : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                      refreshMinutes === option ? 'bg-[#111111] text-white' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     {option} min
@@ -397,9 +470,8 @@ export default function RadarNoticiasPage() {
               </div>
             </div>
 
-            {errorMessage && (
-              <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{errorMessage}</p>
-            )}
+            {errorMessage && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{errorMessage}</p>}
+            {pautaMessage && <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700">{pautaMessage}</p>}
 
             {warnings.length > 0 && (
               <div className="mt-4 space-y-2">
@@ -432,9 +504,7 @@ export default function RadarNoticiasPage() {
                           type="checkbox"
                           checked={source.enabled}
                           onChange={(event) =>
-                            setSources((current) =>
-                              current.map((item) => (item.id === source.id ? { ...item, enabled: event.target.checked } : item))
-                            )
+                            setSources((current) => current.map((item) => (item.id === source.id ? { ...item, enabled: event.target.checked } : item)))
                           }
                           className="h-4 w-4 rounded border-gray-300 text-[#991B1B]"
                         />
@@ -467,7 +537,9 @@ export default function RadarNoticiasPage() {
                       <span className="text-sm font-semibold text-gray-900">
                         {index + 1}. {topic.label}
                       </span>
-                      <span className="text-xs font-medium text-gray-600">{topic.mentions} fontes</span>
+                      <span className="text-xs font-medium text-gray-600">
+                        {topic.mentions} menções • crescimento {topic.growthScore}
+                      </span>
                     </button>
                   ))
                 )}
@@ -500,11 +572,7 @@ export default function RadarNoticiasPage() {
                 {keywordAlerts.map((keyword) => (
                   <span key={keyword} className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
                     {keyword}
-                    <button
-                      type="button"
-                      onClick={() => setKeywordAlerts((current) => current.filter((item) => item !== keyword))}
-                      className="text-gray-500 transition hover:text-red-700"
-                    >
+                    <button type="button" onClick={() => setKeywordAlerts((current) => current.filter((item) => item !== keyword))} className="text-gray-500 transition hover:text-red-700">
                       <XCircle className="h-3.5 w-3.5" />
                     </button>
                   </span>
@@ -514,7 +582,7 @@ export default function RadarNoticiasPage() {
                 <div className="mt-4 space-y-2">
                   {alerts.slice(0, 4).map((alert) => (
                     <p key={alert.id} className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                      🔴 Novo acontecimento relevante: {alert.title}
+                      🔴 Novo acontecimento relevante: {alert.headline}
                     </p>
                   ))}
                 </div>
@@ -522,21 +590,79 @@ export default function RadarNoticiasPage() {
             </article>
           </section>
 
+          <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-bold text-gray-900">Pautas estruturadas do Radar</h2>
+              <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                {pautas.length} pautas
+              </span>
+            </div>
+            {pautas.length === 0 ? (
+              <p className="mt-3 text-sm text-gray-600">Nenhuma pauta criada ainda. Use “Analisar pauta” e depois “Transformar em pauta estruturada”.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {pautas.map((pauta) => (
+                  <article key={pauta.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{pauta.provisionalTitle}</p>
+                        <p className="mt-1 text-xs text-gray-600">
+                          {getRadarCategoryLabel(pauta.category)} • descoberta em {formatDateTime(pauta.discoveredAt)} • {pauta.sources.length} fontes
+                        </p>
+                        <p className="mt-2 text-sm text-gray-700">{pauta.summary}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {pauta.seoKeywords.slice(0, 6).map((keyword) => (
+                            <span key={`${pauta.id}-${keyword}`} className="rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <select
+                          value={pauta.status}
+                          onChange={(event) => updatePautaStatus(pauta.id, event.target.value as RadarPautaStatus)}
+                          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-900"
+                        >
+                          {RADAR_PAUTA_STATUS_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => removePauta(pauta.id)}
+                          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                        >
+                          Remover pauta
+                        </button>
+                        <Link href="/admin/artigos/novo" className="rounded-lg bg-[#111111] px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-[#2a2a2a]">
+                          Abrir editor
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
           <section className="space-y-4">
-            {visibleItems.length === 0 ? (
+            {visibleGroups.length === 0 ? (
               <article className="rounded-2xl border border-dashed border-gray-300 bg-white px-5 py-8 text-center text-sm text-gray-600 shadow-sm">
-                Nenhuma notícia encontrada com os filtros atuais.
+                Nenhum acontecimento encontrado com os filtros atuais.
               </article>
             ) : (
-              visibleItems.map((item) => {
-                const relevance = getRelevanceBadge(item.relevanceLevel);
-                const saved = savedIds.includes(item.id);
+              visibleGroups.map((group) => {
+                const relevance = getRelevanceBadge(group.relevanceLevel);
+                const saved = savedIds.includes(group.id);
                 return (
-                  <article key={item.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                  <article key={group.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
                       <div className="h-full min-h-[180px] bg-gray-100">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" />
+                        {group.imageUrl ? (
+                          <img src={group.imageUrl} alt={group.headline} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full items-center justify-center p-4 text-center text-xs text-gray-500">Imagem indisponível</div>
                         )}
@@ -544,29 +670,41 @@ export default function RadarNoticiasPage() {
                       <div className="p-4">
                         <div className="mb-2 flex flex-wrap items-center gap-2">
                           <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${relevance.className}`}>{relevance.label}</span>
-                          {item.isNew && (
-                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-                              novidade
-                            </span>
-                          )}
-                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700">
-                            {item.relatedSourcesCount} fontes
-                          </span>
+                          {group.isNew && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">novidade</span>}
+                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700">{group.relatedSourcesCount} fontes</span>
+                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-semibold text-gray-700">crescimento {group.growthScore}</span>
                         </div>
 
-                        <h3 className="text-lg font-bold text-gray-900">{item.title}</h3>
-                        <p className="mt-2 text-sm text-gray-700">{item.summary}</p>
+                        <h3 className="text-lg font-bold text-gray-900">{group.headline}</h3>
+                        <p className="mt-2 text-sm text-gray-700">{group.summary}</p>
 
                         <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-600">
-                          <span>Fonte: {item.sourceName}</span>
-                          <span>Categoria: {RADAR_CATEGORIES.find((category) => category.id === item.category)?.label ?? 'Geral'}</span>
-                          <span>Local: {item.country}</span>
-                          <span>Publicado: {formatRelative(item.publishedAt)}</span>
+                          <span>Categoria: {getRadarCategoryLabel(group.category)}</span>
+                          <span>Local: {group.country}</span>
+                          <span>Última cobertura: {formatRelative(group.lastPublishedAt)}</span>
+                        </div>
+
+                        <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Fontes relacionadas</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {group.sources.slice(0, 6).map((source) => (
+                              <a
+                                key={`${group.id}-${source.sourceName}-${source.articleUrl}`}
+                                href={source.articleUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-md border border-gray-200 bg-white px-2.5 py-2 text-xs text-gray-700 transition hover:bg-gray-100"
+                              >
+                                <span className="block font-semibold text-gray-900">{source.sourceName}</span>
+                                <span className="block text-gray-600">{formatRelative(source.publishedAt)}</span>
+                              </a>
+                            ))}
+                          </div>
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-2">
                           <a
-                            href={item.url}
+                            href={group.sources[0]?.articleUrl ?? '#'}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 transition hover:bg-gray-50"
@@ -576,7 +714,7 @@ export default function RadarNoticiasPage() {
                           </a>
                           <button
                             type="button"
-                            onClick={() => setSelectedItemForAnalysis(item)}
+                            onClick={() => setSelectedGroupForAnalysis(group)}
                             className="inline-flex items-center gap-2 rounded-lg border border-[#991B1B]/20 bg-[#fff7f7] px-3 py-2 text-xs font-semibold text-[#991B1B] transition hover:bg-[#ffeaea]"
                           >
                             <Bot className="h-4 w-4" />
@@ -584,15 +722,9 @@ export default function RadarNoticiasPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() =>
-                              setSavedIds((current) =>
-                                current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id]
-                              )
-                            }
+                            onClick={() => setSavedIds((current) => (current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id]))}
                             className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                              saved
-                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                              saved ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                             }`}
                           >
                             {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
@@ -600,7 +732,7 @@ export default function RadarNoticiasPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setIgnoredIds((current) => (current.includes(item.id) ? current : [...current, item.id]))}
+                            onClick={() => setIgnoredIds((current) => (current.includes(group.id) ? current : [...current, group.id]))}
                             className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100"
                           >
                             <XCircle className="h-4 w-4" />
@@ -615,19 +747,15 @@ export default function RadarNoticiasPage() {
             )}
           </section>
 
-          {selectedItemForAnalysis && (
+          {selectedGroupForAnalysis && (
             <section className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
               <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-5 shadow-xl">
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#991B1B]">Análise de pauta</p>
-                    <h2 className="mt-1 text-xl font-bold text-gray-900">{selectedItemForAnalysis.title}</h2>
+                    <h2 className="mt-1 text-xl font-bold text-gray-900">{selectedGroupForAnalysis.headline}</h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedItemForAnalysis(null)}
-                    className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 transition hover:bg-gray-50"
-                  >
+                  <button type="button" onClick={() => setSelectedGroupForAnalysis(null)} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 transition hover:bg-gray-50">
                     <XCircle className="h-5 w-5" />
                   </button>
                 </div>
@@ -635,42 +763,52 @@ export default function RadarNoticiasPage() {
                 <div className="space-y-4 text-sm text-gray-800">
                   <article className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <p className="font-semibold text-gray-900">O que aconteceu?</p>
-                    <p className="mt-2">{selectedItemForAnalysis.summary}</p>
+                    <p className="mt-2">{selectedGroupForAnalysis.summary}</p>
                   </article>
                   <article className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <p className="font-semibold text-gray-900">Por que isso é relevante?</p>
                     <p className="mt-2">
-                      O tema aparece em {selectedItemForAnalysis.relatedSourcesCount} fontes, com score de relevância {selectedItemForAnalysis.relevanceScore}/100 e tendência de crescimento {selectedItemForAnalysis.growthScore}.
+                      O tema aparece em {selectedGroupForAnalysis.relatedSourcesCount} fontes, com score de relevância {selectedGroupForAnalysis.relevanceScore}/100 e crescimento {selectedGroupForAnalysis.growthScore}.
                     </p>
                   </article>
                   <article className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <p className="font-semibold text-gray-900">O que já está confirmado?</p>
                     <ul className="mt-2 list-inside list-disc space-y-1">
-                      <li>Título e resumo publicados por {selectedItemForAnalysis.sourceName}.</li>
-                      <li>Publicação registrada em {formatDateTime(selectedItemForAnalysis.publishedAt)}.</li>
-                      <li>Link original disponível para checagem editorial.</li>
+                      <li>A cobertura existe em múltiplas fontes independentes.</li>
+                      <li>Última publicação registrada em {formatDateTime(selectedGroupForAnalysis.lastPublishedAt)}.</li>
+                      <li>Links originais disponíveis para checagem editorial.</li>
                     </ul>
                   </article>
                   <article className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <p className="font-semibold text-amber-900">O que ainda precisa ser confirmado?</p>
                     <ul className="mt-2 list-inside list-disc space-y-1 text-amber-900">
-                      <li>Contexto completo dos fatos e impactos locais.</li>
-                      <li>Declarações oficiais e contrapontos das partes envolvidas.</li>
-                      <li>Dados quantitativos adicionais para aprofundar a apuração.</li>
+                      <li>Dados oficiais atualizados com fontes primárias.</li>
+                      <li>Impacto local e consequências práticas para o leitor.</li>
+                      <li>Posicionamento e contraponto dos envolvidos.</li>
+                    </ul>
+                  </article>
+                  <article className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <p className="font-semibold text-gray-900">Fontes encontradas</p>
+                    <ul className="mt-2 list-inside list-disc space-y-1">
+                      {selectedGroupForAnalysis.sources.slice(0, 8).map((source) => (
+                        <li key={`${selectedGroupForAnalysis.id}-${source.sourceName}-${source.articleUrl}`}>
+                          {source.sourceName} ({source.country}) • confiabilidade {source.reliability}/5
+                        </li>
+                      ))}
                     </ul>
                   </article>
                   <article className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                     <p className="font-semibold text-gray-900">Sugestão inicial de título</p>
-                    <p className="mt-2">{`"${selectedItemForAnalysis.title}"`}</p>
+                    <p className="mt-2">{`"${selectedGroupForAnalysis.headline}"`}</p>
                     <p className="mt-2 text-xs text-gray-600">
-                      Palavra-chave principal: {selectedItemForAnalysis.matchedKeywords[0] ?? RADAR_CATEGORIES.find((item) => item.id === selectedItemForAnalysis.category)?.label ?? 'Geral'}.
+                      Palavra-chave principal: {selectedGroupForAnalysis.matchedKeywords[0] ?? getRadarCategoryLabel(selectedGroupForAnalysis.category)}.
                     </p>
                   </article>
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <a
-                    href={selectedItemForAnalysis.url}
+                    href={selectedGroupForAnalysis.sources[0]?.articleUrl ?? '#'}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 transition hover:bg-gray-50"
@@ -678,12 +816,13 @@ export default function RadarNoticiasPage() {
                     <ExternalLink className="h-4 w-4" />
                     Abrir fonte original
                   </a>
-                  <Link
-                    href="/admin/artigos/novo"
+                  <button
+                    type="button"
+                    onClick={() => createStructuredPauta(selectedGroupForAnalysis)}
                     className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]"
                   >
-                    Transformar em pauta (novo artigo)
-                  </Link>
+                    Transformar em pauta estruturada
+                  </button>
                 </div>
               </div>
             </section>
@@ -694,10 +833,11 @@ export default function RadarNoticiasPage() {
               <AlertCircle className="h-4 w-4 text-[#991B1B]" />
               O Radar é apoio editorial. Nenhuma notícia é publicada automaticamente sem revisão da redação.
             </p>
-            <p className="mt-2">Fontes ativas: {sources.filter((source) => source.enabled).length} • Alta relevância: {highRelevanceCount} itens</p>
+            <p className="mt-2">Fontes ativas: {sources.filter((source) => source.enabled).length} • Alta relevância: {highRelevanceCount} acontecimentos</p>
           </footer>
         </div>
       </main>
     </div>
   );
 }
+

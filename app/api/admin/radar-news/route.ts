@@ -7,6 +7,7 @@ import {
   normalizeText,
   RADAR_DEFAULT_SOURCES,
   type RadarCategory,
+  type RadarNewsGroup,
   type RadarNewsItem,
   type RadarSource,
   type RadarTimeFilter,
@@ -32,19 +33,57 @@ type RadarScanBody = {
   maxItems?: number;
 };
 
+type RadarPayload = {
+  items: RadarNewsItem[];
+  groups: RadarNewsGroup[];
+  topics: RadarTopic[];
+  lastUpdatedAt: string;
+  totalSources: number;
+  totalFetched: number;
+  warnings: string[];
+};
+
 type CacheEntry = {
   expiresAt: number;
-  payload: {
-    items: RadarNewsItem[];
-    topics: RadarTopic[];
-    lastUpdatedAt: string;
-    totalSources: number;
-    totalFetched: number;
-    warnings: string[];
-  };
+  payload: RadarPayload;
 };
 
 const RSS_CACHE_TTL_MS = 90_000;
+const STOP_WORDS = new Set([
+  'para',
+  'com',
+  'sobre',
+  'entre',
+  'apos',
+  'depois',
+  'contra',
+  'diz',
+  'sao',
+  'ser',
+  'tem',
+  'mais',
+  'quando',
+  'onde',
+  'como',
+  'pela',
+  'pelas',
+  'pelo',
+  'pelos',
+  'uma',
+  'umas',
+  'uns',
+  'das',
+  'dos',
+  'nos',
+  'nas',
+  'por',
+  'que',
+  'sua',
+  'seu',
+  'seus',
+  'suas',
+]);
+
 const globalCache = globalThis as typeof globalThis & { __rbnRadarCache?: Map<string, CacheEntry> };
 const radarCache = globalCache.__rbnRadarCache ?? new Map<string, CacheEntry>();
 globalCache.__rbnRadarCache = radarCache;
@@ -134,7 +173,6 @@ function matchesCategories(itemCategory: RadarCategory, selected: RadarCategory[
   if (selected.length === 0) {
     return true;
   }
-
   return selected.includes(itemCategory);
 }
 
@@ -148,11 +186,11 @@ function calculateRelevanceScore(params: {
   const now = Date.now();
   const published = new Date(params.publishedAt).getTime();
   const ageHours = Math.max(0, (now - published) / (1000 * 60 * 60));
-  const recency = Math.max(0, 35 - ageHours * 3.2);
+  const recency = Math.max(0, 38 - ageHours * 3.3);
   const sourceWeight = params.sourceReliability * 7;
-  const sourcesWeight = Math.min(params.relatedSourcesCount, 12) * 2.5;
-  const growthWeight = Math.min(params.growthScore, 25);
-  const keywordWeight = Math.min(params.matchedKeywordsCount * 5, 20);
+  const sourcesWeight = Math.min(params.relatedSourcesCount, 12) * 2.7;
+  const growthWeight = Math.min(params.growthScore, 28);
+  const keywordWeight = Math.min(params.matchedKeywordsCount * 6, 24);
   return Math.max(0, Math.min(100, Math.round(recency + sourceWeight + sourcesWeight + growthWeight + keywordWeight)));
 }
 
@@ -165,39 +203,62 @@ function withinTimeFilter(publishedAt: string, filter: RadarTimeFilter) {
   return published >= threshold;
 }
 
-function computeTrendingTopics(items: RadarNewsItem[]) {
-  const tokenMap = new Map<string, { mentions: number; growth: number }>();
+function getCoverageGrowthScore(timestamps: number[], uniqueSources: number) {
+  if (timestamps.length === 0) {
+    return 0;
+  }
+  const ordered = [...timestamps].sort((left, right) => left - right);
+  const oldest = ordered[0];
+  const latest = ordered[ordered.length - 1];
+  const spreadMinutes = Math.max(0, (latest - oldest) / (1000 * 60));
+  const recentWindow = Date.now() - 90 * 60 * 1000;
+  const recentHits = ordered.filter((timestamp) => timestamp >= recentWindow).length;
+  const spreadBoost = spreadMinutes <= 180 ? Math.max(0, 12 - spreadMinutes / 18) : 0;
+  const sourceBoost = Math.min(uniqueSources, 10) * 2.8;
+  const recencyBoost = recentHits * 5;
+  return Math.max(0, Math.min(40, Math.round(spreadBoost + sourceBoost + recencyBoost)));
+}
 
-  items.forEach((item) => {
-    const tokens = normalizeText(item.title)
-      .split(' ')
-      .filter((token) => token.length >= 4)
-      .slice(0, 8);
+function tokenizeHeadline(title: string) {
+  return normalizeText(title)
+    .split(' ')
+    .filter((token) => token.length >= 4 && !STOP_WORDS.has(token))
+    .slice(0, 10);
+}
 
-    tokens.forEach((token) => {
-      const current = tokenMap.get(token) ?? { mentions: 0, growth: 0 };
+function computeTrendingTopics(groups: RadarNewsGroup[]) {
+  const tokenMap = new Map<string, { mentions: number; momentum: number; relevance: number }>();
+
+  groups.forEach((group) => {
+    const tokens = tokenizeHeadline(group.headline);
+    const groupWeight = Math.max(1, group.relatedSourcesCount) + Math.round(group.relevanceScore / 25);
+    tokens.forEach((token, index) => {
+      const current = tokenMap.get(token) ?? { mentions: 0, momentum: 0, relevance: 0 };
       current.mentions += 1;
-      current.growth += item.growthScore;
+      current.momentum += group.growthScore + Math.max(0, 6 - index);
+      current.relevance += groupWeight;
       tokenMap.set(token, current);
     });
   });
 
   return [...tokenMap.entries()]
-    .filter(([, value]) => value.mentions > 1)
+    .filter(([, metrics]) => metrics.mentions >= 2)
     .sort((left, right) => {
-      if (right[1].mentions !== left[1].mentions) {
-        return right[1].mentions - left[1].mentions;
-      }
-      return right[1].growth - left[1].growth;
+      const leftScore = left[1].mentions * 12 + left[1].momentum + left[1].relevance * 2;
+      const rightScore = right[1].mentions * 12 + right[1].momentum + right[1].relevance * 2;
+      return rightScore - leftScore;
     })
-    .slice(0, 8)
-    .map(([token, value]) => ({
-      id: token,
-      label: token,
-      mentions: value.mentions,
-      growthScore: value.growth,
-      relevanceLevel: getRelevanceLevel(Math.min(100, value.mentions * 15 + value.growth)),
-    }));
+    .slice(0, 10)
+    .map(([token, metrics]) => {
+      const score = Math.min(100, metrics.mentions * 14 + metrics.momentum + metrics.relevance * 2);
+      return {
+        id: token,
+        label: token,
+        mentions: metrics.mentions,
+        growthScore: metrics.momentum,
+        relevanceLevel: getRelevanceLevel(score),
+      } satisfies RadarTopic;
+    });
 }
 
 async function fetchSource(source: RadarSource) {
@@ -268,7 +329,6 @@ export async function POST(request: NextRequest) {
 
     const nowIso = new Date().toISOString();
     const groupedByFingerprint = new Map<string, Array<{ source: RadarSource; item: ParsedFeedItem }>>();
-
     sourceResults.forEach(({ source, items }) => {
       items.forEach((item) => {
         const groupId = hashText(makeFingerprint(item.title));
@@ -278,48 +338,127 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    const rawItems: RadarNewsItem[] = [];
     const normalizedQuery = normalizeText(query);
     const queryTokens = normalizedQuery ? normalizedQuery.split(' ').filter((token) => token.length > 1) : [];
+    const allItems: RadarNewsItem[] = [];
+    const groups: RadarNewsGroup[] = [];
 
-    groupedByFingerprint.forEach((group, groupId) => {
-      const relatedSources = new Set(group.map((entry) => entry.source.name));
-      const relatedSourcesCount = relatedSources.size;
-      const latestPublishedAt = group
+    groupedByFingerprint.forEach((groupEntries, groupId) => {
+      const filteredEntries = groupEntries
+        .map(({ source, item }) => {
+          const category = inferCategoryFromText(item.title, item.summary, source.categories[0] ?? 'geral');
+          if (!matchesCategories(category, selectedCategories)) {
+            return null;
+          }
+          if (!withinTimeFilter(item.publishedAt, timeFilter)) {
+            return null;
+          }
+
+          const searchable = normalizeText(`${item.title} ${item.summary}`);
+          const matchedKeywords = queryTokens.filter((token) => searchable.includes(token));
+          if (queryTokens.length > 0 && matchedKeywords.length === 0) {
+            return null;
+          }
+
+          return { source, item, category, matchedKeywords };
+        })
+        .filter(
+          (entry): entry is { source: RadarSource; item: ParsedFeedItem; category: RadarCategory; matchedKeywords: string[] } =>
+            Boolean(entry)
+        );
+
+      if (filteredEntries.length === 0) {
+        return;
+      }
+
+      const timestamps = filteredEntries
         .map((entry) => new Date(entry.item.publishedAt).getTime())
-        .filter((value) => !Number.isNaN(value))
-        .sort((left, right) => right - left)[0];
-      const oldestPublishedAt = group
-        .map((entry) => new Date(entry.item.publishedAt).getTime())
-        .filter((value) => !Number.isNaN(value))
-        .sort((left, right) => left - right)[0];
-      const growthScore =
-        latestPublishedAt && oldestPublishedAt ? Math.max(0, Math.round((latestPublishedAt - oldestPublishedAt) / (1000 * 60 * 20))) : 0;
-
-      group.forEach(({ source, item }) => {
-        const category = inferCategoryFromText(item.title, item.summary, source.categories[0] ?? 'geral');
-        if (!matchesCategories(category, selectedCategories)) {
+        .filter((value) => !Number.isNaN(value));
+      const latestPublished = Math.max(...timestamps);
+      const oldestPublished = Math.min(...timestamps);
+      const uniqueSourceMap = new Map<string, { source: RadarSource; item: ParsedFeedItem }>();
+      filteredEntries.forEach((entry) => {
+        const existing = uniqueSourceMap.get(entry.source.name);
+        const currentTimestamp = new Date(entry.item.publishedAt).getTime();
+        if (!existing) {
+          uniqueSourceMap.set(entry.source.name, { source: entry.source, item: entry.item });
           return;
         }
-        if (!withinTimeFilter(item.publishedAt, timeFilter)) {
-          return;
+        const existingTimestamp = new Date(existing.item.publishedAt).getTime();
+        if (currentTimestamp > existingTimestamp) {
+          uniqueSourceMap.set(entry.source.name, { source: entry.source, item: entry.item });
         }
+      });
+      const uniqueSourceCount = uniqueSourceMap.size;
+      const growthScore = getCoverageGrowthScore(timestamps, uniqueSourceCount);
 
-        const searchable = normalizeText(`${item.title} ${item.summary}`);
-        const matchedKeywords = queryTokens.filter((token) => searchable.includes(token));
-        if (queryTokens.length > 0 && matchedKeywords.length === 0) {
-          return;
-        }
+      const categoryCount = new Map<RadarCategory, number>();
+      filteredEntries.forEach((entry) => {
+        categoryCount.set(entry.category, (categoryCount.get(entry.category) ?? 0) + 1);
+      });
+      const groupCategory =
+        [...categoryCount.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? filteredEntries[0].category;
 
-        const relevanceScore = calculateRelevanceScore({
+      const representative = [...filteredEntries].sort(
+        (left, right) => new Date(right.item.publishedAt).getTime() - new Date(left.item.publishedAt).getTime()
+      )[0];
+      const averageReliability = filteredEntries.reduce((sum, entry) => sum + entry.source.reliability, 0) / filteredEntries.length;
+      const keywordSet = new Set(filteredEntries.flatMap((entry) => entry.matchedKeywords));
+
+      const groupRelevanceScore = calculateRelevanceScore({
+        publishedAt: new Date(latestPublished).toISOString(),
+        sourceReliability: averageReliability,
+        relatedSourcesCount: uniqueSourceCount,
+        growthScore,
+        matchedKeywordsCount: keywordSet.size,
+      });
+
+      const groupSources = [...uniqueSourceMap.values()]
+        .sort((left, right) => right.source.reliability - left.source.reliability)
+        .map(({ source, item }) => ({
+          sourceName: source.name,
+          sourceUrl: source.url,
+          country: source.country,
+          reliability: source.reliability,
+          articleUrl: item.url,
+          publishedAt: item.publishedAt,
+          title: item.title,
+        }));
+
+      const groupSummary =
+        representative.item.summary ||
+        `Cobertura em ${uniqueSourceCount} fontes sobre o mesmo acontecimento.`;
+
+      groups.push({
+        id: groupId,
+        headline: representative.item.title,
+        summary: groupSummary,
+        imageUrl: representative.item.imageUrl,
+        category: groupCategory,
+        country: representative.source.country,
+        firstPublishedAt: new Date(oldestPublished).toISOString(),
+        lastPublishedAt: new Date(latestPublished).toISOString(),
+        fetchedAt: nowIso,
+        relevanceScore: groupRelevanceScore,
+        relevanceLevel: getRelevanceLevel(groupRelevanceScore),
+        isNew: Date.now() - latestPublished <= 2 * 60 * 60 * 1000,
+        growthScore,
+        relatedSourcesCount: uniqueSourceCount,
+        matchedKeywords: [...keywordSet],
+        sources: groupSources,
+        sampleItemIds: [],
+      });
+
+      filteredEntries.forEach(({ source, item, category, matchedKeywords }) => {
+        const score = calculateRelevanceScore({
           publishedAt: item.publishedAt,
           sourceReliability: source.reliability,
-          relatedSourcesCount,
+          relatedSourcesCount: uniqueSourceCount,
           growthScore,
           matchedKeywordsCount: matchedKeywords.length,
         });
 
-        rawItems.push({
+        allItems.push({
           id: hashText(item.url || `${groupId}-${item.title}`),
           title: item.title,
           summary: item.summary || 'Resumo indisponível na fonte.',
@@ -332,41 +471,50 @@ export async function POST(request: NextRequest) {
           country: source.country,
           publishedAt: item.publishedAt,
           fetchedAt: nowIso,
-          relevanceScore,
-          relevanceLevel: getRelevanceLevel(relevanceScore),
+          relevanceScore: score,
+          relevanceLevel: getRelevanceLevel(score),
           isNew: Date.now() - new Date(item.publishedAt).getTime() <= 2 * 60 * 60 * 1000,
           growthScore,
-          relatedSourcesCount,
+          relatedSourcesCount: uniqueSourceCount,
           groupId,
           matchedKeywords,
         });
       });
     });
 
-    rawItems.sort((left, right) => {
+    groups.sort((left, right) => {
       if (right.relevanceScore !== left.relevanceScore) {
         return right.relevanceScore - left.relevanceScore;
       }
-      return new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime();
+      return new Date(right.lastPublishedAt).getTime() - new Date(left.lastPublishedAt).getTime();
     });
 
-    const deduped = new Map<string, RadarNewsItem>();
-    rawItems.forEach((item) => {
+    const dedupedItems = new Map<string, RadarNewsItem>();
+    allItems.forEach((item) => {
       const key = item.url || item.id;
-      const current = deduped.get(key);
+      const current = dedupedItems.get(key);
       if (!current || current.relevanceScore < item.relevanceScore) {
-        deduped.set(key, item);
+        dedupedItems.set(key, item);
       }
     });
 
-    const items = [...deduped.values()].slice(0, maxItems);
-    const topics = computeTrendingTopics(items);
-    const payload = {
+    const items = [...dedupedItems.values()]
+      .sort((left, right) => right.relevanceScore - left.relevanceScore)
+      .slice(0, maxItems);
+
+    const groupsWithSample = groups.slice(0, maxItems).map((group) => {
+      const sampleIds = items.filter((item) => item.groupId === group.id).slice(0, 6).map((item) => item.id);
+      return { ...group, sampleItemIds: sampleIds };
+    });
+
+    const topics = computeTrendingTopics(groupsWithSample);
+    const payload: RadarPayload = {
       items,
+      groups: groupsWithSample,
       topics,
       lastUpdatedAt: nowIso,
       totalSources: sources.length,
-      totalFetched: items.length,
+      totalFetched: groupsWithSample.length,
       warnings,
     };
 
