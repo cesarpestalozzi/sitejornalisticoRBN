@@ -36,14 +36,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  let query = adminClient
+  const query = adminClient
     .from('pz_news_articles')
     .select('id, payload, deleted, updated_at')
     .order('updated_at', { ascending: false });
-
-  if (requestedId) {
-    query = query.eq('id', requestedId);
-  }
 
   const { data, error } = await query;
 
