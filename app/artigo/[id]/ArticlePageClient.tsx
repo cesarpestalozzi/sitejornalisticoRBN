@@ -122,7 +122,7 @@ const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
 export default function ArticlePageClient() {
   const params = useParams<{ id: string }>();
-  const { incrementArticleViews, incrementArticleShares } = useArticles();
+  const { incrementArticleViews, incrementArticleShares, isLoaded: isArticlesLoaded } = useArticles();
   const [articleRecord, setArticleRecord] = useState<any | null>(null);
   const [commentsByArticle, setCommentsByArticle] = useState<Record<string, ArticleComment[]>>({});
   const [isLoaded, setIsLoaded] = useState(false);
@@ -234,7 +234,7 @@ export default function ArticlePageClient() {
     : null;
 
   useEffect(() => {
-    if (!article?.id || typeof window === 'undefined') {
+    if (!isArticlesLoaded || !article?.id || typeof window === 'undefined') {
       return;
     }
 
@@ -246,7 +246,7 @@ export default function ArticlePageClient() {
 
     sessionStorage.setItem(viewKey, '1');
     incrementArticleViews(article.id);
-  }, [article?.id, incrementArticleViews]);
+  }, [article?.id, incrementArticleViews, isArticlesLoaded]);
 
   const recordShare = (articleId?: string) => {
     if (!articleId || typeof window === 'undefined') {

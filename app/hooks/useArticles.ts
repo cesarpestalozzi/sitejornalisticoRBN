@@ -861,21 +861,11 @@ export function useArticles() {
   const incrementArticleViews = (id: string) => {
     const syncLocalStats = (current: Article[]) => {
       const localMatch = current.find((article) => article.id === id);
-      const baseArticle = localMatch ?? {
-        id,
-        title: 'Matéria',
-        subtitle: '',
-        category: '',
-        author: '',
-        content: '',
-        excerpt: '',
-        featured: false,
-        status: 'publicado' as const,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 0,
-        shares: 0,
-      };
+      if (!localMatch) {
+        return current;
+      }
+
+      const baseArticle = localMatch;
 
       const nextArticle = {
         ...baseArticle,
@@ -900,11 +890,7 @@ export function useArticles() {
         warnSupabaseWriteIssue('sincronizar visualização da matéria', error);
       });
 
-      if (localMatch) {
-        return current.map((article) => (article.id === id ? nextArticle : article));
-      }
-
-      return [...current, nextArticle];
+      return current.map((article) => (article.id === id ? nextArticle : article));
     };
 
     setArticles((current) => syncLocalStats(current));
@@ -913,21 +899,11 @@ export function useArticles() {
   const incrementArticleShares = (id: string) => {
     const syncLocalStats = (current: Article[]) => {
       const localMatch = current.find((article) => article.id === id);
-      const baseArticle = localMatch ?? {
-        id,
-        title: 'Matéria',
-        subtitle: '',
-        category: '',
-        author: '',
-        content: '',
-        excerpt: '',
-        featured: false,
-        status: 'publicado' as const,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        views: 0,
-        shares: 0,
-      };
+      if (!localMatch) {
+        return current;
+      }
+
+      const baseArticle = localMatch;
 
       const nextArticle = {
         ...baseArticle,
@@ -952,11 +928,7 @@ export function useArticles() {
         warnSupabaseWriteIssue('sincronizar compartilhamento da matéria', error);
       });
 
-      if (localMatch) {
-        return current.map((article) => (article.id === id ? nextArticle : article));
-      }
-
-      return [...current, nextArticle];
+      return current.map((article) => (article.id === id ? nextArticle : article));
     };
 
     setArticles((current) => syncLocalStats(current));
