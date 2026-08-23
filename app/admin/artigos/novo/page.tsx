@@ -119,7 +119,11 @@ export default function NewArticlePage() {
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
   const [showScheduleFields, setShowScheduleFields] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [publishFeedback, setPublishFeedback] = useState<{
+    message: string;
+    status: 'rascunho' | 'agendado' | 'publicado';
+    articleId: string;
+  } | null>(null);
   const [notifyByEmail, setNotifyByEmail] = useState(true);
   const [audienceRecipients, setAudienceRecipients] = useState<AudienceRecipient[]>([]);
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
@@ -327,15 +331,15 @@ export default function NewArticlePage() {
 
     const messages = {
       rascunho: 'Rascunho salvo com sucesso.',
-      agendado: `Publicação agendada para ${scheduledDate} às ${scheduledTime}.`,
-      publicado: 'Notícia publicada com sucesso no RBN.',
+      agendado: `Matéria agendada com sucesso para ${scheduledDate} às ${scheduledTime}.`,
+      publicado: 'Matéria publicada com sucesso.',
     };
 
-    setFeedbackMessage(messages[publishStatus]);
-
-    window.setTimeout(() => {
-      router.push('/admin/artigos');
-    }, 1200);
+    setPublishFeedback({
+      message: messages[publishStatus],
+      status: publishStatus,
+      articleId: createdArticleId,
+    });
   };
 
   if (!isLoaded || !currentUser) {
@@ -359,10 +363,41 @@ export default function NewArticlePage() {
               </div>
             </div>
           </div>
-          {feedbackMessage && (
-            <div className="flex items-center gap-2 bg-green-100 px-8 py-3 text-sm font-semibold text-green-700">
-              <CheckCircle2 className="h-5 w-5" />
-              {feedbackMessage}
+          {publishFeedback && (
+            <div className="flex flex-col gap-3 bg-green-100 px-8 py-3 text-sm font-semibold text-green-700 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" />
+                {publishFeedback.message}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {publishFeedback.status === 'publicado' && (
+                  <>
+                    <Link
+                      href={`/artigo/${encodeURIComponent(publishFeedback.articleId)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-[#236A88] transition hover:bg-gray-50"
+                    >
+                      Ver matéria publicada
+                    </Link>
+                    <Link
+                      href="/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-[#236A88] transition hover:bg-gray-50"
+                    >
+                      Ir para página inicial
+                    </Link>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => router.push('/admin/artigos')}
+                  className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-[#236A88] transition hover:bg-gray-50"
+                >
+                  Voltar para artigos
+                </button>
+              </div>
             </div>
           )}
         </div>
