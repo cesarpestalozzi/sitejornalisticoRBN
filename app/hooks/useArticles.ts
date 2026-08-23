@@ -859,43 +859,107 @@ export function useArticles() {
   };
 
   const incrementArticleViews = (id: string) => {
-    setArticles((current) =>
-      current.map((article) => {
-        if (article.id !== id) {
-          return article;
+    const syncLocalStats = (current: Article[]) => {
+      const localMatch = current.find((article) => article.id === id);
+      const baseArticle = localMatch ?? {
+        id,
+        title: 'Matéria',
+        subtitle: '',
+        category: '',
+        author: '',
+        content: '',
+        excerpt: '',
+        featured: false,
+        status: 'publicado' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 0,
+        shares: 0,
+      };
+
+      const nextArticle = {
+        ...baseArticle,
+        views: (baseArticle.views ?? 0) + 1,
+      };
+
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem(ARTICLES_KEY);
+        try {
+          const parsed = stored ? (JSON.parse(stored) as Article[]) : [];
+          const rawArticles = Array.isArray(parsed) ? parsed : [];
+          const nextStored = rawArticles.some((article) => article.id === id)
+            ? rawArticles.map((article) => (article.id === id ? nextArticle : article))
+            : [...rawArticles, nextArticle];
+          localStorage.setItem(ARTICLES_KEY, JSON.stringify(nextStored));
+        } catch (error) {
+          console.warn('Erro ao persistir contagem de visualização local:', error);
         }
+      }
 
-        const nextArticle = {
-          ...article,
-          views: (article.views ?? 0) + 1,
-        };
+      void upsertRemoteArticle(nextArticle, false).catch((error) => {
+        warnSupabaseWriteIssue('sincronizar visualização da matéria', error);
+      });
 
-        void upsertRemoteArticle(nextArticle, false).catch((error) => {
-          warnSupabaseWriteIssue('sincronizar visualização da matéria', error);
-        });
-        return nextArticle;
-      })
-    );
+      if (localMatch) {
+        return current.map((article) => (article.id === id ? nextArticle : article));
+      }
+
+      return [...current, nextArticle];
+    };
+
+    setArticles((current) => syncLocalStats(current));
   };
 
   const incrementArticleShares = (id: string) => {
-    setArticles((current) =>
-      current.map((article) => {
-        if (article.id !== id) {
-          return article;
+    const syncLocalStats = (current: Article[]) => {
+      const localMatch = current.find((article) => article.id === id);
+      const baseArticle = localMatch ?? {
+        id,
+        title: 'Matéria',
+        subtitle: '',
+        category: '',
+        author: '',
+        content: '',
+        excerpt: '',
+        featured: false,
+        status: 'publicado' as const,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        views: 0,
+        shares: 0,
+      };
+
+      const nextArticle = {
+        ...baseArticle,
+        shares: (baseArticle.shares ?? 0) + 1,
+      };
+
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem(ARTICLES_KEY);
+        try {
+          const parsed = stored ? (JSON.parse(stored) as Article[]) : [];
+          const rawArticles = Array.isArray(parsed) ? parsed : [];
+          const nextStored = rawArticles.some((article) => article.id === id)
+            ? rawArticles.map((article) => (article.id === id ? nextArticle : article))
+            : [...rawArticles, nextArticle];
+          localStorage.setItem(ARTICLES_KEY, JSON.stringify(nextStored));
+        } catch (error) {
+          console.warn('Erro ao persistir contagem de compartilhamento local:', error);
         }
+      }
 
-        const nextArticle = {
-          ...article,
-          shares: (article.shares ?? 0) + 1,
-        };
+      void upsertRemoteArticle(nextArticle, false).catch((error) => {
+        warnSupabaseWriteIssue('sincronizar compartilhamento da matéria', error);
+      });
 
-        void upsertRemoteArticle(nextArticle, false).catch((error) => {
-          warnSupabaseWriteIssue('sincronizar compartilhamento da matéria', error);
-        });
-        return nextArticle;
-      })
-    );
+      if (localMatch) {
+        return current.map((article) => (article.id === id ? nextArticle : article));
+      }
+
+      return [...current, nextArticle];
+    };
+
+    setArticles((current) => syncLocalStats(current));
   };
 
   return {
