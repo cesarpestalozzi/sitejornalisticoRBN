@@ -9,6 +9,45 @@ export const revalidate = 0;
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+type ArticlePayload = {
+  id?: string;
+  title?: string;
+  subtitle?: string;
+  category?: string;
+  author?: string;
+  content?: string;
+  excerpt?: string;
+  status?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  [key: string]: unknown;
+};
+
+type ArticleRow = {
+  id: string;
+  payload?: ArticlePayload;
+  deleted?: boolean;
+  updated_at?: string;
+};
+
+function isPlaceholderArticlePayload(article: {
+  title?: unknown;
+  subtitle?: unknown;
+  category?: unknown;
+  author?: unknown;
+  content?: unknown;
+  excerpt?: unknown;
+}) {
+  const title = typeof article.title === 'string' ? article.title.trim().toLowerCase() : '';
+  const subtitle = typeof article.subtitle === 'string' ? article.subtitle.trim() : '';
+  const category = typeof article.category === 'string' ? article.category.trim() : '';
+  const author = typeof article.author === 'string' ? article.author.trim() : '';
+  const content = typeof article.content === 'string' ? article.content.trim() : '';
+  const excerpt = typeof article.excerpt === 'string' ? article.excerpt.trim() : '';
+
+  return title === 'matéria' && !subtitle && !category && !author && !content && !excerpt;
+}
+
 function getAdminClient() {
   if (!supabaseUrl || !serviceRoleKey) {
     return null;
@@ -52,12 +91,14 @@ export async function GET(request: NextRequest) {
 
   const now = Date.now();
   const nowIso = new Date().toISOString();
-  const scheduledRows = (data ?? []).filter((row: any) => isScheduledArticleDue(row?.payload, now));
+  const scheduledRows = (data ?? []).filter(
+    (row: ArticleRow) => row.payload && isScheduledArticleDue(row.payload as Parameters<typeof isScheduledArticleDue>[0], now)
+  );
 
   if (scheduledRows.length > 0) {
-    const updates = scheduledRows.map((row: any) => ({
+    const updates = scheduledRows.map((row: ArticleRow) => ({
       id: row.id,
-      payload: promoteScheduledArticle(row.payload, nowIso),
+      payload: promoteScheduledArticle(row.payload as Parameters<typeof promoteScheduledArticle>[0], nowIso),
       deleted: false,
       updated_at: nowIso,
     }));
@@ -72,11 +113,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const normalizedRows = (data ?? []).map((row: any) => {
-    if (isScheduledArticleDue(row?.payload, now)) {
+  const normalizedRows = (data ?? []).map((row: ArticleRow) => {
+    if (row.payload && isScheduledArticleDue(row.payload as Parameters<typeof isScheduledArticleDue>[0], now)) {
       return {
         ...row,
-        payload: promoteScheduledArticle(row.payload, nowIso),
+        payload: promoteScheduledArticle(row.payload as Parameters<typeof promoteScheduledArticle>[0], nowIso),
         deleted: false,
         updated_at: nowIso,
       };
@@ -86,7 +127,7 @@ export async function GET(request: NextRequest) {
 
   if (requestedCategory) {
     const normalizedCategory = requestedCategory.trim().toLowerCase();
-    const filteredRows = normalizedRows.filter((row: any) => {
+    const filteredRows = normalizedRows.filter((row: ArticleRow) => {
       const payload = row?.payload;
       if (!payload || typeof payload !== 'object') {
         return false;
@@ -110,7 +151,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const normalizedIdRows = normalizedRows.filter((row: any) => {
+  const normalizedIdRows = normalizedRows.filter((row: ArticleRow) => {
     if (!requestedId) {
       return true;
     }
@@ -146,11 +187,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let payloadToPersist = article;
+
+    if (isPlaceholderArticlePayload(article)) {
+      const { data: existingRow } = await adminClient
+        .from('pz_news_articles')
+        .select('payload')
+        .eq('id', article.id)
+        .limit(1)
+        .maybeSingle();
+
+      const existingPayload =
+        existingRow && typeof existingRow === 'object' && 'payload' in existingRow
+          ? (existingRow as { payload?: Record<string, unknown> }).payload
+          : null;
+
+      if (!existingPayload || typeof existingPayload !== 'object') {
+        return NextResponse.json(
+          { error: 'Payload incompleto para este artigo.' },
+          { status: 400, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+        );
+      }
+
+      const nextViews = typeof article.views === 'number' ? article.views : Number(existingPayload.views ?? 0);
+      const nextShares = typeof article.shares === 'number' ? article.shares : Number(existingPayload.shares ?? 0);
+
+      payloadToPersist = {
+        ...existingPayload,
+        views: Number.isFinite(nextViews) ? nextViews : Number(existingPayload.views ?? 0),
+        shares: Number.isFinite(nextShares) ? nextShares : Number(existingPayload.shares ?? 0),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
     const { error } = await adminClient.from('pz_news_articles').upsert(
       [
         {
           id: article.id,
-          payload: article,
+          payload: payloadToPersist,
           deleted,
           updated_at: new Date().toISOString(),
         },
