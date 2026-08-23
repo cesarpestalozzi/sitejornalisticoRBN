@@ -4,6 +4,7 @@ import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLe
 import { useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { ToastContainer, useToast } from '@/app/components/Toast';
+import { useArticles } from '@/app/hooks/useArticles';
 import { generateTemporaryPassword, useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
 import { useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
@@ -300,6 +301,7 @@ function ChangePasswordModal({
 
 export default function UsersPage() {
   const { users, addUser, updateUser, deleteUser, updateCurrentUserProfile, isLoaded } = useUsers();
+  const { articles } = useArticles();
   const { toasts, addToast, removeToast } = useToast();
   const currentUser = useCurrentAdminUser();
   const canManageUsers = currentUser?.role === 'admin' || currentUser?.role === 'editor-chefe';
@@ -332,13 +334,18 @@ export default function UsersPage() {
     if (!currentUserRecord) {
       return;
     }
-    setProfileForm({
+
+    const nextProfileForm = {
       phone: currentUserRecord.phone ?? '',
       extension: currentUserRecord.extension ?? '',
       phonePublic: Boolean(currentUserRecord.phonePublic),
       extensionPublic: Boolean(currentUserRecord.extensionPublic),
       linkedinProfileUrl: currentUserRecord.linkedinProfileUrl || currentUserRecord.linked || '',
       teamsLink: currentUserRecord.teams || '',
+    };
+
+    queueMicrotask(() => {
+      setProfileForm(nextProfileForm);
     });
   }, [currentUserRecord]);
 
@@ -377,6 +384,26 @@ export default function UsersPage() {
         .includes(normalizedSearch);
     });
   }, [searchTerm, users]);
+
+  const userArticlesCountMap = useMemo(() => {
+    const normalizeName = (value?: string) => (value ?? '').trim().toLowerCase();
+    const map = new Map<string, number>();
+
+    articles.forEach((article) => {
+      const key = normalizeName(article.author);
+      if (!key) {
+        return;
+      }
+      map.set(key, (map.get(key) ?? 0) + 1);
+    });
+
+    return map;
+  }, [articles]);
+
+  const getUserArticlesCount = (user: User) => {
+    const key = user.name.trim().toLowerCase();
+    return userArticlesCountMap.get(key) ?? 0;
+  };
 
   const openCreateModal = () => {
     if (!canManageUsers) {
@@ -897,7 +924,7 @@ export default function UsersPage() {
                     )}
                     <div className="flex items-center justify-between border-t border-gray-200 pt-3">
                       <span>Artigos</span>
-                      <span className="font-semibold text-gray-900">{user.articlesCount}</span>
+                      <span className="font-semibold text-gray-900">{getUserArticlesCount(user)}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500">
                       <span>LinkedIn</span>
