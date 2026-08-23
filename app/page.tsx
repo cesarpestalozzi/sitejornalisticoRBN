@@ -4,6 +4,7 @@ export const revalidate = 60;
 import HomeClientOptimized from './components/HomeClientOptimized';
 import { createClient } from '@supabase/supabase-js';
 import { isScheduledArticleDue, promoteScheduledArticle } from '@/app/lib/articlePublishing';
+import { isValidSupabaseUrl } from '@/app/lib/supabase';
 
 interface HomeArticle {
   id: string;
@@ -18,11 +19,32 @@ interface HomeArticle {
   views: number;
 }
 
+type HomeArticleRow = {
+  id: string;
+  payload?: {
+    id?: string;
+    title?: string;
+    subtitle?: string;
+    category?: string;
+    author?: string;
+    excerpt?: string;
+    image?: string;
+    featured?: boolean;
+    status?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    views?: number;
+    [key: string]: unknown;
+  };
+  deleted?: boolean;
+  updated_at?: string;
+};
+
 async function getHomepageArticles(): Promise<HomeArticle[]> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !isValidSupabaseUrl(supabaseUrl) || !serviceRoleKey) {
     return [];
   }
 
@@ -48,15 +70,15 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
 
     const now = Date.now();
     const nowIso = new Date().toISOString();
-    const scheduledRows = data.filter((row: any) => isScheduledArticleDue(row?.payload, now));
+    const scheduledRows = data.filter((row: HomeArticleRow) => Boolean(row.payload) && isScheduledArticleDue(row.payload as Parameters<typeof isScheduledArticleDue>[0], now));
 
     if (scheduledRows.length > 0) {
-      const updates = scheduledRows.map((row: any) => ({
+      const updates = scheduledRows.map((row: HomeArticleRow) => ({
         id: row.id,
-        payload: promoteScheduledArticle(row.payload, nowIso),
+        payload: row.payload ? promoteScheduledArticle(row.payload as Parameters<typeof promoteScheduledArticle>[0], nowIso) : null,
         deleted: false,
         updated_at: nowIso,
-      }));
+      })).filter((update) => update.payload !== null);
 
       const { error: publishError } = await supabase.from('pz_news_articles').upsert(updates, { onConflict: 'id' });
       if (publishError) {
@@ -65,22 +87,31 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
     }
 
     // Extrai apenas campos necessários e filtra artigos publicados
-    const articles = data
-      .map((row: any) => (isScheduledArticleDue(row?.payload, now) ? { ...row, payload: promoteScheduledArticle(row.payload, nowIso) } : row))
-      .filter((row: any) => row.payload?.status === 'publicado')
-      .map((row: any) => {
-        const payload = row.payload;
+    const mappedRows = data.flatMap((row: HomeArticleRow) => {
+      if (!row.payload) {
+        return [] as HomeArticleRow[];
+      }
+
+      return isScheduledArticleDue(row.payload as Parameters<typeof isScheduledArticleDue>[0], now)
+        ? [{ ...row, payload: promoteScheduledArticle(row.payload as Parameters<typeof promoteScheduledArticle>[0], nowIso) }] as HomeArticleRow[]
+        : [row];
+    });
+
+    const articles = mappedRows
+      .filter((row: HomeArticleRow): row is HomeArticleRow => row.payload?.status === 'publicado')
+      .map((row: HomeArticleRow) => {
+        const payload = row.payload ?? {};
         return {
-          id: payload.id,
-          title: payload.title,
-          subtitle: payload.subtitle,
-          category: payload.category,
-          author: payload.author,
-          excerpt: payload.excerpt,
+          id: payload.id ?? row.id,
+          title: payload.title ?? 'Sem título',
+          subtitle: payload.subtitle ?? '',
+          category: payload.category ?? 'Geral',
+          author: payload.author ?? 'RBN',
+          excerpt: payload.excerpt ?? '',
           image: payload.image || 'https://images.unsplash.com/photo-1495020689067-958852a7765e?w=1200&h=630&fit=crop',
-          featured: payload.featured,
-          updatedAt: payload.updatedAt || payload.createdAt,
-          views: payload.views || 0,
+          featured: Boolean(payload.featured),
+          updatedAt: payload.updatedAt || payload.createdAt || row.updated_at || new Date().toISOString(),
+          views: payload.views ?? 0,
         };
       });
 

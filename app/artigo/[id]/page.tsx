@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { supabase } from '@/app/lib/supabase';
+import { isValidSupabaseUrl, supabase } from '@/app/lib/supabase';
 import ArticlePageClient from './ArticlePageClient';
 
 const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
@@ -70,7 +70,7 @@ async function fetchArticleById(id: string): Promise<ArticlePayload | null> {
   }
 
   const hasValidUrl = Boolean(
-    SUPABASE_URL && /^https:\/\/[a-z0-9-]+\.supabase\.co(?:\/)??$/i.test(SUPABASE_URL.trim())
+    isValidSupabaseUrl(SUPABASE_URL)
   );
 
   if (!hasValidUrl || !SUPABASE_ANON_KEY) {

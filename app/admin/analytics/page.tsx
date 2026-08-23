@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, Eye, Share2, MessageCircle, RotateCcw, Users, Download, type LucideIcon } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRangeKey>('last7');
   const [signupUsers, setSignupUsers] = useState<SignupUser[]>([]);
 
-  const getRangeDates = (range: AnalyticsRangeKey) => {
+  const getRangeDates = useCallback((range: AnalyticsRangeKey) => {
     const today = startOfDay(new Date());
 
     switch (range) {
@@ -120,9 +120,9 @@ export default function AnalyticsPage() {
       default:
         return null;
     }
-  };
+  }, []);
 
-  const getPreviousRangeDates = (range: AnalyticsRangeKey) => {
+  const getPreviousRangeDates = useCallback((range: AnalyticsRangeKey) => {
     const currentRange = getRangeDates(range);
     if (!currentRange) {
       return null;
@@ -136,7 +136,7 @@ export default function AnalyticsPage() {
     previousStart.setDate(previousStart.getDate() - (spanInDays - 1));
 
     return { start: previousStart, end: previousEnd };
-  };
+  }, [getRangeDates]);
 
   const isWithinRange = (value: string | Date | undefined, range: { start: Date; end: Date } | null) => {
     const date = value instanceof Date ? value : value ? new Date(value) : null;
@@ -215,7 +215,7 @@ export default function AnalyticsPage() {
   }, []);
 
   const publishedArticles = useMemo(() => articles.filter((article) => article.status === 'publicado'), [articles]);
-  const activeRangeDates = useMemo(() => getRangeDates(analyticsRange), [analyticsRange]);
+  const activeRangeDates = useMemo(() => getRangeDates(analyticsRange), [analyticsRange, getRangeDates]);
 
   const filteredPublishedArticles = useMemo(
     () =>
@@ -316,7 +316,7 @@ export default function AnalyticsPage() {
     const percent = ((currentTotal - previousTotal) / previousTotal) * 100;
     const rounded = Math.round(percent);
     return `${rounded > 0 ? '+' : ''}${rounded}%`;
-  }, [analyticsRange, filteredPublishedArticles, publishedArticles]);
+  }, [analyticsRange, filteredPublishedArticles, getPreviousRangeDates, publishedArticles]);
 
   const signupSeries = useMemo(() => {
     const rangeDates = activeRangeDates;

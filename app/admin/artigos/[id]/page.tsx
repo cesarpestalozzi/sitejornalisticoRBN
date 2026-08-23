@@ -104,7 +104,7 @@ export default function EditArticlePage() {
       });
     }
     return options;
-  }, [availableCategories, formData?.category]);
+  }, [availableCategories, formData]);
   const canAccessArticle = Boolean(article && currentUser && canEditArticle(currentUser, article.author));
 
   const plainContent = useMemo(() => stripHtml(formData?.content ?? ''), [formData?.content]);
@@ -131,17 +131,16 @@ export default function EditArticlePage() {
       return;
     }
 
-    setNotifyByEmail(Boolean(article.notificationEnabled ?? article.notificationRecipients?.length));
+    const nextNotifyByEmail = Boolean(article.notificationEnabled ?? article.notificationRecipients?.length);
+    const nextSelectedRecipientIds = article.notificationRecipients && article.notificationRecipients.length > 0
+      ? article.notificationRecipients.map((recipient) => recipient.id)
+      : audienceRecipients.map((recipient) => recipient.id);
 
-    if (article.notificationRecipients && article.notificationRecipients.length > 0) {
-      setSelectedRecipientIds(article.notificationRecipients.map((recipient) => recipient.id));
-      return;
-    }
-
-    if (audienceRecipients.length > 0) {
-      setSelectedRecipientIds(audienceRecipients.map((recipient) => recipient.id));
-    }
-  }, [article?.id, article?.notificationEnabled, article?.notificationRecipients, audienceRecipients]);
+    queueMicrotask(() => {
+      setNotifyByEmail(nextNotifyByEmail);
+      setSelectedRecipientIds(nextSelectedRecipientIds);
+    });
+  }, [article, audienceRecipients]);
 
   useEffect(() => {
     let isActive = true;
@@ -185,14 +184,18 @@ export default function EditArticlePage() {
   }, []);
 
   useEffect(() => {
-    if (article) {
+    if (!article) {
+      return;
+    }
+
+    queueMicrotask(() => {
       setMediaState({
         images: article.images ?? [],
         videos: article.videos ?? [],
         primaryImage: article.image ?? '',
       });
-    }
-  }, [article?.id]);
+    });
+  }, [article]);
 
   const handleFieldChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (!formData) {

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import SiteShell from "./components/SiteShell";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import "./globals.css";
@@ -16,7 +16,6 @@ export const metadata: Metadata = {
     shortcut: "/rbn-icon-192.png",
     apple: "/rbn-icon-192.png",
   },
-  themeColor: "#991B1B",
   applicationName: "RBN Brasil",
   appleWebApp: {
     capable: true,
@@ -43,6 +42,10 @@ export const metadata: Metadata = {
     description: "Portal de notícias com credibilidade, contexto e cobertura completa do Brasil e do mundo.",
     images: ["https://www.rbnbrasil.com.br/logo-oficial.png"],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#991B1B",
 };
 
 export default function RootLayout({
