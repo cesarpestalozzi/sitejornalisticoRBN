@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import ArticleBodyContent from '@/app/components/ArticleBodyContent';
 import Sidebar from '@/app/components/Sidebar';
 import { featuredArticle as fallbackFeaturedArticle } from '@/app/data/mockData';
+import { useArticles } from '@/app/hooks/useArticles';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { readCurrentRbnUser, type RbnAccount } from '@/app/lib/rbnAuth';
 import { formatDate } from '@/app/utils/dateUtils';
@@ -121,6 +122,7 @@ const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
 export default function ArticlePageClient() {
   const params = useParams<{ id: string }>();
+  const { incrementArticleViews, incrementArticleShares } = useArticles();
   const [articleRecord, setArticleRecord] = useState<any | null>(null);
   const [commentsByArticle, setCommentsByArticle] = useState<Record<string, ArticleComment[]>>({});
   const [isLoaded, setIsLoaded] = useState(false);
@@ -231,6 +233,35 @@ export default function ArticlePageClient() {
       }
     : null;
 
+  useEffect(() => {
+    if (!article?.id || typeof window === 'undefined') {
+      return;
+    }
+
+    const viewKey = `rbn_article_viewed_${article.id}`;
+    const hasViewed = sessionStorage.getItem(viewKey) === '1';
+    if (hasViewed) {
+      return;
+    }
+
+    sessionStorage.setItem(viewKey, '1');
+    incrementArticleViews(article.id);
+  }, [article?.id, incrementArticleViews]);
+
+  const recordShare = (articleId?: string) => {
+    if (!articleId || typeof window === 'undefined') {
+      return;
+    }
+
+    const shareKey = `rbn_article_shared_${articleId}`;
+    if (sessionStorage.getItem(shareKey) === '1') {
+      return;
+    }
+
+    sessionStorage.setItem(shareKey, '1');
+    incrementArticleShares(articleId);
+  };
+
   const relatedArticles: Array<{ id: string; title: string; updatedAt: string; category: string; image?: string }> = [];
 
   const isLoadingArticle = !isLoaded || (!article && Boolean(params?.id));
@@ -272,7 +303,7 @@ export default function ArticlePageClient() {
     };
 
     if (article?.id) {
-      // compartilhamento registrado no cliente sem bloquear a navegação
+      recordShare(article.id);
     }
     window.open(shareLinks[target], '_blank', 'noopener,noreferrer');
   };
@@ -282,9 +313,11 @@ export default function ArticlePageClient() {
 
     try {
       await navigator.clipboard.writeText(url);
+      recordShare(article?.id);
       setShareFeedback('Link copiado para a área de transferência.');
     } catch {
       window.prompt('Copie o link da notícia:', url);
+      recordShare(article?.id);
       setShareFeedback('Use o campo acima para copiar o link manualmente.');
     }
   };
@@ -297,6 +330,7 @@ export default function ArticlePageClient() {
           text: shareText,
           url: shareUrl || window.location.href,
         });
+        recordShare(article?.id);
         setShareFeedback('Matéria compartilhada com sucesso.');
         return;
       } catch {
