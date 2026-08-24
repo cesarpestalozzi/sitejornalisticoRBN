@@ -106,6 +106,60 @@ function stripHtml(value: string) {
     .trim();
 }
 
+function extractCharsetFromContentType(contentType: string | null) {
+  if (!contentType) {
+    return '';
+  }
+  const match = contentType.match(/charset=([^;]+)/i);
+  return match?.[1]?.trim().toLowerCase() ?? '';
+}
+
+function extractCharsetFromXmlHeader(xmlHead: string) {
+  const match = xmlHead.match(/<\?xml[^>]*encoding=["']([^"']+)["']/i);
+  return match?.[1]?.trim().toLowerCase() ?? '';
+}
+
+function decodeWithCharset(bytes: Uint8Array, charset: string) {
+  try {
+    return new TextDecoder(charset, { fatal: false }).decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+function decodedTextScore(text: string) {
+  const replacementChars = (text.match(/�/g) ?? []).length;
+  const mojibakeHints = (text.match(/Ã|Â/g) ?? []).length;
+  return replacementChars * 12 + mojibakeHints * 3;
+}
+
+function decodeFeedXml(buffer: ArrayBuffer, contentType: string | null) {
+  const bytes = new Uint8Array(buffer);
+  const xmlHead = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 2048));
+
+  const declaredCharset = extractCharsetFromContentType(contentType) || extractCharsetFromXmlHeader(xmlHead);
+  const candidateCharsets = [declaredCharset, 'utf-8', 'windows-1252', 'iso-8859-1']
+    .map((value) => value.trim().toLowerCase())
+    .filter((value, index, list) => value.length > 0 && list.indexOf(value) === index);
+
+  let best = '';
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  candidateCharsets.forEach((charset) => {
+    const decoded = decodeWithCharset(bytes, charset);
+    if (!decoded) {
+      return;
+    }
+    const score = decodedTextScore(decoded);
+    if (score < bestScore) {
+      best = decoded;
+      bestScore = score;
+    }
+  });
+
+  return best || new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+}
+
 function toIsoDate(value: string | undefined) {
   if (!value) {
     return new Date().toISOString();
@@ -307,7 +361,8 @@ async function fetchSource(source: RadarSource) {
     throw new Error(`HTTP ${response.status}`);
   }
 
-  const xml = await response.text();
+  const xmlBuffer = await response.arrayBuffer();
+  const xml = decodeFeedXml(xmlBuffer, response.headers.get('content-type'));
   return parseRss(xml);
 }
 
