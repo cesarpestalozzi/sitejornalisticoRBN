@@ -11,6 +11,7 @@ import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useUsers } from '@/app/hooks/useUsers';
+import type { PestalozziChatMessage, PestalozziVersion } from '@/app/lib/pestalozzi';
 import { RADAR_EDITOR_DRAFT_STORAGE_KEY, type RadarEditorDraft } from '@/app/lib/radarEditorDraft';
 import {
   canCreateArticle,
@@ -79,6 +80,12 @@ type PestalozziSuggestion = {
   content: string;
   generatedAt: string;
   mode: 'reescrita-editorial' | 'pesquisa-complementacao';
+};
+
+type PestalozziChatEntry = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
 };
 
 export default function NewArticlePage() {
@@ -184,6 +191,9 @@ export default function NewArticlePage() {
   const [isPestalozziProcessing, setIsPestalozziProcessing] = useState(false);
   const [pestalozziSuggestion, setPestalozziSuggestion] = useState<PestalozziSuggestion | null>(null);
   const [pestalozziOriginalSnapshot, setPestalozziOriginalSnapshot] = useState<PestalozziSuggestion | null>(null);
+  const [pestalozziInput, setPestalozziInput] = useState('');
+  const [pestalozziChat, setPestalozziChat] = useState<PestalozziChatEntry[]>([]);
+  const [pestalozziVersions, setPestalozziVersions] = useState<PestalozziVersion[]>([]);
 
   const plainContent = useMemo(() => stripHtml(formData.content), [formData.content]);
   const wordCount = plainContent.length > 0 ? plainContent.split(' ').length : 0;
@@ -429,14 +439,7 @@ export default function NewArticlePage() {
     } satisfies PestalozziSuggestion;
   };
 
-  const runPestalozziFullAssist = (mode: PestalozziSuggestion['mode']) => {
-    if (!plainContent.trim()) {
-      setPestalozziFeedback('Adicione conteúdo no corpo da matéria para o Pestalozzi processar.');
-      return;
-    }
-
-    setIsPestalozziProcessing(true);
-    const suggestion = buildPestalozziSuggestion(mode);
+  const applySuggestionDraft = (draft: { title: string; subtitle: string; excerpt: string; content: string }, mode: PestalozziSuggestion['mode']) => {
     const originalSnapshot: PestalozziSuggestion = {
       title: formData.title,
       subtitle: formData.subtitle,
@@ -445,15 +448,115 @@ export default function NewArticlePage() {
       generatedAt: new Date().toISOString(),
       mode,
     };
-
     setPestalozziOriginalSnapshot(originalSnapshot);
-    setPestalozziSuggestion(suggestion);
-    setPestalozziFeedback(
+    setPestalozziSuggestion({
+      ...draft,
+      generatedAt: new Date().toISOString(),
+      mode,
+    });
+  };
+
+  const sendPestalozziMessage = async (messageContent: string, mode: PestalozziSuggestion['mode']) => {
+    const trimmedMessage = messageContent.trim();
+    if (!trimmedMessage) {
+      return;
+    }
+    if (!plainContent.trim()) {
+      setPestalozziFeedback('Adicione conteúdo no corpo da matéria para o Pestalozzi processar.');
+      return;
+    }
+
+    setIsPestalozziProcessing(true);
+    setPestalozziChat((current) => [...current, { id: `${Date.now()}-u`, role: 'user', content: trimmedMessage }]);
+
+    try {
+      const apiMessages: PestalozziChatMessage[] = [
+        ...pestalozziChat.map((entry) => ({ role: entry.role, content: entry.content })),
+        { role: 'user', content: trimmedMessage },
+      ];
+      const response = await fetch('/api/admin/pestalozzi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: apiMessages,
+          context: {
+            title: formData.title,
+            subtitle: formData.subtitle,
+            excerpt: formData.excerpt,
+            content: formData.content,
+            category: formData.category,
+            location: formData.location,
+            radarSummary: radarDraft?.summary || '',
+            radarSources:
+              radarDraft?.sources.slice(0, 8).map((source) => ({
+                name: source.name,
+                url: source.url,
+                reliability: source.reliability,
+              })) || [],
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        suggestion?: {
+          assistantMessage?: string;
+          versions?: PestalozziVersion[];
+          titleOptions?: string[];
+          subtitleOptions?: string[];
+        };
+      };
+      if (!response.ok || !payload.ok || !payload.suggestion) {
+        throw new Error(payload.error || 'Não foi possível processar a solicitação no Pestalozzi.');
+      }
+
+      const suggestion = payload.suggestion;
+      const assistantMessage = suggestion.assistantMessage || 'Preparei sugestões editoriais.';
+      const versions = Array.isArray(suggestion.versions) ? suggestion.versions : [];
+      const firstVersion = versions[0];
+
+      if (firstVersion) {
+        applySuggestionDraft(
+          {
+            title: firstVersion.title || formData.title,
+            subtitle: firstVersion.subtitle || formData.subtitle,
+            excerpt: firstVersion.excerpt || formData.excerpt,
+            content: firstVersion.content || formData.content,
+          },
+          mode
+        );
+      } else {
+        const localSuggestion = buildPestalozziSuggestion(mode);
+        applySuggestionDraft(localSuggestion, mode);
+      }
+
+      setPestalozziVersions(versions);
+      if (Array.isArray(suggestion.titleOptions) && suggestion.titleOptions.length > 0) {
+        setSelectedTitleOption(suggestion.titleOptions[0]);
+      }
+      setPestalozziChat((current) => [...current, { id: `${Date.now()}-a`, role: 'assistant', content: assistantMessage }]);
+      setPestalozziFeedback(
+        mode === 'reescrita-editorial'
+          ? 'Sugestão pronta: compare o original com a reescrita e aplique somente se aprovar.'
+          : 'Sugestão com complementação pronta: revise as fontes e aplique se aprovar.'
+      );
+    } catch (error) {
+      const localSuggestion = buildPestalozziSuggestion(mode);
+      applySuggestionDraft(localSuggestion, mode);
+      const message = error instanceof Error ? error.message : 'Erro ao acionar o Pestalozzi.';
+      setPestalozziChat((current) => [...current, { id: `${Date.now()}-a`, role: 'assistant', content: message }]);
+      setPestalozziFeedback('Falha na IA avançada. Sugestão local gerada para não interromper o fluxo.');
+    } finally {
+      setIsPestalozziProcessing(false);
+    }
+  };
+
+  const runPestalozziFullAssist = (mode: PestalozziSuggestion['mode']) => {
+    const prompt =
       mode === 'reescrita-editorial'
-        ? 'Sugestão pronta: compare o original com a reescrita e aplique somente se aprovar.'
-        : 'Sugestão com complementação pronta: revise as fontes e aplique se aprovar.'
-    );
-    setIsPestalozziProcessing(false);
+        ? 'Reescreva essa matéria com padrão jornalístico profissional, mantendo rigorosamente os fatos.'
+        : 'Reescreva e complemente a matéria com foco em contexto e pontos de confirmação factual.';
+    void sendPestalozziMessage(prompt, mode);
   };
 
   const applyPestalozziSuggestion = () => {
@@ -481,7 +584,21 @@ export default function NewArticlePage() {
   const discardPestalozziSuggestion = () => {
     setPestalozziSuggestion(null);
     setPestalozziOriginalSnapshot(null);
+    setPestalozziVersions([]);
     setPestalozziFeedback('Sugestão descartada. O texto original foi preservado.');
+  };
+
+  const applyPestalozziVersion = (version: PestalozziVersion) => {
+    applySuggestionDraft(
+      {
+        title: version.title || formData.title,
+        subtitle: version.subtitle || formData.subtitle,
+        excerpt: version.excerpt || formData.excerpt,
+        content: version.content || formData.content,
+      },
+      'reescrita-editorial'
+    );
+    setPestalozziFeedback('Versão selecionada. Compare com o original e aplique se aprovar.');
   };
 
   const handleMediaChange = (images: ArticleImage[], videos: ArticleVideo[], primaryImage: string) => {
@@ -879,7 +996,22 @@ export default function NewArticlePage() {
 
                 <button
                   type="button"
-                  onClick={() => setIsPestalozziOpen((current) => !current)}
+                  onClick={() =>
+                    setIsPestalozziOpen((current) => {
+                      const next = !current;
+                      if (next && pestalozziChat.length === 0) {
+                        setPestalozziChat([
+                          {
+                            id: `${Date.now()}-hello`,
+                            role: 'assistant',
+                            content:
+                              'Olá, eu sou o Pestalozzi. Sou seu parceiro na escrita e posso reescrever, revisar, sugerir títulos e refinar sua matéria preservando os fatos.',
+                          },
+                        ]);
+                      }
+                      return next;
+                    })
+                  }
                   className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-[#111111] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]"
                 >
                   {isPestalozziOpen ? 'Fechar assistente Pestalozzi' : 'Abrir assistente Pestalozzi'}
@@ -908,10 +1040,102 @@ export default function NewArticlePage() {
                         {isPestalozziProcessing ? 'Aguarde...' : 'Pesquisar e complementar'}
                       </button>
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void sendPestalozziMessage('Gere cinco opções de título para esta matéria.', 'reescrita-editorial')}
+                        disabled={isPestalozziProcessing}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Gerar título
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendPestalozziMessage('Melhore o lead mantendo os fatos.', 'reescrita-editorial')}
+                        disabled={isPestalozziProcessing}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Melhorar lead
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendPestalozziMessage('Faça uma revisão editorial completa desse texto.', 'reescrita-editorial')}
+                        disabled={isPestalozziProcessing}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Revisar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendPestalozziMessage('Gere novamente com outra abordagem editorial.', 'reescrita-editorial')}
+                        disabled={isPestalozziProcessing}
+                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Gerar novamente
+                      </button>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <div className="max-h-52 space-y-2 overflow-auto pr-1">
+                        {pestalozziChat.length === 0 ? (
+                          <p className="text-xs text-gray-500">Converse com o Pestalozzi para refinar a matéria nesta sessão.</p>
+                        ) : (
+                          pestalozziChat.map((entry) => (
+                            <div
+                              key={entry.id}
+                              className={`rounded-lg px-3 py-2 text-xs ${
+                                entry.role === 'user' ? 'bg-gray-100 text-gray-800' : 'bg-[#fff7f7] text-[#7f1d1d]'
+                              }`}
+                            >
+                              <p className="mb-1 font-semibold">{entry.role === 'user' ? 'Você' : 'Pestalozzi'}</p>
+                              <p className="whitespace-pre-wrap">{entry.content}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <textarea
+                        rows={3}
+                        value={pestalozziInput}
+                        onChange={(event) => setPestalozziInput(event.target.value)}
+                        placeholder="Ex.: Reescreva com mais impacto, sem alterar os fatos."
+                        className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs focus:border-[#FF796C] focus:outline-none"
+                      />
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          disabled={isPestalozziProcessing || !pestalozziInput.trim()}
+                          onClick={() => {
+                            const prompt = pestalozziInput;
+                            setPestalozziInput('');
+                            void sendPestalozziMessage(prompt, 'reescrita-editorial');
+                          }}
+                          className="rounded-lg bg-[#111111] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Enviar
+                        </button>
+                      </div>
+                    </div>
                     {pestalozziFeedback && <p className="text-xs font-medium text-emerald-700">{pestalozziFeedback}</p>}
                   </div>
                 )}
               </section>
+
+              {pestalozziVersions.length > 0 && (
+                <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-bold text-gray-900">Versões sugeridas</h2>
+                  <div className="mt-3 grid gap-2">
+                    {pestalozziVersions.map((version, index) => (
+                      <button
+                        key={`${version.label}-${index}`}
+                        type="button"
+                        onClick={() => applyPestalozziVersion(version)}
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-700 transition hover:bg-gray-100"
+                      >
+                        {version.label || `Versão ${index + 1}`}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {pestalozziSuggestion && (
                 <section className="rounded-xl border border-[#991B1B]/20 bg-[#fff7f7] p-6 shadow-sm">

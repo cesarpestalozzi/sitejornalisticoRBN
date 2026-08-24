@@ -33,6 +33,8 @@ interface HtmlEditorProps {
   libraryImages?: ArticleImage[];
   libraryVideos?: ArticleVideo[];
   onRegisterMedia?: (kind: 'image' | 'video', file: File, caption: string) => Promise<{ id: string; url: string }>;
+  onSelectionTextChange?: (selectedText: string) => void;
+  replaceSelectionRequest?: { id: number; text: string } | null;
 }
 
 type InlineImageAlignment = 'left' | 'center' | 'right';
@@ -178,6 +180,8 @@ export default function HtmlEditor({
   libraryImages = [],
   libraryVideos = [],
   onRegisterMedia,
+  onSelectionTextChange,
+  replaceSelectionRequest,
 }: HtmlEditorProps) {
   const editorId = useId();
   const editorRef = useRef<HTMLDivElement>(null);
@@ -198,6 +202,7 @@ export default function HtmlEditor({
   const [selectedTextColor, setSelectedTextColor] = useState('#111827');
   const [selectedHighlightColor, setSelectedHighlightColor] = useState('#FEF08A');
   const [selectedInlineImageSettings, setSelectedInlineImageSettings] = useState<{ width: number; alignment: InlineImageAlignment } | null>(null);
+  const lastReplaceSelectionRequestIdRef = useRef<number | null>(null);
   const previewContent = useMemo(() => value.trim() || '<p>Nenhum conteudo adicionado ainda.</p>', [value]);
   const editorContent = useMemo(() => {
     return resolveInlineMediaContent(value, libraryImages, libraryVideos).trim();
@@ -246,15 +251,19 @@ export default function HtmlEditor({
   const saveSelection = () => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || !editorRef.current) {
+      onSelectionTextChange?.('');
       return;
     }
 
     const range = selection.getRangeAt(0);
     if (!editorRef.current.contains(range.commonAncestorContainer)) {
+      onSelectionTextChange?.('');
       return;
     }
 
     savedSelectionRef.current = range.cloneRange();
+    const selectedText = selection.toString().trim();
+    onSelectionTextChange?.(selectedText);
   };
 
   const syncEditorValue = () => {
@@ -532,6 +541,40 @@ export default function HtmlEditor({
     event.preventDefault();
     runEditorCommand('insertParagraph');
   };
+
+  useEffect(() => {
+    if (!replaceSelectionRequest) {
+      return;
+    }
+    if (lastReplaceSelectionRequestIdRef.current === replaceSelectionRequest.id) {
+      return;
+    }
+    lastReplaceSelectionRequestIdRef.current = replaceSelectionRequest.id;
+    if (!prepareEditor() || !editorRef.current) {
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!editorRef.current.contains(range.commonAncestorContainer) || range.collapsed) {
+      return;
+    }
+
+    const nextText = replaceSelectionRequest.text;
+    const safeHtml = nextText
+      .split(/\n{2,}/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean)
+      .map((paragraph) => `<p>${paragraph.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('');
+    const htmlToInsert = safeHtml || `<p>${nextText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;
+    insertHtmlAtSelection(htmlToInsert);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replaceSelectionRequest]);
 
   return (
     <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
