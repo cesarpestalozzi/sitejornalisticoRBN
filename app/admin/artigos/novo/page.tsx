@@ -486,7 +486,7 @@ export default function NewArticlePage() {
             content: formData.content,
             category: formData.category,
             location: formData.location,
-            radarSummary: radarDraft?.summary || '',
+            radarSummary: radarDraft?.excerpt || '',
             radarSources:
               radarDraft?.sources.slice(0, 8).map((source) => ({
                 name: source.name,
