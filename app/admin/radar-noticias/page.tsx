@@ -77,6 +77,24 @@ function saveJson<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+function mergeSourcesWithDefaults(storedSources: RadarSource[]) {
+  const defaultsById = new Map(RADAR_DEFAULT_SOURCES.map((source) => [source.id, source]));
+  const mergedKnown = RADAR_DEFAULT_SOURCES.map((defaultSource) => {
+    const stored = storedSources.find((source) => source.id === defaultSource.id);
+    if (!stored) {
+      return defaultSource;
+    }
+
+    return {
+      ...defaultSource,
+      enabled: defaultSource.enabled ? stored.enabled : false,
+    } satisfies RadarSource;
+  });
+
+  const customSources = storedSources.filter((source) => !defaultsById.has(source.id));
+  return [...mergedKnown, ...customSources];
+}
+
 function formatDateTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -158,6 +176,25 @@ function buildPautaFromGroup(group: RadarNewsGroup): RadarPauta {
   };
 }
 
+function RadarGroupCoverImage({ imageUrl, headline }: { imageUrl: string; headline: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!imageUrl || failed) {
+    return <div className="flex h-full items-center justify-center p-4 text-center text-xs text-gray-500">Imagem indisponível</div>;
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={headline}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className="h-full w-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function RadarNoticiasPage() {
   const currentUser = useCurrentAdminUser();
   const router = useRouter();
@@ -174,7 +211,9 @@ export default function RadarNoticiasPage() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
   const [savedIds, setSavedIds] = useState<string[]>(() => loadJson<string[]>(SAVED_STORAGE_KEY, []));
   const [ignoredIds, setIgnoredIds] = useState<string[]>(() => loadJson<string[]>(IGNORED_STORAGE_KEY, []));
-  const [sources, setSources] = useState<RadarSource[]>(() => loadJson<RadarSource[]>(SOURCES_STORAGE_KEY, RADAR_DEFAULT_SOURCES));
+  const [sources, setSources] = useState<RadarSource[]>(() =>
+    mergeSourcesWithDefaults(loadJson<RadarSource[]>(SOURCES_STORAGE_KEY, RADAR_DEFAULT_SOURCES))
+  );
   const [keywordAlerts, setKeywordAlerts] = useState<string[]>(() =>
     loadJson<string[]>(KEYWORDS_STORAGE_KEY, ['lula', 'congresso', 'stf', 'são paulo', 'eleições'])
   );
@@ -703,11 +742,7 @@ export default function RadarNoticiasPage() {
                   <article key={group.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="grid gap-0 md:grid-cols-[240px_minmax(0,1fr)]">
                       <div className="h-full min-h-[180px] bg-gray-100">
-                        {group.imageUrl ? (
-                          <img src={group.imageUrl} alt={group.headline} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full items-center justify-center p-4 text-center text-xs text-gray-500">Imagem indisponível</div>
-                        )}
+                        <RadarGroupCoverImage imageUrl={group.imageUrl} headline={group.headline} />
                       </div>
                       <div className="p-4">
                         <div className="mb-2 flex flex-wrap items-center gap-2">

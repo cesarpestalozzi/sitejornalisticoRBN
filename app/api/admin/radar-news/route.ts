@@ -129,6 +129,42 @@ function pickTagValue(block: string, tags: string[]) {
   return '';
 }
 
+function normalizeImageUrl(rawUrl: string) {
+  const value = decodeHtml(rawUrl).trim();
+  if (!value) {
+    return '';
+  }
+  if (value.startsWith('//')) {
+    return `https:${value}`;
+  }
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    return value.replace(/^http:\/\//i, 'https://');
+  }
+  return '';
+}
+
+function extractImageUrlFromBlock(block: string) {
+  const patterns = [
+    /<media:content[^>]*url=["']([^"']+)["']/i,
+    /<media:thumbnail[^>]*url=["']([^"']+)["']/i,
+    /<enclosure[^>]*type=["'][^"']*image[^"']*["'][^>]*url=["']([^"']+)["']/i,
+    /<enclosure[^>]*url=["']([^"']+)["'][^>]*type=["'][^"']*image[^"']*["']/i,
+    /<img[^>]*src=["']([^"']+)["']/i,
+    /<img[^>]*data-src=["']([^"']+)["']/i,
+    /<img[^>]*srcset=["']([^"'\s,]+)["']/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = block.match(pattern);
+    const candidate = match?.[1] ? normalizeImageUrl(match[1]) : '';
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
 function parseRss(xml: string) {
   const itemBlocks = [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)].map((match) => match[0]);
   return itemBlocks
@@ -137,13 +173,7 @@ function parseRss(xml: string) {
       const summary = pickTagValue(block, ['description', 'content:encoded', 'summary']);
       const link = pickTagValue(block, ['link', 'guid']);
       const pubDate = pickTagValue(block, ['pubDate', 'published', 'updated', 'dc:date']);
-      const mediaMatch =
-        block.match(/<media:content[^>]*url=["']([^"']+)["']/i) ??
-        block.match(/<media:thumbnail[^>]*url=["']([^"']+)["']/i) ??
-        block.match(/<enclosure[^>]*url=["']([^"']+)["']/i) ??
-        block.match(/<img[^>]*src=["']([^"']+)["']/i);
-
-      const imageUrl = mediaMatch?.[1] ? decodeHtml(mediaMatch[1].trim()) : '';
+      const imageUrl = extractImageUrlFromBlock(block);
       const url = link.trim();
       if (!title || !url) {
         return null;
@@ -402,6 +432,10 @@ export async function POST(request: NextRequest) {
       const representative = [...filteredEntries].sort(
         (left, right) => new Date(right.item.publishedAt).getTime() - new Date(left.item.publishedAt).getTime()
       )[0];
+      const groupImage =
+        representative.item.imageUrl ||
+        filteredEntries.find((entry) => entry.item.imageUrl.trim().length > 0)?.item.imageUrl ||
+        '';
       const averageReliability = filteredEntries.reduce((sum, entry) => sum + entry.source.reliability, 0) / filteredEntries.length;
       const keywordSet = new Set(filteredEntries.flatMap((entry) => entry.matchedKeywords));
 
@@ -433,7 +467,7 @@ export async function POST(request: NextRequest) {
         id: groupId,
         headline: representative.item.title,
         summary: groupSummary,
-        imageUrl: representative.item.imageUrl,
+        imageUrl: groupImage,
         category: groupCategory,
         country: representative.source.country,
         firstPublishedAt: new Date(oldestPublished).toISOString(),
@@ -463,7 +497,7 @@ export async function POST(request: NextRequest) {
           title: item.title,
           summary: item.summary || 'Resumo indisponível na fonte.',
           url: item.url,
-          imageUrl: item.imageUrl,
+          imageUrl: item.imageUrl || groupImage,
           sourceName: source.name,
           sourceUrl: source.url,
           sourceReliability: source.reliability,
@@ -535,4 +569,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
