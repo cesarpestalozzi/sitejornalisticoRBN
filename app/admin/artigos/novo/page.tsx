@@ -72,6 +72,15 @@ type EditorialChecklistItem = {
   detail: string;
 };
 
+type PestalozziSuggestion = {
+  title: string;
+  subtitle: string;
+  excerpt: string;
+  content: string;
+  generatedAt: string;
+  mode: 'reescrita-editorial' | 'pesquisa-complementacao';
+};
+
 export default function NewArticlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -172,6 +181,9 @@ export default function NewArticlePage() {
   const [keywordTags, setKeywordTags] = useState<string[]>([]);
   const [isPestalozziOpen, setIsPestalozziOpen] = useState(false);
   const [pestalozziFeedback, setPestalozziFeedback] = useState('');
+  const [isPestalozziProcessing, setIsPestalozziProcessing] = useState(false);
+  const [pestalozziSuggestion, setPestalozziSuggestion] = useState<PestalozziSuggestion | null>(null);
+  const [pestalozziOriginalSnapshot, setPestalozziOriginalSnapshot] = useState<PestalozziSuggestion | null>(null);
 
   const plainContent = useMemo(() => stripHtml(formData.content), [formData.content]);
   const wordCount = plainContent.length > 0 ? plainContent.split(' ').length : 0;
@@ -362,7 +374,7 @@ export default function NewArticlePage() {
     }));
   };
 
-  const runPestalozziFullAssist = () => {
+  const buildPestalozziSuggestion = (mode: PestalozziSuggestion['mode']) => {
     const nowLabel = new Date().toLocaleString('pt-BR');
     const currentTitle = formData.title.trim();
     const currentSubtitle = formData.subtitle.trim();
@@ -393,7 +405,7 @@ export default function NewArticlePage() {
         : '<li>Adicionar no mínimo duas fontes primárias antes da publicação final.</li>';
 
     const generatedContent = [
-      `<p><strong>Revisão Pestalozzi (${nowLabel}):</strong> versão analisada, revisada e reescrita automaticamente para publicação editorial.</p>`,
+      `<p><strong>Revisão Pestalozzi (${nowLabel}):</strong> versão analisada, revisada e reescrita em padrão editorial jornalístico.</p>`,
       `<p>${nextExcerpt}</p>`,
       '<h2>Resumo da apuração</h2>',
       `<p>${nextSubtitle}</p>`,
@@ -401,26 +413,75 @@ export default function NewArticlePage() {
       safePlainContent
         ? `<p>${safePlainContent}</p>`
         : '<p>Insira informações adicionais no corpo da matéria para aprofundar a cobertura.</p>',
-      '<h2>Fontes para validação</h2>',
-      `<ul>${sourceLines}</ul>`,
+      mode === 'pesquisa-complementacao' ? '<h2>Fontes para validação</h2>' : '',
+      mode === 'pesquisa-complementacao' ? `<ul>${sourceLines}</ul>` : '',
       '<h2>Checklist de revisão final</h2>',
       '<ul><li>Confirmar dados, números e datas em fonte oficial.</li><li>Registrar contraponto das partes citadas.</li><li>Validar direitos de imagem e crédito.</li></ul>',
     ].join('');
 
-    setFormData((current) => ({
-      ...current,
+    return {
       title: nextTitle,
       subtitle: nextSubtitle,
       excerpt: nextExcerpt,
       content: generatedContent,
-    }));
-    setSelectedTitleOption(nextTitle);
-    if (!seoDescription.trim()) {
-      setSeoDescription(nextExcerpt);
+      generatedAt: new Date().toISOString(),
+      mode,
+    } satisfies PestalozziSuggestion;
+  };
+
+  const runPestalozziFullAssist = (mode: PestalozziSuggestion['mode']) => {
+    if (!plainContent.trim()) {
+      setPestalozziFeedback('Adicione conteúdo no corpo da matéria para o Pestalozzi processar.');
+      return;
     }
-    setPestalozziFeedback('Análise, revisão e reescrita aplicadas no título, linha fina, resumo e corpo do texto.');
+
+    setIsPestalozziProcessing(true);
+    const suggestion = buildPestalozziSuggestion(mode);
+    const originalSnapshot: PestalozziSuggestion = {
+      title: formData.title,
+      subtitle: formData.subtitle,
+      excerpt: formData.excerpt,
+      content: formData.content,
+      generatedAt: new Date().toISOString(),
+      mode,
+    };
+
+    setPestalozziOriginalSnapshot(originalSnapshot);
+    setPestalozziSuggestion(suggestion);
+    setPestalozziFeedback(
+      mode === 'reescrita-editorial'
+        ? 'Sugestão pronta: compare o original com a reescrita e aplique somente se aprovar.'
+        : 'Sugestão com complementação pronta: revise as fontes e aplique se aprovar.'
+    );
+    setIsPestalozziProcessing(false);
+  };
+
+  const applyPestalozziSuggestion = () => {
+    if (!pestalozziSuggestion) {
+      return;
+    }
+    setFormData((current) => ({
+      ...current,
+      title: pestalozziSuggestion.title,
+      subtitle: pestalozziSuggestion.subtitle,
+      excerpt: pestalozziSuggestion.excerpt,
+      content: pestalozziSuggestion.content,
+    }));
+    setSelectedTitleOption(pestalozziSuggestion.title);
+    if (!seoDescription.trim()) {
+      setSeoDescription(pestalozziSuggestion.excerpt);
+    }
     setJournalistReviewDone(false);
     setEditorialWarning('');
+    setPestalozziFeedback('Alterações aplicadas ao editor. Revise e publique somente quando aprovar.');
+    setPestalozziSuggestion(null);
+    setPestalozziOriginalSnapshot(null);
+  };
+
+  const discardPestalozziSuggestion = () => {
+    setPestalozziSuggestion(null);
+    setPestalozziOriginalSnapshot(null);
+    setPestalozziFeedback('Sugestão descartada. O texto original foi preservado.');
   };
 
   const handleMediaChange = (images: ArticleImage[], videos: ArticleVideo[], primaryImage: string) => {
@@ -827,19 +888,115 @@ export default function NewArticlePage() {
                 {isPestalozziOpen && (
                   <div className="mt-3 space-y-3">
                     <p className="text-xs text-gray-600">
-                      Comando único: analisa, revisa e reescreve automaticamente a matéria com foco em clareza editorial e checagem.
+                      Reescrita editorial não substitui o texto automaticamente: o original é preservado até você aplicar.
                     </p>
-                    <button
-                      type="button"
-                      onClick={runPestalozziFullAssist}
-                      className="w-full rounded-lg border border-[#991B1B]/25 bg-[#fff7f7] px-3 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#ffeaea]"
-                    >
-                      Analisar, revisar e reescrever matéria
-                    </button>
+                    <div className="grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => runPestalozziFullAssist('reescrita-editorial')}
+                        disabled={isPestalozziProcessing}
+                        className="w-full rounded-lg border border-[#991B1B]/25 bg-[#fff7f7] px-3 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#ffeaea] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isPestalozziProcessing ? 'Pestalozzi está processando...' : 'Reescrever matéria'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => runPestalozziFullAssist('pesquisa-complementacao')}
+                        disabled={isPestalozziProcessing}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isPestalozziProcessing ? 'Aguarde...' : 'Pesquisar e complementar'}
+                      </button>
+                    </div>
                     {pestalozziFeedback && <p className="text-xs font-medium text-emerald-700">{pestalozziFeedback}</p>}
                   </div>
                 )}
               </section>
+
+              {pestalozziSuggestion && (
+                <section className="rounded-xl border border-[#991B1B]/20 bg-[#fff7f7] p-6 shadow-sm">
+                  <h2 className="text-lg font-bold text-gray-900">Sugestão do Pestalozzi</h2>
+                  <p className="mt-1 text-xs text-gray-600">
+                    Compare com o original. O conteúdo só será aplicado após sua confirmação.
+                  </p>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-lg border border-gray-200 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Texto original</p>
+                      <p className="mt-2 text-sm font-semibold text-gray-900">{pestalozziOriginalSnapshot?.title || 'Sem título'}</p>
+                      <p className="mt-2 text-xs text-gray-700">{pestalozziOriginalSnapshot?.subtitle || 'Sem linha fina'}</p>
+                      <p className="mt-2 text-xs text-gray-700">{pestalozziOriginalSnapshot?.excerpt || 'Sem resumo'}</p>
+                      <div className="mt-3 max-h-48 overflow-auto rounded border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">
+                        {stripHtml(pestalozziOriginalSnapshot?.content || '') || 'Sem conteúdo'}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-[#991B1B]/20 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#991B1B]">Sugestão Pestalozzi</p>
+                      <label className="mt-2 block text-xs font-semibold text-gray-700">Título sugerido</label>
+                      <input
+                        type="text"
+                        value={pestalozziSuggestion.title}
+                        onChange={(event) =>
+                          setPestalozziSuggestion((current) => (current ? { ...current, title: event.target.value } : current))
+                        }
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF796C] focus:outline-none"
+                      />
+                      <label className="mt-3 block text-xs font-semibold text-gray-700">Linha fina sugerida</label>
+                      <input
+                        type="text"
+                        value={pestalozziSuggestion.subtitle}
+                        onChange={(event) =>
+                          setPestalozziSuggestion((current) => (current ? { ...current, subtitle: event.target.value } : current))
+                        }
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF796C] focus:outline-none"
+                      />
+                      <label className="mt-3 block text-xs font-semibold text-gray-700">Resumo sugerido</label>
+                      <textarea
+                        rows={3}
+                        value={pestalozziSuggestion.excerpt}
+                        onChange={(event) =>
+                          setPestalozziSuggestion((current) => (current ? { ...current, excerpt: event.target.value } : current))
+                        }
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF796C] focus:outline-none"
+                      />
+                      <label className="mt-3 block text-xs font-semibold text-gray-700">Corpo sugerido</label>
+                      <textarea
+                        rows={8}
+                        value={stripHtml(pestalozziSuggestion.content)}
+                        onChange={(event) =>
+                          setPestalozziSuggestion((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  content: `<p>${escapeHtml(event.target.value).replace(/\n/g, '</p><p>')}</p>`,
+                                }
+                              : current
+                          )
+                        }
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#FF796C] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={applyPestalozziSuggestion}
+                      className="rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]"
+                    >
+                      Aplicar alterações
+                    </button>
+                    <button
+                      type="button"
+                      onClick={discardPestalozziSuggestion}
+                      className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                    >
+                      Descartar
+                    </button>
+                  </div>
+                </section>
+              )}
 
               {radarDraft && (
                 <section className="rounded-xl bg-white p-6 shadow-sm">
