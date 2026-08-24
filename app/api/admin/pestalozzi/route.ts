@@ -18,35 +18,87 @@ const AI_PROVIDER = (process.env.AI_PROVIDER || 'openai').toLowerCase();
 const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 
+function stripHtml(content: string) {
+  return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function buildTitleOptions(baseTitle: string) {
+  const normalizedBase = baseTitle || 'Matéria em revisão';
+  const options = [
+    normalizedBase,
+    `${normalizedBase}: o que se sabe até agora`,
+    `${normalizedBase}: análise completa e próximos passos`,
+    `${normalizedBase}: pontos centrais da apuração`,
+  ];
+
+  return Array.from(new Set(options)).slice(0, 5);
+}
+
+function buildFallbackVersionContent(plainContent: string, summary: string, subtitle: string) {
+  const safeSummary = summary || 'Texto revisado sem alterar os fatos reportados.';
+  const safeSubtitle = subtitle || 'Apuração revisada com foco em clareza e contexto.';
+  const core = plainContent || 'Adicione conteúdo no corpo da matéria para gerar uma versão completa.';
+
+  return [
+    `<p><strong>Lead revisado:</strong> ${safeSummary}</p>`,
+    `<p>${core}</p>`,
+    '<h2>Contexto</h2>',
+    `<p>${safeSubtitle}</p>`,
+    '<h2>Pontos de atenção antes de publicar</h2>',
+    '<ul><li>Confirmar datas, nomes e números.</li><li>Checar atribuição de falas e fontes.</li><li>Validar crédito de imagens e links.</li></ul>',
+  ].join('');
+}
+
 function fallbackResponse(messages: PestalozziChatMessage[], context: PestalozziContext): PestalozziSuggestionPayload {
   const lastUserMessage = [...messages].reverse().find((message) => message.role === 'user')?.content || '';
-  const baseTitle = context.title || 'Matéria em revisão';
-  const baseSubtitle = context.subtitle || context.excerpt || 'Linha fina em revisão editorial.';
-  const baseExcerpt = context.excerpt || 'Resumo em revisão editorial.';
-  const plainContent = context.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  const core = plainContent || 'Adicione conteúdo no corpo da matéria para gerar uma proposta editorial.';
+  const baseTitle = context.title?.trim() || 'Matéria em revisão';
+  const plainContent = stripHtml(context.content || '');
+  const extractedLead = plainContent.slice(0, 220);
+  const baseExcerpt =
+    context.excerpt?.trim() ||
+    `${extractedLead}${plainContent.length > 220 ? '...' : ''}` ||
+    'Resumo em revisão editorial.';
+  const baseSubtitle =
+    context.subtitle?.trim() || 'Texto analisado, revisado e reescrito com foco em precisão factual e clareza.';
+  const titleOptions = buildTitleOptions(baseTitle);
 
   const versions = [
     {
-      label: 'Versão 1 — Objetiva',
+      label: 'Versão 1 — Completa e objetiva',
       title: baseTitle,
       subtitle: baseSubtitle,
       excerpt: baseExcerpt,
-      content: `<p>${baseExcerpt}</p><p>${core}</p>`,
+      content: buildFallbackVersionContent(plainContent, baseExcerpt, baseSubtitle),
     },
     {
-      label: 'Versão 2 — Contextual',
-      title: baseTitle.includes(':') ? baseTitle : `${baseTitle}: entenda o contexto`,
+      label: 'Versão 2 — Analítica',
+      title: titleOptions[1] || baseTitle,
       subtitle: baseSubtitle,
       excerpt: baseExcerpt,
-      content: `<p><strong>Lead:</strong> ${baseExcerpt}</p><p>${core}</p>`,
+      content: [
+        `<p><strong>Abertura:</strong> ${baseExcerpt}</p>`,
+        `<p>${plainContent || 'Sem conteúdo suficiente para expansão automática.'}</p>`,
+        '<h2>Por que esse tema importa</h2>',
+        `<p>${baseSubtitle}</p>`,
+      ].join(''),
+    },
+    {
+      label: 'Versão 3 — Enxuta',
+      title: titleOptions[2] || baseTitle,
+      subtitle: baseSubtitle,
+      excerpt: baseExcerpt,
+      content: [
+        `<p>${baseExcerpt}</p>`,
+        `<p>${plainContent || 'Adicione corpo de texto para refino completo.'}</p>`,
+      ].join(''),
     },
   ];
 
   return {
-    assistantMessage: `Preparei versões editoriais baseadas no texto atual. Pedido: "${lastUserMessage}".`,
+    assistantMessage:
+      `Concluí análise, revisão e reescrita em um único fluxo com 3 versões editoriais. Pedido: "${lastUserMessage}".`,
     versions,
-    titleOptions: [baseTitle, `${baseTitle}: o que se sabe até agora`].slice(0, 5),
+    titleOptions,
     subtitleOptions: [baseSubtitle].filter(Boolean),
     sourceNotes: ['Modo de contingência ativo: configure AI_PROVIDER/AI_MODEL/OPENAI_API_KEY para resposta avançada.'],
   };
@@ -119,7 +171,19 @@ export async function POST(request: NextRequest) {
 
     let suggestion: PestalozziSuggestionPayload;
     if (AI_PROVIDER === 'openai' && OPENAI_API_KEY) {
-      suggestion = await callOpenAi(messages, context);
+      try {
+        suggestion = await callOpenAi(messages, context);
+      } catch (providerError) {
+        const fallback = fallbackResponse(messages, context);
+        suggestion = {
+          ...fallback,
+          assistantMessage: `IA avançada indisponível no momento. ${fallback.assistantMessage}`,
+          sourceNotes: [
+            ...(fallback.sourceNotes || []),
+            providerError instanceof Error ? providerError.message : 'Falha ao consultar provedor avançado.',
+          ],
+        };
+      }
     } else {
       suggestion = fallbackResponse(messages, context);
     }
@@ -130,4 +194,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
-

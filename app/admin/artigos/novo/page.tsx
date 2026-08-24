@@ -551,12 +551,10 @@ export default function NewArticlePage() {
     }
   };
 
-  const runPestalozziFullAssist = (mode: PestalozziSuggestion['mode']) => {
+  const runPestalozziFullAssist = () => {
     const prompt =
-      mode === 'reescrita-editorial'
-        ? 'Reescreva essa matéria com padrão jornalístico profissional, mantendo rigorosamente os fatos.'
-        : 'Reescreva e complemente a matéria com foco em contexto e pontos de confirmação factual.';
-    void sendPestalozziMessage(prompt, mode);
+      'Analise, revise e reescreva esta matéria inteira com padrão jornalístico profissional, preservando 100% dos fatos, e entregue versões completas com título, linha fina, resumo e corpo.';
+    void sendPestalozziMessage(prompt, 'reescrita-editorial');
   };
 
   const applyPestalozziSuggestion = () => {
@@ -1019,59 +1017,15 @@ export default function NewArticlePage() {
 
                 {isPestalozziOpen && (
                   <div className="mt-3 space-y-3">
-                    <p className="text-xs text-gray-600">
-                      Reescrita editorial não substitui o texto automaticamente: o original é preservado até você aplicar.
-                    </p>
+                    <p className="text-xs text-gray-600">Um comando único para analisar, revisar e reescrever a matéria completa.</p>
                     <div className="grid gap-2">
                       <button
                         type="button"
-                        onClick={() => runPestalozziFullAssist('reescrita-editorial')}
+                        onClick={runPestalozziFullAssist}
                         disabled={isPestalozziProcessing}
                         className="w-full rounded-lg border border-[#991B1B]/25 bg-[#fff7f7] px-3 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#ffeaea] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {isPestalozziProcessing ? 'Pestalozzi está processando...' : 'Reescrever matéria'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => runPestalozziFullAssist('pesquisa-complementacao')}
-                        disabled={isPestalozziProcessing}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isPestalozziProcessing ? 'Aguarde...' : 'Pesquisar e complementar'}
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void sendPestalozziMessage('Gere cinco opções de título para esta matéria.', 'reescrita-editorial')}
-                        disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Gerar título
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendPestalozziMessage('Melhore o lead mantendo os fatos.', 'reescrita-editorial')}
-                        disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Melhorar lead
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendPestalozziMessage('Faça uma revisão editorial completa desse texto.', 'reescrita-editorial')}
-                        disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Revisar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendPestalozziMessage('Gere novamente com outra abordagem editorial.', 'reescrita-editorial')}
-                        disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Gerar novamente
+                        {isPestalozziProcessing ? 'Pestalozzi está processando...' : 'Analisar, revisar e reescrever'}
                       </button>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-white p-3">

@@ -480,21 +480,83 @@ export default function EditArticlePage() {
     }
   };
 
-  const rewriteSelectedText = () => {
+  const runPestalozziFullAssist = () => {
+    void sendPestalozziMessage(
+      'Analise, revise e reescreva esta matéria inteira com padrão jornalístico profissional, preservando 100% dos fatos, e entregue versões completas com título, linha fina, resumo e corpo.',
+      'reescrita-editorial'
+    );
+  };
+
+  const rewriteSelectedText = async () => {
     const selected = selectedEditorText.trim();
     if (!selected) {
       setPestalozziFeedback('Selecione um trecho no editor para reescrever apenas o parágrafo desejado.');
       return;
     }
-    const rewritten = selected
-      .replace(/\s+/g, ' ')
-      .replace(/\s([,.;!?])/g, '$1')
-      .trim();
-    if (!rewritten) {
+
+    if (!formData) {
       return;
     }
-    setReplaceSelectionRequest({ id: Date.now(), text: rewritten });
-    setPestalozziFeedback('Trecho selecionado reescrito e aplicado no editor.');
+
+    setIsPestalozziProcessing(true);
+    const requestPrompt =
+      'Reescreva apenas o trecho selecionado com linguagem jornalística profissional, preservando rigorosamente os fatos, sem adicionar explicações extras.';
+    setPestalozziChat((current) => [...current, { id: `${Date.now()}-u`, role: 'user', content: requestPrompt }]);
+
+    try {
+      const response = await fetch('/api/admin/pestalozzi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: requestPrompt }],
+          context: {
+            title: formData.title,
+            subtitle: formData.subtitle,
+            excerpt: formData.excerpt,
+            content: selected,
+            category: formData.category,
+            location: formData.location || 'Brasil',
+            radarSummary: '',
+            radarSources: [],
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        suggestion?: {
+          assistantMessage?: string;
+          versions?: PestalozziVersion[];
+        };
+      };
+
+      if (!response.ok || !payload.ok || !payload.suggestion) {
+        throw new Error(payload.error || 'Não foi possível reescrever o trecho selecionado.');
+      }
+
+      const firstVersion = Array.isArray(payload.suggestion.versions) ? payload.suggestion.versions[0] : null;
+      const rewrittenText = stripHtml(firstVersion?.content || firstVersion?.excerpt || '').trim();
+      if (!rewrittenText) {
+        throw new Error('A IA não retornou trecho reescrito.');
+      }
+
+      setReplaceSelectionRequest({ id: Date.now(), text: rewrittenText });
+      setPestalozziChat((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-a`,
+          role: 'assistant',
+          content: payload.suggestion?.assistantMessage || 'Trecho reescrito e pronto para aplicar.',
+        },
+      ]);
+      setPestalozziFeedback('Trecho selecionado reescrito e aplicado no editor.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Falha ao reescrever trecho selecionado.';
+      setPestalozziChat((current) => [...current, { id: `${Date.now()}-a`, role: 'assistant', content: message }]);
+      setPestalozziFeedback('Não consegui reescrever o trecho agora. Tente novamente.');
+    } finally {
+      setIsPestalozziProcessing(false);
+    }
   };
 
   if (!isLoaded || !currentUser) {
@@ -706,34 +768,20 @@ export default function EditArticlePage() {
 
                 {isPestalozziOpen && (
                   <div className="mt-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <p className="text-xs text-gray-600">Um comando único para analisar, revisar e reescrever a matéria completa.</p>
+                    <div className="grid gap-2">
                       <button
                         type="button"
-                        onClick={() => void sendPestalozziMessage('Reescreva essa matéria com linguagem jornalística profissional.', 'reescrita-editorial')}
+                        onClick={runPestalozziFullAssist}
                         disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-[#991B1B]/25 bg-[#fff7f7] px-3 py-2 text-xs font-semibold text-[#991B1B] hover:bg-[#ffeaea] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-lg border border-[#991B1B]/25 bg-[#fff7f7] px-3 py-2 text-sm font-semibold text-[#991B1B] hover:bg-[#ffeaea] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Reescrever
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendPestalozziMessage('Gere novamente com outra abordagem editorial.', 'reescrita-editorial')}
-                        disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Gerar novamente
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void sendPestalozziMessage('Gere cinco opções de título para essa matéria.', 'reescrita-editorial')}
-                        disabled={isPestalozziProcessing}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Gerar título
+                        {isPestalozziProcessing ? 'Pestalozzi está processando...' : 'Analisar, revisar e reescrever'}
                       </button>
                       <button
                         type="button"
                         onClick={rewriteSelectedText}
+                        disabled={isPestalozziProcessing}
                         className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
                       >
                         Reescrever trecho selecionado
