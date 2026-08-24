@@ -627,12 +627,12 @@ export default function RadarNoticiasPage() {
                       key={topic.id}
                       type="button"
                       onClick={() => setQuery(topic.label)}
-                      className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left transition hover:bg-gray-100"
+                      className="flex items-center justify-between rounded-lg border !border-gray-200 !bg-white px-3 py-2 text-left transition hover:!bg-gray-50"
                     >
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-sm font-semibold !text-gray-900">
                         {index + 1}. {topic.label}
                       </span>
-                      <span className="text-xs font-medium text-gray-600">
+                      <span className="text-xs font-medium !text-gray-700">
                         {topic.mentions} menções • crescimento {topic.growthScore}
                       </span>
                     </button>
