@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, CheckCircle2, Save, Send, CalendarClock, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
@@ -10,6 +10,7 @@ import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useUsers } from '@/app/hooks/useUsers';
+import { RADAR_EDITOR_DRAFT_STORAGE_KEY, type RadarEditorDraft } from '@/app/lib/radarEditorDraft';
 import {
   canCreateArticle,
   canPublishArticle,
@@ -31,6 +32,22 @@ function fileToDataUrl(file: File) {
   });
 }
 
+function normalizeCategorySlug(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function mapRadarCategoryToManagedCategory(category: string, categories: ManagedCategory[]) {
+  const target = normalizeCategorySlug(category);
+  const match = categories.find((item) => normalizeCategorySlug(item.slug || item.name) === target);
+  return match?.slug ?? categories[0]?.slug ?? 'geral';
+}
+
 type AudienceRecipient = {
   id: string;
   name: string;
@@ -38,8 +55,16 @@ type AudienceRecipient = {
   createdAt: string;
 };
 
+type EditorialChecklistItem = {
+  id: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+};
+
 export default function NewArticlePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addArticle, isLoaded } = useArticles();
   const { users } = useUsers();
   const currentUser = useCurrentAdminUser();
@@ -86,12 +111,6 @@ export default function NewArticlePage() {
   const [availableCategories, setAvailableCategories] = useState<ManagedCategory[]>(defaultManagedCategories);
 
   useEffect(() => {
-    if (defaultAuthor && !formData.author) {
-      setFormData((current) => ({ ...current, author: defaultAuthor }));
-    }
-  }, [defaultAuthor, formData.author]);
-
-  useEffect(() => {
     const syncCategories = () => {
       const managed = readManagedCategories();
       setAvailableCategories(managed);
@@ -134,6 +153,13 @@ export default function NewArticlePage() {
     videos: [],
     primaryImage: '',
   });
+  const [radarDraft, setRadarDraft] = useState<RadarEditorDraft | null>(null);
+  const [selectedTitleOption, setSelectedTitleOption] = useState('');
+  const [journalistReviewDone, setJournalistReviewDone] = useState(false);
+  const [editorialWarning, setEditorialWarning] = useState('');
+  const [seoDescription, setSeoDescription] = useState('');
+  const [slugSuggestion, setSlugSuggestion] = useState('');
+  const [keywordTags, setKeywordTags] = useState<string[]>([]);
 
   const plainContent = useMemo(() => stripHtml(formData.content), [formData.content]);
   const wordCount = plainContent.length > 0 ? plainContent.split(' ').length : 0;
@@ -142,6 +168,82 @@ export default function NewArticlePage() {
     () => audienceRecipients.filter((recipient) => selectedRecipientIds.includes(recipient.id)),
     [audienceRecipients, selectedRecipientIds]
   );
+  const editorialChecklist = useMemo<EditorialChecklistItem[]>(() => {
+    const hasCredit = mediaState.images.some((image) => image.caption.includes('Crédito:') || image.caption.includes('crédito'));
+    const hasSeo = seoDescription.trim().length >= 70 || formData.excerpt.trim().length >= 70;
+    const hasSources = (radarDraft?.sources.length ?? 0) > 0;
+    const hasPendingFacts = (radarDraft?.facts.filter((fact) => fact.status !== 'confirmada').length ?? 0) > 0;
+
+    return [
+      { id: 'titulo', label: 'Título', ok: formData.title.trim().length >= 15, detail: 'Use um título claro e informativo.' },
+      { id: 'linha-fina', label: 'Linha fina', ok: formData.subtitle.trim().length >= 20, detail: 'A linha fina deve contextualizar o lead.' },
+      { id: 'texto', label: 'Texto', ok: wordCount >= 120, detail: 'Corpo da matéria com contexto e apuração mínima.' },
+      { id: 'fontes', label: 'Fontes', ok: hasSources, detail: 'Liste fontes verificáveis com links originais.' },
+      { id: 'imagem', label: 'Imagem', ok: mediaState.images.length > 0, detail: 'Selecione imagem principal ou faça upload próprio.' },
+      { id: 'credito', label: 'Crédito', ok: hasCredit, detail: 'Inclua crédito e origem da imagem.' },
+      { id: 'seo', label: 'SEO', ok: hasSeo, detail: 'Resumo/descrição com pelo menos 70 caracteres.' },
+      { id: 'confirmacao', label: 'Confirmação', ok: !hasPendingFacts, detail: 'Pendências precisam ser verificadas pela redação.' },
+    ];
+  }, [formData.excerpt, formData.subtitle, formData.title, mediaState.images, radarDraft, seoDescription, wordCount]);
+  const pendingChecklistItems = editorialChecklist.filter((item) => !item.ok);
+  const effectiveAuthor = formData.author || defaultAuthor;
+
+  useEffect(() => {
+    const source = searchParams.get('source');
+    if (source !== 'radar') {
+      return;
+    }
+
+    const stored = window.localStorage.getItem(RADAR_EDITOR_DRAFT_STORAGE_KEY);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as RadarEditorDraft;
+      const mappedCategory = mapRadarCategoryToManagedCategory(parsed.category, availableCategories);
+      const suggestedImages: ArticleImage[] = parsed.imageSuggestions.map((image, index) => ({
+        id: image.id,
+        url: image.url,
+        alt: parsed.suggestedTitle,
+        caption: `${image.caption} (${image.credit})`,
+        isPrimary: index === 0,
+        name: image.origin,
+        placement: 'gallery',
+      }));
+
+      const timeoutId = window.setTimeout(() => {
+        setRadarDraft(parsed);
+        setSelectedTitleOption(parsed.suggestedTitle);
+        setJournalistReviewDone(false);
+        setEditorialWarning('');
+        setSeoDescription(parsed.seoDescription);
+        setSlugSuggestion(parsed.slugSuggestion);
+        setKeywordTags(parsed.keywords);
+        setFormData((current) => ({
+          ...current,
+          title: parsed.suggestedTitle,
+          subtitle: parsed.subtitle,
+          excerpt: parsed.excerpt,
+          content: parsed.contentHtml,
+          category: mappedCategory,
+          location: parsed.location || current.location,
+          author: current.author || defaultAuthor,
+        }));
+        setMediaState((current) => ({
+          images: suggestedImages.length > 0 ? suggestedImages : current.images,
+          videos: current.videos,
+          primaryImage: suggestedImages[0]?.url ?? current.primaryImage,
+        }));
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    } catch (error) {
+      console.error('Falha ao carregar rascunho do Radar no editor:', error);
+    }
+  }, [availableCategories, defaultAuthor, searchParams]);
 
   useEffect(() => {
     let isActive = true;
@@ -193,6 +295,61 @@ export default function NewArticlePage() {
     }));
   };
 
+  const applyTitleOption = (title: string) => {
+    setSelectedTitleOption(title);
+    setFormData((current) => ({ ...current, title }));
+  };
+
+  const runAiAssistAction = (action: 'melhorar-titulo' | 'criar-linha-fina' | 'criar-resumo' | 'expandir-contexto' | 'gerar-nova-versao') => {
+    if (!radarDraft) {
+      return;
+    }
+
+    if (action === 'melhorar-titulo') {
+      const currentIndex = radarDraft.titleOptions.findIndex((option) => option === (selectedTitleOption || formData.title));
+      const nextTitle = radarDraft.titleOptions[(currentIndex + 1) % radarDraft.titleOptions.length] ?? radarDraft.suggestedTitle;
+      applyTitleOption(nextTitle);
+      return;
+    }
+
+    if (action === 'criar-linha-fina') {
+      setFormData((current) => ({ ...current, subtitle: radarDraft.subtitle }));
+      return;
+    }
+
+    if (action === 'criar-resumo') {
+      setFormData((current) => ({ ...current, excerpt: radarDraft.excerpt }));
+      return;
+    }
+
+    if (action === 'gerar-nova-versao') {
+      const versionTimestamp = new Date().toLocaleString('pt-BR');
+      const sourceLines = radarDraft.sources
+        .slice(0, 5)
+        .map((source) => `<li><a href="${source.url}" target="_blank" rel="noreferrer">${source.name}</a> — ${source.articleTitle}</li>`)
+        .join('');
+      setFormData((current) => ({
+        ...current,
+        content: [
+          `<p><strong>Nova versão editorial (${versionTimestamp}):</strong> ${radarDraft.excerpt}</p>`,
+          '<p>Esta versão reorganiza o texto mantendo os fatos e as fontes previamente identificadas no Radar de Notícias.</p>',
+          '<h2>Fatos principais</h2>',
+          `<p>${radarDraft.subtitle}</p>`,
+          '<h2>Fontes utilizadas</h2>',
+          `<ul>${sourceLines}</ul>`,
+          '<h2>Pontos para checagem antes de publicar</h2>',
+          '<ul><li>Conferir números e datas.</li><li>Confirmar contrapontos.</li><li>Validar direitos de imagem e créditos.</li></ul>',
+        ].join(''),
+      }));
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      content: `${current.content}<h2>Contexto adicional</h2><p>Este trecho foi adicionado pelo assistente para ampliar contexto, mantendo os fatos já identificados no Radar e exigindo validação final da redação.</p>`,
+    }));
+  };
+
   const handleMediaChange = (images: ArticleImage[], videos: ArticleVideo[], primaryImage: string) => {
     setMediaState({ images, videos, primaryImage });
   };
@@ -239,11 +396,21 @@ export default function NewArticlePage() {
     return { id: nextVideo.id, url: nextVideo.url };
   };
 
-  const handlePublish = async (publishStatus: 'rascunho' | 'agendado' | 'publicado') => {
+  const handlePublish = async (
+    publishStatus: 'rascunho' | 'agendado' | 'publicado',
+    options?: { reviewRequested?: boolean }
+  ) => {
     if (!currentUser || !canCreateArticle(currentUser)) {
       window.alert('Sem permissão para criar matérias.');
       return;
     }
+
+    if ((publishStatus === 'publicado' || publishStatus === 'agendado') && !journalistReviewDone) {
+      setEditorialWarning('Atenção: conclua a revisão jornalística antes de publicar ou agendar.');
+      window.alert('Antes de publicar/agendar, marque a revisão jornalística no checklist editorial.');
+      return;
+    }
+    setEditorialWarning('');
 
     if (!formData.title.trim()) {
       window.alert('Preencha o título da notícia.');
@@ -260,7 +427,7 @@ export default function NewArticlePage() {
       return;
     }
 
-    if ((publishStatus === 'publicado' || publishStatus === 'agendado') && !canPublishArticle(currentUser, formData.author)) {
+    if ((publishStatus === 'publicado' || publishStatus === 'agendado') && !canPublishArticle(currentUser, effectiveAuthor)) {
       window.alert('Seu perfil não pode publicar esta matéria.');
       return;
     }
@@ -273,7 +440,7 @@ export default function NewArticlePage() {
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
         content: formData.content,
-        author: formData.author,
+        author: effectiveAuthor,
         image: mediaState.primaryImage,
         images: mediaState.images,
         videos: mediaState.videos,
@@ -334,6 +501,9 @@ export default function NewArticlePage() {
       agendado: `Matéria agendada com sucesso para ${scheduledDate} às ${scheduledTime}.`,
       publicado: 'Matéria publicada com sucesso.',
     };
+    if (options?.reviewRequested) {
+      messages.rascunho = 'Matéria enviada para revisão editorial com sucesso.';
+    }
 
     setPublishFeedback({
       message: messages[publishStatus],
@@ -438,7 +608,7 @@ export default function NewArticlePage() {
                       <label className="mb-2 block text-sm font-semibold text-gray-900">Autor</label>
                       <select
                         name="author"
-                        value={formData.author}
+                        value={effectiveAuthor}
                         onChange={handleFieldChange}
                         disabled={!canViewAllArticles(currentUser)}
                         className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
@@ -450,8 +620,8 @@ export default function NewArticlePage() {
                         ) : (
                           <option value={currentUser.name}>{currentUser.name}</option>
                         )}
-                        {canViewAllArticles(currentUser) && (!users.some((user) => user.status === 'ativo') || !users.some((user) => user.name === formData.author)) && (
-                          <option value={formData.author || defaultAuthor}>{formData.author || defaultAuthor}</option>
+                        {canViewAllArticles(currentUser) && (!users.some((user) => user.status === 'ativo') || !users.some((user) => user.name === effectiveAuthor)) && (
+                          <option value={effectiveAuthor}>{effectiveAuthor}</option>
                         )}
                       </select>
                     </div>
@@ -461,6 +631,38 @@ export default function NewArticlePage() {
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Resumo</label>
                     <textarea name="excerpt" value={formData.excerpt} onChange={handleFieldChange} rows={4} placeholder="Escreva um resumo para listagens e cards" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Sugestão de URL (slug)</label>
+                    <input
+                      type="text"
+                      value={slugSuggestion}
+                      onChange={(event) => setSlugSuggestion(event.target.value)}
+                      placeholder="exemplo-de-slug-jornalistico"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Descrição para SEO</label>
+                    <textarea
+                      value={seoDescription}
+                      onChange={(event) => setSeoDescription(event.target.value)}
+                      rows={3}
+                      placeholder="Descrição curta para mecanismos de busca"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                    />
+                  </div>
+                  {keywordTags.length > 0 && (
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">Palavras-chave sugeridas</label>
+                      <div className="flex flex-wrap gap-2">
+                        {keywordTags.map((keyword) => (
+                          <span key={keyword} className="rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-700">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicação</label>
                     <select name="location" value={formData.location} onChange={handleFieldChange} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
@@ -498,7 +700,7 @@ export default function NewArticlePage() {
                 title={formData.title}
                 subtitle={formData.subtitle}
                 category={availableCategories.find((category) => category.slug === formData.category)?.name ?? formData.category}
-                author={formData.author}
+                author={effectiveAuthor}
                 content={formData.content}
                 images={mediaState.images}
                 videos={mediaState.videos}
@@ -521,6 +723,142 @@ export default function NewArticlePage() {
                   title={formData.title || 'A notícia'}
                   onChange={handleMediaChange}
                 />
+              </section>
+
+              {radarDraft && (
+                <section className="rounded-xl bg-white p-6 shadow-sm">
+                  <h2 className="text-lg font-bold text-gray-900">Editor inteligente do Radar</h2>
+                  <p className="mt-1 text-sm text-gray-500">Primeira versão gerada a partir das fontes do Radar. Revise tudo antes da publicação.</p>
+
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Opções de título (3-5)</p>
+                      <div className="mt-2 space-y-2">
+                        {radarDraft.titleOptions.map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => applyTitleOption(option)}
+                            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
+                              (selectedTitleOption || formData.title) === option
+                                ? 'border-[#FF796C] bg-[#fff6f4] text-[#9A3412]'
+                                : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => runAiAssistAction('melhorar-titulo')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                        Melhorar título
+                      </button>
+                      <button type="button" onClick={() => runAiAssistAction('criar-linha-fina')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                        Criar linha fina
+                      </button>
+                      <button type="button" onClick={() => runAiAssistAction('criar-resumo')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                        Criar resumo
+                      </button>
+                      <button type="button" onClick={() => runAiAssistAction('expandir-contexto')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                        Expandir contexto
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => runAiAssistAction('gerar-nova-versao')}
+                      className="w-full rounded-lg bg-[#111111] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#2a2a2a]"
+                    >
+                      🤖 Gerar nova versão
+                    </button>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Fontes utilizadas</p>
+                      <ul className="mt-2 space-y-2">
+                        {radarDraft.sources.map((source) => (
+                          <li key={`${source.url}-${source.name}`} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <p className="font-semibold text-gray-900">{source.name}</p>
+                            <a href={source.url} target="_blank" rel="noreferrer" className="text-[#236A88] underline">
+                              {source.url}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Confiabilidade das informações</p>
+                      <ul className="mt-2 space-y-2">
+                        {radarDraft.facts.map((fact) => (
+                          <li key={fact.id} className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                            <span className="mr-2">
+                              {fact.status === 'confirmada' ? '🟢' : fact.status === 'requer-confirmacao' ? '🟡' : '🔴'}
+                            </span>
+                            {fact.text}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Imagens sugeridas</p>
+                      {radarDraft.imageSuggestions.length === 0 ? (
+                        <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          Imagem não encontrada com licença adequada. Faça upload manual na seção de mídia.
+                        </p>
+                      ) : (
+                        <div className="mt-2 space-y-3">
+                          {radarDraft.imageSuggestions.map((image) => (
+                            <div key={image.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                              <p className="text-xs font-semibold text-gray-900">{image.origin}</p>
+                              <p className="mt-1 text-xs text-gray-600">{image.license} • {image.rights}</p>
+                              <p className="mt-1 text-xs text-gray-600">{image.credit}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              <section className="rounded-xl bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-bold text-gray-900">Checklist editorial</h2>
+                <p className="mt-1 text-sm text-gray-500">Validação automática antes da publicação final.</p>
+                <div className="mt-4 space-y-2">
+                  {editorialChecklist.map((item) => (
+                    <div key={item.id} className={`rounded-lg border px-3 py-2 text-sm ${item.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                      <p className="font-semibold">{item.ok ? '🟢' : '🟡'} {item.label}</p>
+                      {!item.ok && <p className="mt-1 text-xs">{item.detail}</p>}
+                    </div>
+                  ))}
+                </div>
+                {pendingChecklistItems.length > 0 && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+                    🔴 Atenção: esta matéria possui informações que precisam ser verificadas antes da publicação.
+                  </p>
+                )}
+                <label className="mt-4 flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={journalistReviewDone}
+                    onChange={(event) => {
+                      setJournalistReviewDone(event.target.checked);
+                      if (event.target.checked) {
+                        setEditorialWarning('');
+                      }
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-[#FF796C]"
+                  />
+                  <span className="text-sm text-gray-800">
+                    <span className="block font-semibold">Revisado pelo jornalista responsável</span>
+                    <span className="text-xs text-gray-600">Obrigatório para publicar/agendar no RBN.</span>
+                  </span>
+                </label>
+                {editorialWarning && (
+                  <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{editorialWarning}</p>
+                )}
               </section>
 
               <section className="rounded-xl bg-white p-6 shadow-sm">
@@ -620,18 +958,22 @@ export default function NewArticlePage() {
 
               <section className="rounded-xl bg-white p-6 shadow-sm">
                 <h2 className="text-lg font-bold text-gray-900">Publicação</h2>
+                <p className="mt-1 text-sm text-gray-500">Confira a prévia da matéria ao lado antes de publicar.</p>
                 <div className="mt-4 space-y-3">
-                {canPublishArticle(currentUser, formData.author) ? (
+                {canPublishArticle(currentUser, effectiveAuthor) ? (
                   <button type="button" onClick={() => handlePublish('publicado')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#2a2a2a]">
                     <Send className="h-4 w-4" />
-                    Publicar notícia
+                    Publicar no RBN
                   </button>
                 ) : null}
                 <button type="button" onClick={() => handlePublish('rascunho')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">
                   <Save className="h-4 w-4" />
                   Salvar rascunho
                 </button>
-                {canPublishArticle(currentUser, formData.author) ? (
+                <button type="button" onClick={() => handlePublish('rascunho', { reviewRequested: true })} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50">
+                  Enviar para revisão
+                </button>
+                {canPublishArticle(currentUser, effectiveAuthor) ? (
                   <button type="button" onClick={() => setShowScheduleFields((current) => !current)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]">
                     <CalendarClock className="h-4 w-4" />
                     Agendar publicação

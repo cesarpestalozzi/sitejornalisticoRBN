@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
+import { createRadarEditorDraft, RADAR_EDITOR_DRAFT_STORAGE_KEY } from '@/app/lib/radarEditorDraft';
 import {
   getRadarCategoryLabel,
   RADAR_CATEGORIES,
@@ -343,6 +343,43 @@ export default function RadarNoticiasPage() {
     setPautas((current) => current.filter((pauta) => pauta.id !== pautaId));
   };
 
+  const openGroupInEditor = (group: RadarNewsGroup) => {
+    const draft = createRadarEditorDraft(group);
+    saveJson(RADAR_EDITOR_DRAFT_STORAGE_KEY, draft);
+    router.push('/admin/artigos/novo?source=radar');
+  };
+
+  const openPautaInEditor = (pauta: RadarPauta) => {
+    const syntheticGroup: RadarNewsGroup = {
+      id: pauta.sourceGroupId,
+      headline: pauta.provisionalTitle,
+      summary: pauta.summary,
+      imageUrl: '',
+      category: pauta.category,
+      country: pauta.sources[0]?.country || 'Brasil',
+      firstPublishedAt: pauta.discoveredAt,
+      lastPublishedAt: pauta.updatedAt,
+      fetchedAt: pauta.updatedAt,
+      relevanceScore: 70,
+      relevanceLevel: 'relevante',
+      isNew: false,
+      growthScore: 50,
+      relatedSourcesCount: pauta.sources.length,
+      matchedKeywords: pauta.seoKeywords,
+      sources: pauta.sources.map((source, index) => ({
+        sourceName: source.name,
+        sourceUrl: source.url,
+        country: source.country,
+        reliability: source.reliability,
+        articleUrl: pauta.links[index] ?? source.url,
+        publishedAt: pauta.updatedAt,
+        title: pauta.provisionalTitle,
+      })),
+      sampleItemIds: [],
+    };
+    openGroupInEditor(syntheticGroup);
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-100 md:flex-row">
       <AdminSidebar />
@@ -637,9 +674,13 @@ export default function RadarNoticiasPage() {
                         >
                           Remover pauta
                         </button>
-                        <Link href="/admin/artigos/novo" className="rounded-lg bg-[#111111] px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-[#2a2a2a]">
-                          Abrir editor
-                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => openPautaInEditor(pauta)}
+                          className="rounded-lg bg-[#111111] px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-[#2a2a2a]"
+                        >
+                          Abrir no editor
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -719,6 +760,13 @@ export default function RadarNoticiasPage() {
                           >
                             <Bot className="h-4 w-4" />
                             Analisar pauta
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openGroupInEditor(group)}
+                            className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#2a2a2a]"
+                          >
+                            Abrir no editor
                           </button>
                           <button
                             type="button"
@@ -823,6 +871,13 @@ export default function RadarNoticiasPage() {
                   >
                     Transformar em pauta estruturada
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => openGroupInEditor(selectedGroupForAnalysis)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 transition hover:bg-gray-50"
+                  >
+                    Abrir no editor
+                  </button>
                 </div>
               </div>
             </section>
@@ -840,4 +895,3 @@ export default function RadarNoticiasPage() {
     </div>
   );
 }
-
