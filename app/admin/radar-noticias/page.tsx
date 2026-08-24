@@ -53,6 +53,8 @@ const IGNORED_STORAGE_KEY = 'pz_news_radar_ignored_ids';
 const REFRESH_STORAGE_KEY = 'pz_news_radar_refresh_minutes';
 const KEYWORDS_STORAGE_KEY = 'pz_news_radar_keywords';
 const PAUTAS_STORAGE_KEY = 'pz_news_radar_pautas';
+const REALTIME_REFRESH_MINUTES = 0;
+const REALTIME_REFRESH_MS = 30 * 1000;
 
 function loadJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') {
@@ -123,6 +125,24 @@ function formatRelative(value: string) {
   }
   const days = Math.round(hours / 24);
   return `${days}d atrás`;
+}
+
+function getRefreshIntervalMs(minutes: number) {
+  if (minutes <= REALTIME_REFRESH_MINUTES) {
+    return REALTIME_REFRESH_MS;
+  }
+  return minutes * 60 * 1000;
+}
+
+function formatRefreshLabel(minutes: number) {
+  if (minutes <= REALTIME_REFRESH_MINUTES) {
+    return 'Tempo real (30s)';
+  }
+  return `${minutes} min`;
+}
+
+function normalizeRefreshMinutes(minutes: number) {
+  return RADAR_REFRESH_OPTIONS.includes(minutes) ? minutes : REALTIME_REFRESH_MINUTES;
 }
 
 function getRelevanceBadge(level: RadarNewsGroup['relevanceLevel']) {
@@ -205,7 +225,9 @@ export default function RadarNoticiasPage() {
   const [timeFilter, setTimeFilter] = useState<RadarTimeFilter>('24h');
   const [sortBy, setSortBy] = useState<RadarSort>('relevantes');
   const [selectedCategories, setSelectedCategories] = useState<RadarCategory[]>([]);
-  const [refreshMinutes, setRefreshMinutes] = useState(() => loadJson<number>(REFRESH_STORAGE_KEY, 10));
+  const [refreshMinutes, setRefreshMinutes] = useState(() =>
+    normalizeRefreshMinutes(loadJson<number>(REFRESH_STORAGE_KEY, REALTIME_REFRESH_MINUTES))
+  );
   const [groups, setGroups] = useState<RadarNewsGroup[]>([]);
   const [topics, setTopics] = useState<RadarTopic[]>([]);
   const [lastUpdatedAt, setLastUpdatedAt] = useState('');
@@ -296,13 +318,9 @@ export default function RadarNoticiasPage() {
   }, [fetchRadar]);
 
   useEffect(() => {
-    if (refreshMinutes <= 0) {
-      return;
-    }
-
     const timerId = window.setInterval(() => {
       void fetchRadar();
-    }, refreshMinutes * 60 * 1000);
+    }, getRefreshIntervalMs(refreshMinutes));
 
     return () => window.clearInterval(timerId);
   }, [fetchRadar, refreshMinutes]);
@@ -456,7 +474,7 @@ export default function RadarNoticiasPage() {
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <article className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-700">🔴 Radar ativo</p>
-                <p className="mt-1 text-sm text-red-900">Atualização contínua a cada {refreshMinutes} minutos.</p>
+                <p className="mt-1 text-sm text-red-900">Atualização contínua em {formatRefreshLabel(refreshMinutes)}.</p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">Última atualização</p>
@@ -541,7 +559,7 @@ export default function RadarNoticiasPage() {
                       refreshMinutes === option ? 'bg-[#111111] text-white' : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    {option} min
+                    {option === REALTIME_REFRESH_MINUTES ? 'Tempo real' : `${option} min`}
                   </button>
                 ))}
               </div>

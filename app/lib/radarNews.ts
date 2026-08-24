@@ -154,7 +154,7 @@ export const RADAR_TIME_FILTERS: Array<{ id: RadarTimeFilter; label: string }> =
   { id: '7d', label: 'Últimos 7 dias' },
 ];
 
-export const RADAR_REFRESH_OPTIONS = [5, 10, 15, 30, 60];
+export const RADAR_REFRESH_OPTIONS = [0, 5, 10, 20, 30, 60];
 
 export const RADAR_PAUTA_STATUS_OPTIONS: Array<{ id: RadarPautaStatus; label: string }> = [
   { id: 'nova-pauta', label: 'Nova pauta' },
