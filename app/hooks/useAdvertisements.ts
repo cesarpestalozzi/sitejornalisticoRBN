@@ -19,6 +19,8 @@ export interface Advertisement {
 }
 
 const ADS_KEY = 'pz_news_ads';
+const REMOTE_ADS_UNAVAILABLE_KEY = 'pz_news_ads_remote_unavailable_until';
+const REMOTE_ADS_UNAVAILABLE_TTL_MS = 6 * 60 * 60 * 1000;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const SUPABASE_TABLE = 'pz_news_ads';
@@ -50,6 +52,46 @@ function getSupabaseHeaders() {
   }
 
   return headers;
+}
+
+function isRemoteAdsUnavailable() {
+  if (remoteAdsUnavailable) {
+    return true;
+  }
+
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const raw = window.localStorage.getItem(REMOTE_ADS_UNAVAILABLE_KEY);
+  if (!raw) {
+    return false;
+  }
+
+  const until = Number(raw);
+  if (!Number.isFinite(until)) {
+    window.localStorage.removeItem(REMOTE_ADS_UNAVAILABLE_KEY);
+    return false;
+  }
+
+  if (Date.now() < until) {
+    remoteAdsUnavailable = true;
+    return true;
+  }
+
+  window.localStorage.removeItem(REMOTE_ADS_UNAVAILABLE_KEY);
+  return false;
+}
+
+function markRemoteAdsUnavailable() {
+  remoteAdsUnavailable = true;
+
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const until = Date.now() + REMOTE_ADS_UNAVAILABLE_TTL_MS;
+  window.localStorage.setItem(REMOTE_ADS_UNAVAILABLE_KEY, String(until));
 }
 
 function svgBanner(label: string, background: string, accent: string) {
@@ -152,7 +194,7 @@ function readLocalAds() {
 }
 
 async function readRemoteAds() {
-  if (!hasSupabaseConfig() || remoteAdsUnavailable) {
+  if (!hasSupabaseConfig() || isRemoteAdsUnavailable()) {
     return null;
   }
 
@@ -165,7 +207,7 @@ async function readRemoteAds() {
   );
 
   if (response.status === 404) {
-    remoteAdsUnavailable = true;
+    markRemoteAdsUnavailable();
     return null;
   }
 
@@ -180,7 +222,7 @@ async function readRemoteAds() {
 }
 
 async function upsertRemoteAd(ad: Advertisement) {
-  if (!hasSupabaseConfig() || remoteAdsUnavailable) {
+  if (!hasSupabaseConfig() || isRemoteAdsUnavailable()) {
     return;
   }
 
@@ -200,7 +242,7 @@ async function upsertRemoteAd(ad: Advertisement) {
   });
 
   if (response.status === 404) {
-    remoteAdsUnavailable = true;
+    markRemoteAdsUnavailable();
     return;
   }
 
@@ -210,7 +252,7 @@ async function upsertRemoteAd(ad: Advertisement) {
 }
 
 async function deleteRemoteAdById(id: string) {
-  if (!hasSupabaseConfig() || remoteAdsUnavailable) {
+  if (!hasSupabaseConfig() || isRemoteAdsUnavailable()) {
     return;
   }
 
@@ -223,7 +265,7 @@ async function deleteRemoteAdById(id: string) {
   });
 
   if (response.status === 404) {
-    remoteAdsUnavailable = true;
+    markRemoteAdsUnavailable();
     return;
   }
 
