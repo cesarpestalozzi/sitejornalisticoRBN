@@ -243,6 +243,66 @@ async function upsertRemoteArticle(article: Article, deleted: boolean) {
   }
 }
 
+async function updateRemoteArticle(article: Article, deleted: boolean) {
+  if (!hasSupabaseConfig && typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/articles', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+      body: JSON.stringify({ article, deleted }),
+    });
+
+    if (response.ok) {
+      return;
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    const message = payload.error ?? `HTTP ${response.status}`;
+    throw new Error(message);
+  } catch (error) {
+    if (hasSupabaseConfig && supabase) {
+      const { data, error: supabaseError } = await supabase
+        .from(SUPABASE_TABLE)
+        .update({
+          payload: article,
+          deleted,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', article.id)
+        .select('id')
+        .limit(1);
+
+      if (supabaseError) {
+        if (isSupabaseRlsViolation(supabaseError)) {
+          warnSupabaseWriteIssue('atualizar artigo remoto', supabaseError);
+          return;
+        }
+
+        throw new Error(`Erro ao atualizar artigo remoto: ${supabaseError.message}`);
+      }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('Artigo não encontrado para atualização remota.');
+      }
+
+      return;
+    }
+
+    if (error instanceof Error && isSupabaseRlsViolation(error)) {
+      warnSupabaseWriteIssue('atualizar artigo remoto', error);
+      return;
+    }
+
+    throw error;
+  }
+}
+
 async function deleteRemoteArticleById(id: string) {
   if (!hasSupabaseConfig && typeof window === 'undefined') {
     return;
@@ -752,7 +812,7 @@ export function useArticles() {
           maybeSendBrowserNotification(nextArticle);
         }
 
-        void upsertRemoteArticle(nextArticle, false).catch((error) => {
+        void updateRemoteArticle(nextArticle, false).catch((error) => {
           warnSupabaseWriteIssue('sincronizar atualização do artigo', error);
         });
         return nextArticle;

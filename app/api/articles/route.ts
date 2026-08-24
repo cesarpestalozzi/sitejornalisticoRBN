@@ -249,6 +249,96 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  const adminClient = getAdminClient();
+
+  if (!adminClient) {
+    return NextResponse.json(
+      { error: 'Supabase service role not configured.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
+  }
+
+  try {
+    const body = await request.json();
+    const article = body?.article;
+    const deleted = Boolean(body?.deleted);
+
+    if (!article || !article.id) {
+      return NextResponse.json(
+        { error: 'Payload inválido.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
+    }
+
+    let payloadToPersist = article;
+
+    if (isPlaceholderArticlePayload(article)) {
+      const { data: existingRow } = await adminClient
+        .from('pz_news_articles')
+        .select('payload')
+        .eq('id', article.id)
+        .limit(1)
+        .maybeSingle();
+
+      const existingPayload =
+        existingRow && typeof existingRow === 'object' && 'payload' in existingRow
+          ? (existingRow as { payload?: Record<string, unknown> }).payload
+          : null;
+
+      if (!existingPayload || typeof existingPayload !== 'object') {
+        return NextResponse.json(
+          { error: 'Artigo não encontrado para atualização.' },
+          { status: 404, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+        );
+      }
+
+      const nextViews = typeof article.views === 'number' ? article.views : Number(existingPayload.views ?? 0);
+      const nextShares = typeof article.shares === 'number' ? article.shares : Number(existingPayload.shares ?? 0);
+
+      payloadToPersist = {
+        ...existingPayload,
+        views: Number.isFinite(nextViews) ? nextViews : Number(existingPayload.views ?? 0),
+        shares: Number.isFinite(nextShares) ? nextShares : Number(existingPayload.shares ?? 0),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    const { data, error } = await adminClient
+      .from('pz_news_articles')
+      .update({
+        payload: payloadToPersist,
+        deleted,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', article.id)
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return NextResponse.json(
+        { error: 'Artigo não encontrado para atualização.' },
+        { status: 404, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+      );
+    }
+
+    return NextResponse.json({ ok: true }, { status: 200, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro ao atualizar artigo.';
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest) {
   const adminClient = getAdminClient();
 

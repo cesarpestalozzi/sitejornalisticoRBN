@@ -660,7 +660,7 @@ export default function EditArticlePage() {
 
               <button type="button" onClick={handleSave} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700">
                 <Save className="h-4 w-4" />
-                Salvar alterações
+                Salvar edição
               </button>
             </aside>
           </div>
