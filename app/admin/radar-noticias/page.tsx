@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
@@ -759,7 +760,7 @@ export default function RadarNoticiasPage() {
                             className="inline-flex items-center gap-2 rounded-lg border border-[#991B1B]/20 bg-[#fff7f7] px-3 py-2 text-xs font-semibold text-[#991B1B] transition hover:bg-[#ffeaea]"
                           >
                             <Bot className="h-4 w-4" />
-                            Analisar pauta
+                            🤖 Apurar com Pestalozzi
                           </button>
                           <button
                             type="button"
@@ -799,9 +800,18 @@ export default function RadarNoticiasPage() {
             <section className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
               <div className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-2xl bg-white p-5 shadow-xl">
                 <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#991B1B]">Análise de pauta</p>
+                  <div className="flex items-start gap-3">
+                    <Image
+                      src="/pestalozzi-mascote.png"
+                      alt="Mascote Pestalozzi"
+                      width={64}
+                      height={64}
+                      className="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+                    />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#991B1B]">Pestalozzi • Apuração de pauta</p>
                     <h2 className="mt-1 text-xl font-bold text-gray-900">{selectedGroupForAnalysis.headline}</h2>
+                    </div>
                   </div>
                   <button type="button" onClick={() => setSelectedGroupForAnalysis(null)} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 transition hover:bg-gray-50">
                     <XCircle className="h-5 w-5" />

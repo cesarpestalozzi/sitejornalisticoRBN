@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, CheckCircle2, Save, Send, CalendarClock, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -160,6 +161,7 @@ export default function NewArticlePage() {
   const [seoDescription, setSeoDescription] = useState('');
   const [slugSuggestion, setSlugSuggestion] = useState('');
   const [keywordTags, setKeywordTags] = useState<string[]>([]);
+  const [isPestalozziOpen, setIsPestalozziOpen] = useState(false);
 
   const plainContent = useMemo(() => stripHtml(formData.content), [formData.content]);
   const wordCount = plainContent.length > 0 ? plainContent.split(' ').length : 0;
@@ -347,6 +349,49 @@ export default function NewArticlePage() {
     setFormData((current) => ({
       ...current,
       content: `${current.content}<h2>Contexto adicional</h2><p>Este trecho foi adicionado pelo assistente para ampliar contexto, mantendo os fatos já identificados no Radar e exigindo validação final da redação.</p>`,
+    }));
+  };
+
+  const runPestalozziTool = (
+    tool:
+      | 'pesquisar-apurar'
+      | 'conferir-informacoes'
+      | 'revisar-materia'
+      | 'reescrever-materia'
+      | 'criar-titulo'
+      | 'criar-linha-fina'
+      | 'criar-resumo'
+      | 'melhorar-lead'
+      | 'pesquisar-dados'
+      | 'encontrar-fontes'
+      | 'pesquisar-imagens'
+      | 'analisar-materia'
+  ) => {
+    if (tool === 'criar-titulo') {
+      runAiAssistAction('melhorar-titulo');
+      return;
+    }
+    if (tool === 'criar-linha-fina') {
+      runAiAssistAction('criar-linha-fina');
+      return;
+    }
+    if (tool === 'criar-resumo') {
+      runAiAssistAction('criar-resumo');
+      return;
+    }
+    if (tool === 'reescrever-materia' || tool === 'melhorar-lead') {
+      runAiAssistAction('gerar-nova-versao');
+      return;
+    }
+    if (tool === 'analisar-materia' || tool === 'pesquisar-apurar' || tool === 'encontrar-fontes') {
+      runAiAssistAction('expandir-contexto');
+      return;
+    }
+
+    const helperBlock = `<p><strong>Pestalozzi:</strong> análise solicitada (${tool.replace('-', ' ')}). Verifique fatos, datas e fontes primárias antes da publicação.</p>`;
+    setFormData((current) => ({
+      ...current,
+      content: `${current.content}${helperBlock}`,
     }));
   };
 
@@ -723,6 +768,50 @@ export default function NewArticlePage() {
                   title={formData.title || 'A notícia'}
                   onChange={handleMediaChange}
                 />
+              </section>
+
+              <section className="rounded-xl bg-white p-6 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Image
+                    src="/pestalozzi-mascote.png"
+                    alt="Mascote Pestalozzi"
+                    width={72}
+                    height={72}
+                    className="h-16 w-16 rounded-xl border border-gray-200 object-cover"
+                  />
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">PESTALOZZI</h2>
+                    <p className="text-sm font-semibold text-[#991B1B]">Seu parceiro na escrita</p>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Olá! Sou o Pestalozzi. Posso ajudar você a pesquisar, apurar, revisar e estruturar sua matéria.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPestalozziOpen((current) => !current)}
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-[#111111] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]"
+                >
+                  🤖 Pestalozzi
+                </button>
+
+                {isPestalozziOpen && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <button type="button" onClick={() => runPestalozziTool('pesquisar-apurar')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">🔎 Pesquisar e apurar</button>
+                    <button type="button" onClick={() => runPestalozziTool('conferir-informacoes')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">✓ Conferir informações</button>
+                    <button type="button" onClick={() => runPestalozziTool('revisar-materia')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">✍️ Revisar matéria</button>
+                    <button type="button" onClick={() => runPestalozziTool('reescrever-materia')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">📝 Reescrever matéria</button>
+                    <button type="button" onClick={() => runPestalozziTool('criar-titulo')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">📰 Criar título</button>
+                    <button type="button" onClick={() => runPestalozziTool('criar-linha-fina')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">📌 Criar linha fina</button>
+                    <button type="button" onClick={() => runPestalozziTool('criar-resumo')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">📄 Criar resumo</button>
+                    <button type="button" onClick={() => runPestalozziTool('melhorar-lead')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">🎯 Melhorar lead</button>
+                    <button type="button" onClick={() => runPestalozziTool('pesquisar-dados')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">📊 Pesquisar dados</button>
+                    <button type="button" onClick={() => runPestalozziTool('encontrar-fontes')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">🔗 Encontrar fontes</button>
+                    <button type="button" onClick={() => runPestalozziTool('pesquisar-imagens')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">🖼️ Pesquisar imagens</button>
+                    <button type="button" onClick={() => runPestalozziTool('analisar-materia')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">🧠 Analisar matéria</button>
+                  </div>
+                )}
               </section>
 
               {radarDraft && (
