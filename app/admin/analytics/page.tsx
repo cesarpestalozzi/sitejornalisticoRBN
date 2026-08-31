@@ -7,6 +7,7 @@ import AdminSidebar from '@/app/components/AdminSidebar';
 import { useAdvertisements } from '@/app/hooks/useAdvertisements';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useComments } from '@/app/hooks/useComments';
+import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 
 const COLORS = ['#991B1B', '#FF6B6B', '#FFA07A', '#FFB6C1', '#DEB887'];
 
@@ -214,7 +215,10 @@ export default function AnalyticsPage() {
     };
   }, []);
 
-  const publishedArticles = useMemo(() => articles.filter((article) => article.status === 'publicado'), [articles]);
+  const publishedArticles = useMemo(
+    () => articles.filter((article) => normalizeArticleStatus(article.status, article.publishedAt ? 'publicado' : undefined) === 'publicado'),
+    [articles]
+  );
   const activeRangeDates = useMemo(() => getRangeDates(analyticsRange), [analyticsRange, getRangeDates]);
 
   const filteredPublishedArticles = useMemo(

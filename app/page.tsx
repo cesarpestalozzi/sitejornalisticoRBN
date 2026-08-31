@@ -4,6 +4,7 @@ export const revalidate = 0;
 import HomeClientOptimized from './components/HomeClientOptimized';
 import { createClient } from '@supabase/supabase-js';
 import { isScheduledArticleDue, promoteScheduledArticle } from '@/app/lib/articlePublishing';
+import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 import { isValidSupabaseUrl } from '@/app/lib/supabase';
 
 interface HomeArticle {
@@ -98,7 +99,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
     });
 
     const articles = mappedRows
-      .filter((row: HomeArticleRow): row is HomeArticleRow => row.payload?.status === 'publicado')
+      .filter((row: HomeArticleRow): row is HomeArticleRow => normalizeArticleStatus(row.payload?.status, row.payload?.publishedAt ? 'publicado' : undefined) === 'publicado')
       .map((row: HomeArticleRow) => {
         const payload = row.payload ?? {};
         return {

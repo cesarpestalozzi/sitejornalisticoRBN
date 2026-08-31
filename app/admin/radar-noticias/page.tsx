@@ -53,6 +53,8 @@ const IGNORED_STORAGE_KEY = 'pz_news_radar_ignored_ids';
 const REFRESH_STORAGE_KEY = 'pz_news_radar_refresh_minutes';
 const KEYWORDS_STORAGE_KEY = 'pz_news_radar_keywords';
 const PAUTAS_STORAGE_KEY = 'pz_news_radar_pautas';
+const RADAR_ENABLED_STORAGE_KEY = 'pz_news_radar_enabled';
+const DEFAULT_REFRESH_MINUTES = 5;
 const REALTIME_REFRESH_MINUTES = 0;
 const REALTIME_REFRESH_MS = 30 * 1000;
 
@@ -136,13 +138,13 @@ function getRefreshIntervalMs(minutes: number) {
 
 function formatRefreshLabel(minutes: number) {
   if (minutes <= REALTIME_REFRESH_MINUTES) {
-    return 'Tempo real (30s)';
+    return 'Tempo real (30s, apenas visível)';
   }
   return `${minutes} min`;
 }
 
 function normalizeRefreshMinutes(minutes: number) {
-  return RADAR_REFRESH_OPTIONS.includes(minutes) ? minutes : REALTIME_REFRESH_MINUTES;
+  return RADAR_REFRESH_OPTIONS.includes(minutes) ? minutes : DEFAULT_REFRESH_MINUTES;
 }
 
 function getRelevanceBadge(level: RadarNewsGroup['relevanceLevel']) {
@@ -225,8 +227,9 @@ export default function RadarNoticiasPage() {
   const [timeFilter, setTimeFilter] = useState<RadarTimeFilter>('24h');
   const [sortBy, setSortBy] = useState<RadarSort>('relevantes');
   const [selectedCategories, setSelectedCategories] = useState<RadarCategory[]>([]);
+  const [radarEnabled, setRadarEnabled] = useState(() => loadJson<boolean>(RADAR_ENABLED_STORAGE_KEY, false));
   const [refreshMinutes, setRefreshMinutes] = useState(() =>
-    normalizeRefreshMinutes(loadJson<number>(REFRESH_STORAGE_KEY, REALTIME_REFRESH_MINUTES))
+    normalizeRefreshMinutes(loadJson<number>(REFRESH_STORAGE_KEY, DEFAULT_REFRESH_MINUTES))
   );
   const [groups, setGroups] = useState<RadarNewsGroup[]>([]);
   const [topics, setTopics] = useState<RadarTopic[]>([]);
@@ -260,6 +263,10 @@ export default function RadarNoticiasPage() {
   }, [savedIds]);
 
   useEffect(() => {
+    saveJson(RADAR_ENABLED_STORAGE_KEY, radarEnabled);
+  }, [radarEnabled]);
+
+  useEffect(() => {
     saveJson(IGNORED_STORAGE_KEY, ignoredIds);
   }, [ignoredIds]);
 
@@ -276,6 +283,15 @@ export default function RadarNoticiasPage() {
   }, [pautas]);
 
   const fetchRadar = useCallback(async () => {
+    if (!currentUser || !canAccessAdminRoute(currentUser, '/admin/radar-noticias') || !radarEnabled) {
+      return;
+    }
+
+    const isPageVisible = typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus();
+    if (!isPageVisible) {
+      return;
+    }
+
     setIsFetching(true);
     setErrorMessage('');
     setPautaMessage('');
@@ -308,22 +324,38 @@ export default function RadarNoticiasPage() {
     } finally {
       setIsFetching(false);
     }
-  }, [query, selectedCategories, timeFilter, sources]);
+  }, [query, selectedCategories, timeFilter, sources, currentUser, radarEnabled]);
 
   useEffect(() => {
+    if (!currentUser || !canAccessAdminRoute(currentUser, '/admin/radar-noticias') || !radarEnabled) {
+      return;
+    }
+
     const timerId = window.setTimeout(() => {
+      const isVisible = typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus();
+      if (!isVisible) {
+        return;
+      }
       void fetchRadar();
     }, 0);
     return () => window.clearTimeout(timerId);
-  }, [fetchRadar]);
+  }, [currentUser, fetchRadar, radarEnabled]);
 
   useEffect(() => {
+    if (!currentUser || !canAccessAdminRoute(currentUser, '/admin/radar-noticias') || !radarEnabled) {
+      return;
+    }
+
     const timerId = window.setInterval(() => {
+      const isVisible = typeof document !== 'undefined' && document.visibilityState === 'visible' && document.hasFocus();
+      if (!isVisible) {
+        return;
+      }
       void fetchRadar();
     }, getRefreshIntervalMs(refreshMinutes));
 
     return () => window.clearInterval(timerId);
-  }, [fetchRadar, refreshMinutes]);
+  }, [currentUser, fetchRadar, radarEnabled, refreshMinutes]);
 
   const visibleGroups = useMemo(() => {
     const filtered = groups.filter((group) => !ignoredIds.includes(group.id));
@@ -454,8 +486,19 @@ export default function RadarNoticiasPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setRadarEnabled((current) => !current)}
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    radarEnabled ? 'bg-[#111111] text-white hover:bg-[#2a2a2a]' : 'border border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className={`inline-block h-2.5 w-2.5 rounded-full ${radarEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                  {radarEnabled ? 'Radar ligado' : 'Radar desligado'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => void fetchRadar()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a]"
+                  disabled={!radarEnabled}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#111111] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
                   Atualizar
@@ -472,9 +515,13 @@ export default function RadarNoticiasPage() {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <article className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-red-700">🔴 Radar ativo</p>
-                <p className="mt-1 text-sm text-red-900">Atualização contínua em {formatRefreshLabel(refreshMinutes)}.</p>
+              <article className={`rounded-xl border px-4 py-3 ${radarEnabled ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${radarEnabled ? 'text-red-700' : 'text-gray-600'}`}>
+                  {radarEnabled ? '🔴 Radar ativo' : '⚫ Radar desligado'}
+                </p>
+                <p className={`mt-1 text-sm ${radarEnabled ? 'text-red-900' : 'text-gray-700'}`}>
+                  {radarEnabled ? `Atualização contínua em ${formatRefreshLabel(refreshMinutes)}.` : 'O radar fica inativo até ser ligado no painel.'}
+                </p>
               </article>
               <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-600">Última atualização</p>

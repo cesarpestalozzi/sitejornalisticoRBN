@@ -8,6 +8,7 @@ import {
   canViewAllArticles,
   getCurrentAdminUser,
 } from '@/app/lib/adminPermissions';
+import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 import { hasSupabaseConfig, supabase } from '@/app/lib/supabase';
 
 export interface ArticleImage {
@@ -463,9 +464,20 @@ function normalizeArticle(article: Article): Article {
   const primaryImage = article.image || normalizedImages.find((image) => image.isPrimary)?.url || normalizedImages[0]?.url || '';
   const views = typeof article.views === 'number' && Number.isFinite(article.views) ? article.views : 0;
   const shares = typeof article.shares === 'number' && Number.isFinite(article.shares) ? article.shares : 0;
+  const normalizedStatus = normalizeArticleStatus(
+    article.status,
+    article.publishedAt ? 'publicado' : article.scheduledDate ? 'agendado' : 'rascunho'
+  );
 
   return {
     ...article,
+    title: typeof article.title === 'string' ? article.title : 'Sem título',
+    subtitle: typeof article.subtitle === 'string' ? article.subtitle : '',
+    category: typeof article.category === 'string' ? article.category : 'Geral',
+    author: typeof article.author === 'string' ? article.author : 'RBN',
+    content: typeof article.content === 'string' ? article.content : '',
+    excerpt: typeof article.excerpt === 'string' ? article.excerpt : '',
+    status: normalizedStatus,
     image: primaryImage,
     images: normalizedImages,
     videos: normalizedVideos,

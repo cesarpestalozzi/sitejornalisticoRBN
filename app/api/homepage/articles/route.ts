@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { isScheduledArticleDue, promoteScheduledArticle } from '@/app/lib/articlePublishing';
 import { notifyArticleRecipients } from '@/app/lib/articleNotifications';
+import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 import { isValidSupabaseUrl } from '@/app/lib/supabase';
 
 // Marcar como dinâmica para evitar pré-renderização
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
     });
 
     const articles = mappedRows
-      .filter((row: ArticleRow): row is ArticleRow => row.payload?.status === 'publicado')
+      .filter((row: ArticleRow): row is ArticleRow => normalizeArticleStatus(row.payload?.status, row.payload?.publishedAt ? 'publicado' : undefined) === 'publicado')
       .map((row: ArticleRow) => {
         const payload = row.payload ?? ({} as ArticlePayload);
         return {

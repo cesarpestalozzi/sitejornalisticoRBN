@@ -11,6 +11,7 @@ import {
   canViewAllArticles,
   useCurrentAdminUser,
 } from '@/app/lib/adminPermissions';
+import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 
 export default function AdminArticles() {
   const { articles, deletedArticles, deleteArticle, isLoaded } = useArticles();
@@ -26,16 +27,23 @@ export default function AdminArticles() {
     const visibleArticles = currentUser && canViewAllArticles(currentUser)
       ? articles
       : currentUser
-        ? articles.filter((article) =>
-          article.status === 'publicado' || article.author.toLowerCase() === currentUser.name.toLowerCase()
-        )
+        ? articles.filter((article) => {
+          const articleStatus = normalizeArticleStatus(article.status, article.publishedAt ? 'publicado' : undefined);
+          const articleAuthor = typeof article.author === 'string' ? article.author.toLowerCase() : '';
+          return articleStatus === 'publicado' || articleAuthor === currentUser.name.toLowerCase();
+        })
         : [];
 
     return visibleArticles.filter((article) => {
+      const articleStatus = normalizeArticleStatus(article.status, article.publishedAt ? 'publicado' : undefined);
+      const title = typeof article.title === 'string' ? article.title : '';
+      const author = typeof article.author === 'string' ? article.author : '';
+      const category = typeof article.category === 'string' ? article.category : '';
+
       const matchesSearch =
         normalizedSearch.length === 0 ||
-        [article.title, article.author, article.category].some((field) => field.toLowerCase().includes(normalizedSearch));
-      const matchesStatus = filterStatus === 'todos' || article.status === filterStatus;
+        [title, author, category].some((field) => field.toLowerCase().includes(normalizedSearch));
+      const matchesStatus = filterStatus === 'todos' || articleStatus === filterStatus;
 
       return matchesSearch && matchesStatus;
     });
@@ -109,7 +117,7 @@ export default function AdminArticles() {
             </div>
             <div className="rounded-xl bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-500">Publicados</p>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{articles.filter((article) => article.status === 'publicado').length}</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">{articles.filter((article) => normalizeArticleStatus(article.status, article.publishedAt ? 'publicado' : undefined) === 'publicado').length}</p>
             </div>
             <div className="rounded-xl bg-white p-6 shadow-sm">
               <p className="text-sm text-gray-500">Em destaque</p>

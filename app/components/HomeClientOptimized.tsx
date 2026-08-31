@@ -139,7 +139,18 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
   useEffect(() => {
     let isActive = true;
 
+    const isWindowActive = () => {
+      if (typeof document === 'undefined') {
+        return false;
+      }
+      return document.visibilityState === 'visible' && document.hasFocus();
+    };
+
     const syncHomepageArticles = async () => {
+      if (!isWindowActive()) {
+        return;
+      }
+
       try {
         const response = await fetch('/api/homepage/articles', {
           method: 'GET',
@@ -163,9 +174,15 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
     };
 
     void syncHomepageArticles();
-    const intervalId = window.setInterval(syncHomepageArticles, 15000);
+    const intervalId = window.setInterval(() => {
+      if (isWindowActive()) {
+        void syncHomepageArticles();
+      }
+    }, 5 * 60 * 1000);
     const onFocus = () => {
-      void syncHomepageArticles();
+      if (isWindowActive()) {
+        void syncHomepageArticles();
+      }
     };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onFocus);
