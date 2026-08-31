@@ -63,7 +63,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
       .select('id, payload, deleted, updated_at')
       .eq('deleted', false)
       .order('updated_at', { ascending: false })
-      .limit(50);
+      .limit(12);
 
     if (error || !data) {
       return [];

@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       .select('id, payload, deleted, updated_at')
       .eq('deleted', false)
       .order('updated_at', { ascending: false })
-      .limit(50);
+      .limit(12);
 
     if (error) {
       console.error('Erro ao buscar artigos para homepage:', error);
