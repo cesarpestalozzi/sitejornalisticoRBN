@@ -88,7 +88,7 @@ function getSupabaseHeaders() {
   // Chaves novas sb_publishable_* funcionam apenas com apikey.
   if (key.startsWith('eyJ')) {
     headers.Authorization = `Bearer ${key}`;
-  }
+}
 
   return headers;
 }

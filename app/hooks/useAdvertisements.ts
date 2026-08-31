@@ -49,7 +49,7 @@ function getSupabaseHeaders() {
   const key = SUPABASE_ANON_KEY as string;
   if (key.startsWith('eyJ')) {
     headers.Authorization = `Bearer ${key}`;
-  }
+}
 
   return headers;
 }

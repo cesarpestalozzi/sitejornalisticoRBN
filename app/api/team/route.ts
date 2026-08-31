@@ -18,8 +18,8 @@ function isConfigured() {
 function getHeaders() {
   return {
     apikey: SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-    'Content-Type': 'application/json',
+    Authorization: `Bearer ${SERVICE_ROLE_KEY}` ,
+      'Content-Type': 'application/json',
   };
 }
 
@@ -34,6 +34,16 @@ function readText(payload: Record<string, unknown>, key: string) {
 
 function readBoolean(payload: Record<string, unknown>, key: string) {
   return payload[key] === true;
+}
+
+function normalizeMemberStatus(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (['inativo', 'inactive', 'desativado', 'disabled'].includes(normalized)) {
+    return 'inativo';
+  }
+
+  return 'ativo';
 }
 
 export async function GET() {
@@ -55,8 +65,8 @@ export async function GET() {
   const members = rows
     .map((row) => {
       const payload = (row.payload ?? {}) as Record<string, unknown>;
-      const status = readText(payload, 'status').toLowerCase();
-      if (status && status !== 'ativo') {
+      const status = normalizeMemberStatus(readText(payload, 'status'));
+      if (status === 'inativo') {
         return null;
       }
 

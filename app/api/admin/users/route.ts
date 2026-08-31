@@ -9,8 +9,8 @@ const TABLE = 'pz_news_users';
 function getHeaders() {
   return {
     apikey: SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-    'Content-Type': 'application/json',
+    Authorization: `Bearer ${SERVICE_ROLE_KEY}` ,
+      'Content-Type': 'application/json',
     Prefer: 'return=minimal',
   };
 }
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// DELETE /api/admin/users?id=<userId> — remove um usuário
+// DELETE /api/admin/users?id=<userId> — desativa o usuário sem remover o registro do banco
 export async function DELETE(request: NextRequest) {
   const id = new URL(request.url).searchParams.get('id');
   if (!id) {
@@ -79,9 +79,33 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Serviço indisponível.' }, { status: 500 });
   }
 
-  const response = await fetch(endpoint(`?id=eq.${encodeURIComponent(id)}`), {
-    method: 'DELETE',
+  const current = await fetch(endpoint(`?select=id,payload&id=eq.${encodeURIComponent(id)}`), {
+    method: 'GET',
     headers: getHeaders(),
+  });
+
+  if (!current.ok) {
+    const text = await current.text();
+    return NextResponse.json({ ok: false, error: text }, { status: 500 });
+  }
+
+  const rows = await current.json();
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) {
+    return NextResponse.json({ ok: true });
+  }
+
+  const payload = row.payload && typeof row.payload === 'object' ? { ...row.payload } : {};
+  const nextPayload = {
+    ...payload,
+    status: 'inativo',
+    updatedAt: new Date().toISOString(),
+  };
+
+  const response = await fetch(endpoint(`?id=eq.${encodeURIComponent(id)}`), {
+    method: 'PATCH',
+    headers: getHeaders(),
+    body: JSON.stringify({ payload: nextPayload, updated_at: new Date().toISOString() }),
   });
 
   if (!response.ok) {

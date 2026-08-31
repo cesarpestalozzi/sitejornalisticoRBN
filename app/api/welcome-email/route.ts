@@ -92,8 +92,8 @@ export async function POST(request: Request) {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}` ,
+      'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         from,

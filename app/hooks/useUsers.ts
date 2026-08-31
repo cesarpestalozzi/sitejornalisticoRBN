@@ -5,6 +5,23 @@ export type UserRole = AdminRole;
 export type UserStatus = 'ativo' | 'inativo';
 export type UserOnboardingStatus = 'invite-sent' | 'first-access-pending' | 'password-changed' | 'active';
 
+function normalizeUserStatus(value: unknown): UserStatus {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+
+  switch (normalized) {
+    case 'inativo':
+    case 'inactive':
+    case 'desativado':
+    case 'disabled':
+      return 'inativo';
+    case 'ativo':
+    case 'active':
+    case 'enabled':
+    default:
+      return 'ativo';
+  }
+}
+
 export const DEFAULT_PASSWORD = '123456';
 export const ADMIN_LOGIN = 'RBN54078879837';
 export const ADMIN_EMAIL = 'admin@rbn.com.br';
@@ -200,7 +217,7 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
       : getDefaultPermissionsForRole((user?.role as UserRole) || 'jornalista'),
     bio: typeof user?.bio === 'string' ? user.bio : '',
     avatar: typeof user?.avatar === 'string' && user.avatar.trim() ? user.avatar : createAvatar(fallbackName, '#991B1B'),
-    status: user?.status === 'inativo' ? 'inativo' : 'ativo',
+    status: normalizeUserStatus(user?.status),
     joinDate: typeof user?.joinDate === 'string' ? user.joinDate : new Date().toISOString().split('T')[0],
     articlesCount:
       typeof user?.articlesCount === 'number' && Number.isFinite(user.articlesCount)
@@ -695,9 +712,24 @@ export function useUsers() {
       throw new Error('Sem permissão para excluir usuários.');
     }
 
-    setUsers((current) => current.filter((user) => user.id !== id));
+    const target = users.find((user) => user.id === id);
+    if (!target) {
+      return;
+    }
+
+    if (normalizeCpf(target.cpf) === '54078879837' || target.login.toUpperCase() === ADMIN_LOGIN || target.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      throw new Error('Não é possível remover o usuário administrativo principal.');
+    }
+
+    const nextUser = normalizeUserRecord({
+      ...target,
+      status: 'inativo',
+      updatedAt: new Date().toISOString(),
+    });
+
+    setUsers((current) => current.map((user) => (user.id === id ? nextUser : user)));
     void deleteRemoteUserById(id).catch((error) => {
-      console.error('Erro ao sincronizar exclusão de usuário:', error);
+      console.error('Erro ao desativar usuário remoto:', error);
     });
   };
 
