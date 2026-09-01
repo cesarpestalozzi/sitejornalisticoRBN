@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, Suspense, lazy } from 'react';
+import { useEffect, useMemo, Suspense, lazy, useRef } from 'react';
 import Hero from './Hero';
 import NewsGrid from './NewsGrid';
 import { defaultSettings } from '@/app/lib/settings';
@@ -69,6 +69,7 @@ function toNewsCard(article: HomeArticle): NewsCard {
 
 export default function HomeClient({ initialArticles }: { initialArticles: HomeArticle[] }) {
   const [articles, setArticles] = useState<HomeArticle[]>(initialArticles);
+  const latestArticlesRef = useRef<HomeArticle[]>(initialArticles);
   const [isLoaded, setIsLoaded] = useState(true);
   const { settings: contextSettings } = useSettingsContext();
   const settings = contextSettings ?? defaultSettings;
@@ -87,6 +88,10 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [articles]
   );
+
+  useEffect(() => {
+    latestArticlesRef.current = articles;
+  }, [articles]);
 
   const heroArticle = useMemo(() => {
     const featuredStored = publishedArticles.find((article) => article.featured);
@@ -138,6 +143,7 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
 
   useEffect(() => {
     let isActive = true;
+    const inFlightRef = { current: false };
 
     const isWindowActive = () => {
       if (typeof document === 'undefined') {
@@ -147,9 +153,11 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
     };
 
     const syncHomepageArticles = async () => {
-      if (!isWindowActive()) {
+      if (!isWindowActive() || inFlightRef.current) {
         return;
       }
+
+      inFlightRef.current = true;
 
       try {
         const response = await fetch('/api/homepage/articles', {
@@ -167,9 +175,18 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
           return;
         }
 
-        setArticles(nextArticles);
+        const sameArticles = nextArticles.length === latestArticlesRef.current.length
+          && nextArticles.every((article, index) => article.id === latestArticlesRef.current[index]?.id && article.updatedAt === latestArticlesRef.current[index]?.updatedAt);
+
+        if (!sameArticles) {
+          setArticles(nextArticles);
+        }
       } catch {
         // mantém o último estado válido para evitar flicker
+      } finally {
+        if (isActive) {
+          inFlightRef.current = false;
+        }
       }
     };
 
@@ -178,7 +195,7 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
       if (isWindowActive()) {
         void syncHomepageArticles();
       }
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
     const onFocus = () => {
       if (isWindowActive()) {
         void syncHomepageArticles();
@@ -189,6 +206,7 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
 
     return () => {
       isActive = false;
+      inFlightRef.current = false;
       window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
