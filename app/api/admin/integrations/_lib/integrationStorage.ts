@@ -1,24 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const pythonApiBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export type IntegrationProvider = 'linkedin' | 'teams';
 
 type UserPayload = Record<string, unknown>;
 
 function getAdminClient() {
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
+  return pythonApiBase;
 }
 
 export async function upsertIntegrationSecret(
@@ -26,54 +13,28 @@ export async function upsertIntegrationSecret(
   provider: IntegrationProvider,
   secretPayload: Record<string, unknown>
 ) {
-  const adminClient = getAdminClient();
-  if (!adminClient) {
-    throw new Error('Supabase service role não configurada.');
-  }
-
-  const { error } = await adminClient.from('pz_news_user_integrations').upsert(
-    [
-      {
-        user_id: userId,
-        provider,
-        payload: secretPayload,
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    { onConflict: 'user_id,provider' }
-  );
-
-  if (error) {
-    throw new Error(error.message);
+  const response = await fetch(`${getAdminClient()}/api/admin/integrations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, provider, payload: secretPayload }),
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    throw new Error(`Falha ao salvar integração (${response.status}).`);
   }
 }
 
 export async function getUserById(userId: string) {
-  const adminClient = getAdminClient();
-  if (!adminClient) {
-    throw new Error('Supabase service role não configurada.');
+  const response = await fetch(`${getAdminClient()}/api/admin/users`, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`Falha ao ler usuários (${response.status}).`);
   }
-
-  const { data, error } = await adminClient
-    .from('pz_news_users')
-    .select('id,payload,updated_at')
-    .eq('id', userId)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ? { id: String(data.id), payload: (data.payload ?? {}) as UserPayload } : null;
+  const data = (await response.json()) as { rows?: Array<{ id: string; payload?: UserPayload }> };
+  const row = (data.rows || []).find((item) => String(item.id) === userId);
+  return row ? { id: String(row.id), payload: row.payload ?? {} } : null;
 }
 
 export async function updateUserPayload(userId: string, updates: Record<string, unknown>) {
-  const adminClient = getAdminClient();
-  if (!adminClient) {
-    throw new Error('Supabase service role não configurada.');
-  }
-
   const current = await getUserById(userId);
   if (!current) {
     throw new Error('Usuário não encontrado.');
@@ -84,19 +45,13 @@ export async function updateUserPayload(userId: string, updates: Record<string, 
     ...updates,
   };
 
-  const { error } = await adminClient.from('pz_news_users').upsert(
-    [
-      {
-        id: userId,
-        payload: nextPayload,
-        updated_at: new Date().toISOString(),
-      },
-    ],
-    { onConflict: 'id' }
-  );
-
-  if (error) {
-    throw new Error(error.message);
+  const response = await fetch(`${getAdminClient()}/api/admin/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: userId, payload: nextPayload }),
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    throw new Error(`Falha ao atualizar usuário (${response.status}).`);
   }
 }
-
