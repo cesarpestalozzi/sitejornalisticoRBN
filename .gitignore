@@ -1,0 +1,13 @@
+.vercel
+.env
+.env.local
+.env.*.local
+.next
+node_modules
+.env*
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+backup-site-rbn/
+*.zip
