@@ -20,6 +20,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  if (process.env.VERCEL === '1') {
+    return NextResponse.json(
+      { error: 'Armazenamento de notícias não configurado na Vercel.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL('/api/homepage/articles', `${pythonApiBase}/`);
   for (const [key, value] of incomingUrl.searchParams.entries()) {

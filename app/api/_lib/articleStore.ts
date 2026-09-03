@@ -7,8 +7,18 @@ export type ArticleRow = {
   updated_at?: string;
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function readEnvironmentValue(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim().replace(/^["']|["']$/g, '');
+    if (value && value !== '[SENSITIVE]') {
+      return value;
+    }
+  }
+  return '';
+}
+
+const supabaseUrl = readEnvironmentValue('NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL').replace(/\/$/, '');
+const supabaseKey = readEnvironmentValue('SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY');
 const tableUrl = supabaseUrl ? `${supabaseUrl}/rest/v1/pz_news_articles` : null;
 
 export function hasArticleStoreConfig() {

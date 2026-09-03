@@ -46,6 +46,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar notícias.' }, { status: 502 });
     }
   }
+  if (process.env.VERCEL === '1') {
+    return NextResponse.json(
+      { error: 'Armazenamento de notícias não configurado na Vercel.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
   try {
     return await proxyToPython(request, '/api/articles');
   } catch (error) {
@@ -65,6 +71,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao salvar notícia.' }, { status: 502 });
     }
   }
+  if (process.env.VERCEL === '1') {
+    return NextResponse.json(
+      { error: 'Armazenamento de notícias não configurado na Vercel.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
   try {
     return await proxyToPython(request, '/api/articles');
   } catch (error) {
@@ -83,6 +95,12 @@ export async function PATCH(request: NextRequest) {
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao atualizar notícia.' }, { status: 502 });
     }
+  }
+  if (process.env.VERCEL === '1') {
+    return NextResponse.json(
+      { error: 'Armazenamento de notícias não configurado na Vercel.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
   try {
     return await proxyToPython(request, '/api/articles');
@@ -110,6 +128,12 @@ export async function DELETE(request: NextRequest) {
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao excluir notícia.' }, { status: 502 });
     }
+  }
+  if (process.env.VERCEL === '1') {
+    return NextResponse.json(
+      { error: 'Armazenamento de notícias não configurado na Vercel.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
   }
   try {
     return await proxyToPython(request, '/api/articles');
