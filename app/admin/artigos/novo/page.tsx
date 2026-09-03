@@ -91,7 +91,7 @@ type PestalozziChatEntry = {
 export default function NewArticlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { addArticle, isLoaded } = useArticles();
+  const { addArticle, persistArticle, isLoaded } = useArticles();
   const { users } = useUsers();
   const currentUser = useCurrentAdminUser();
   const brazilianLocations = [
@@ -702,6 +702,7 @@ export default function NewArticlePage() {
         scheduledTime: publishStatus === 'agendado' ? scheduledTime : undefined,
       });
       createdArticleId = createdArticle.id;
+      await persistArticle(createdArticle);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Sem permissão para publicar esta matéria.');
       return;

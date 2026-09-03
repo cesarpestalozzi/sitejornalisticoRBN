@@ -1,22 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-function getAdminClient() {
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-}
+const PYTHON_BACKEND_URL = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 function getPrimaryArticleImage(payload?: Record<string, any>) {
   if (!payload || typeof payload !== 'object') {
@@ -29,8 +13,7 @@ function getPrimaryArticleImage(payload?: Record<string, any>) {
   }
 
   const images = Array.isArray(payload.images) ? payload.images : [];
-  const imageFromList = images.find((item) => typeof item?.url === 'string' && item.url.trim())?.url ?? null;
-  return imageFromList;
+  return images.find((item) => typeof item?.url === 'string' && item.url.trim())?.url ?? null;
 }
 
 async function proxyRemoteImage(imageUrl: string, request: NextRequest) {
@@ -66,24 +49,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'ID da matéria obrigatório.' }, { status: 400 });
   }
 
-  const adminClient = getAdminClient();
-  if (!adminClient) {
-    return NextResponse.redirect(new URL('/logo-oficial.png', request.url));
-  }
-
   try {
-    const { data, error } = await adminClient
-      .from('pz_news_articles')
-      .select('payload')
-      .eq('id', id)
-      .eq('deleted', false)
-      .maybeSingle();
+    const apiUrl = `${PYTHON_BACKEND_URL}/api/articles?id=${encodeURIComponent(id)}`;
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
 
-    if (error || !data?.payload) {
+    if (!response.ok) {
       return NextResponse.redirect(new URL('/logo-oficial.png', request.url));
     }
 
-    const imageValue = getPrimaryArticleImage(data.payload as Record<string, any>);
+    const rows = (await response.json()) as Array<{ payload?: Record<string, any> }>;
+    const articlePayload = rows.find((row) => row.payload)?.payload;
+    const imageValue = getPrimaryArticleImage(articlePayload);
+
     if (!imageValue) {
       return NextResponse.redirect(new URL('/logo-oficial.png', request.url));
     }

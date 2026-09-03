@@ -93,7 +93,7 @@ export default function RbnAuthPanel({
       return;
     }
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event: unknown, session: any) => {
       if (!session?.user) {
         const localUser = readCurrentRbnUser();
         setCurrentUser(localUser);

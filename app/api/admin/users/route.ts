@@ -1,117 +1,47 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const TABLE = 'pz_news_users';
+const pythonApiBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-function getHeaders() {
-  return {
-    apikey: SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${SERVICE_ROLE_KEY}` ,
-      'Content-Type': 'application/json',
-    Prefer: 'return=minimal',
-  };
-}
-
-function endpoint(query = '') {
-  return `${SUPABASE_URL}/rest/v1/${TABLE}${query}`;
-}
-
-function isConfigured() {
-  return Boolean(SUPABASE_URL && SERVICE_ROLE_KEY);
-}
-
-// GET /api/admin/users — lista todos os usuários
-export async function GET() {
-  if (!isConfigured()) {
-    return NextResponse.json({ ok: false, error: 'Serviço indisponível.' }, { status: 500 });
+async function proxyToPython(request: NextRequest, path: string) {
+  const incomingUrl = new URL(request.url);
+  const targetUrl = new URL(path, `${pythonApiBase}/`);
+  for (const [key, value] of incomingUrl.searchParams.entries()) {
+    targetUrl.searchParams.set(key, value);
   }
 
-  const response = await fetch(endpoint('?select=id,payload,updated_at&order=updated_at.desc'), {
-    method: 'GET',
-    headers: getHeaders(),
+  const headers = new Headers({ Accept: 'application/json' });
+  const method = request.method;
+  let body: BodyInit | undefined;
+
+  if (method !== 'GET' && method !== 'HEAD') {
+    body = await request.text();
+    if (body && body.length > 0) {
+      headers.set('Content-Type', 'application/json');
+    }
+  }
+
+  const response = await fetch(targetUrl, { method, headers, body, cache: 'no-store' });
+  const text = await response.text();
+
+  return new NextResponse(text, {
+    status: response.status,
+    headers: {
+      'Content-Type': response.headers.get('content-type') || 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    },
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    return NextResponse.json({ ok: false, error: text }, { status: 500 });
-  }
-
-  const rows = await response.json();
-  return NextResponse.json({ ok: true, rows });
 }
 
-// POST /api/admin/users — salva (upsert) um usuário
+export async function GET(request: NextRequest) {
+  return proxyToPython(request, '/api/admin/users');
+}
+
 export async function POST(request: NextRequest) {
-  const body = await request.json().catch(() => null);
-  if (!body?.id || !body?.payload) {
-    return NextResponse.json({ ok: false, error: 'id e payload são obrigatórios.' }, { status: 400 });
-  }
-
-  if (!isConfigured()) {
-    return NextResponse.json({ ok: false, error: 'Serviço indisponível.' }, { status: 500 });
-  }
-
-  const response = await fetch(endpoint('?on_conflict=id'), {
-    method: 'POST',
-    headers: { ...getHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify([{ id: body.id, payload: body.payload, updated_at: new Date().toISOString() }]),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    return NextResponse.json({ ok: false, error: text }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true });
+  return proxyToPython(request, '/api/admin/users');
 }
 
-// DELETE /api/admin/users?id=<userId> — desativa o usuário sem remover o registro do banco
 export async function DELETE(request: NextRequest) {
-  const id = new URL(request.url).searchParams.get('id');
-  if (!id) {
-    return NextResponse.json({ ok: false, error: 'id é obrigatório.' }, { status: 400 });
-  }
-
-  if (!isConfigured()) {
-    return NextResponse.json({ ok: false, error: 'Serviço indisponível.' }, { status: 500 });
-  }
-
-  const current = await fetch(endpoint(`?select=id,payload&id=eq.${encodeURIComponent(id)}`), {
-    method: 'GET',
-    headers: getHeaders(),
-  });
-
-  if (!current.ok) {
-    const text = await current.text();
-    return NextResponse.json({ ok: false, error: text }, { status: 500 });
-  }
-
-  const rows = await current.json();
-  const row = Array.isArray(rows) ? rows[0] : null;
-  if (!row) {
-    return NextResponse.json({ ok: true });
-  }
-
-  const payload = row.payload && typeof row.payload === 'object' ? { ...row.payload } : {};
-  const nextPayload = {
-    ...payload,
-    status: 'inativo',
-    updatedAt: new Date().toISOString(),
-  };
-
-  const response = await fetch(endpoint(`?id=eq.${encodeURIComponent(id)}`), {
-    method: 'PATCH',
-    headers: getHeaders(),
-    body: JSON.stringify({ payload: nextPayload, updated_at: new Date().toISOString() }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    return NextResponse.json({ ok: false, error: text }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true });
+  return proxyToPython(request, '/api/admin/users');
 }

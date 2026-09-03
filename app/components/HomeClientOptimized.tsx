@@ -191,11 +191,16 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
     };
 
     void syncHomepageArticles();
+    const eventSource = new EventSource('/api/homepage/events');
+    const onArticleChanged = () => {
+      void syncHomepageArticles();
+    };
+    eventSource.addEventListener('article.changed', onArticleChanged);
     const intervalId = window.setInterval(() => {
       if (isWindowActive()) {
         void syncHomepageArticles();
       }
-    }, 60 * 1000);
+    }, 5 * 60 * 1000);
     const onFocus = () => {
       if (isWindowActive()) {
         void syncHomepageArticles();
@@ -207,6 +212,8 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
     return () => {
       isActive = false;
       inFlightRef.current = false;
+      eventSource.removeEventListener('article.changed', onArticleChanged);
+      eventSource.close();
       window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);

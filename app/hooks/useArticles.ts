@@ -78,38 +78,24 @@ function getSupabaseEndpoint(query = '') {
 }
 
 function getSupabaseHeaders() {
+  const key = SUPABASE_ANON_KEY ?? '';
   const headers: Record<string, string> = {
-    apikey: SUPABASE_ANON_KEY as string,
+    apikey: key,
     'Content-Type': 'application/json',
   };
-
-  const key = SUPABASE_ANON_KEY as string;
-  // Chaves legadas anon são JWT (eyJ...) e exigem Authorization Bearer.
-  // Chaves novas sb_publishable_* funcionam apenas com apikey.
-  if (key.startsWith('eyJ')) {
-    headers.Authorization = `Bearer ${key}`;
-}
-
+  if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
   return headers;
 }
 
 function isSupabaseRlsViolation(error: unknown) {
-  if (!error || typeof error !== 'object') {
-    return false;
-  }
-
+  if (!error || typeof error !== 'object') return false;
   const message = 'message' in error ? String((error as { message?: string }).message ?? '') : '';
   const code = 'code' in error ? String((error as { code?: string }).code ?? '') : '';
-  return code === '42501' || message.toLowerCase().includes('row-level security') || message.toLowerCase().includes('violates row-level security');
+  return code === '42501' || message.toLowerCase().includes('row-level security');
 }
 
 function warnSupabaseWriteIssue(context: string, error: unknown) {
-  if (isSupabaseRlsViolation(error)) {
-    console.warn(`[Supabase sync] ${context}: escrita bloqueada por RLS; mantendo estado local apenas.`);
-    return;
-  }
-
-  console.error(`[Supabase sync] ${context}:`, error);
+  console.error(`[API de artigos] ${context}:`, error);
 }
 
 async function normalizeRemoteRows(rows: SupabaseArticleRow[]) {
@@ -764,10 +750,11 @@ export function useArticles() {
     }
 
     setArticles((current) => [newArticle, ...current]);
-    void upsertRemoteArticle(newArticle, false).catch((error) => {
-      warnSupabaseWriteIssue('sincronizar novo artigo', error);
-    });
     return newArticle;
+  };
+
+  const persistArticle = async (article: Article) => {
+    await upsertRemoteArticle(article, false);
   };
 
   const updateArticle = (id: string, updates: Partial<Article>) => {
@@ -989,6 +976,7 @@ export function useArticles() {
     deletedArticles,
     isLoaded,
     addArticle,
+    persistArticle,
     updateArticle,
     deleteArticle,
     restoreArticle,

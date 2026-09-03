@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const COMMENTS_KEY_PREFIX = 'pznews-comments-';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SUPABASE_TABLE = 'pz_news_comments';
 
 export type CommentReply = {
   id: string;
@@ -24,34 +21,6 @@ export type ArticleComment = {
   likes: number;
   replies: CommentReply[];
 };
-
-type SupabaseCommentRow = {
-  id: string;
-  payload: ArticleComment;
-  updated_at?: string;
-};
-
-function hasSupabaseConfig() {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-}
-
-function getSupabaseEndpoint(query = '') {
-  return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}${query}`;
-}
-
-function getSupabaseHeaders() {
-  const headers: Record<string, string> = {
-    apikey: SUPABASE_ANON_KEY as string,
-    'Content-Type': 'application/json',
-  };
-
-  const key = SUPABASE_ANON_KEY as string;
-  if (key.startsWith('eyJ')) {
-    headers.Authorization = `Bearer ${key}`;
-}
-
-  return headers;
-}
 
 function normalizeReply(reply: unknown): CommentReply | null {
   if (!reply || typeof reply !== 'object') {
@@ -179,73 +148,30 @@ function persistLocalCommentsMap(commentsByArticle: Record<string, ArticleCommen
 }
 
 async function readRemoteComments() {
-  if (!hasSupabaseConfig()) {
-    return null;
-  }
-
   try {
     const response = await fetch('/api/comments', { method: 'GET', headers: { Accept: 'application/json' } });
-    if (response.ok) {
-      const rows = (await response.json()) as SupabaseCommentRow[];
-      const comments = rows
-        .map((row) => normalizeComment(row?.payload))
-        .filter((comment): comment is ArticleComment => comment !== null);
-      return groupByArticle(comments);
+    if (!response.ok) {
+      return null;
     }
+
+    const rows = (await response.json()) as Array<{ payload?: ArticleComment }>;
+    const comments = rows
+      .map((row) => normalizeComment(row?.payload))
+      .filter((comment): comment is ArticleComment => comment !== null);
+    return groupByArticle(comments);
   } catch (error) {
-    console.warn('API interna de comentários indisponível; tentando Supabase direto.', error);
+    console.warn('API interna de comentários indisponível.', error);
+    return null;
   }
-
-  const response = await fetch(getSupabaseEndpoint('?select=id,payload,updated_at&order=updated_at.desc'), {
-    method: 'GET',
-    headers: getSupabaseHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Erro ao ler comentários remotos: ${response.status}`);
-  }
-
-  const rows = (await response.json()) as SupabaseCommentRow[];
-  const comments = rows
-    .map((row) => normalizeComment(row?.payload))
-    .filter((comment): comment is ArticleComment => comment !== null);
-  return groupByArticle(comments);
 }
 
 async function upsertRemoteComment(comment: ArticleComment) {
-  if (!hasSupabaseConfig()) {
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/comments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ comment }),
-    });
-
-    if (response.ok) {
-      return;
-    }
-  } catch (error) {
-    console.warn('API interna de comentários indisponível; tentando Supabase direto.', error);
-  }
-
-  const response = await fetch(getSupabaseEndpoint('?on_conflict=id'), {
+  const response = await fetch('/api/comments', {
     method: 'POST',
     headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'resolution=merge-duplicates,return=minimal',
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify([
-      {
-        id: comment.id,
-        payload: comment,
-        updated_at: new Date().toISOString(),
-      },
-    ]),
+    body: JSON.stringify({ comment }),
   });
 
   if (!response.ok) {
@@ -254,30 +180,10 @@ async function upsertRemoteComment(comment: ArticleComment) {
 }
 
 async function deleteRemoteComment(commentId: string) {
-  if (!hasSupabaseConfig()) {
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/comments', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: commentId }),
-    });
-
-    if (response.ok) {
-      return;
-    }
-  } catch (error) {
-    console.warn('API interna de comentários indisponível; tentando Supabase direto.', error);
-  }
-
-  const response = await fetch(getSupabaseEndpoint(`?id=eq.${encodeURIComponent(commentId)}`), {
+  const response = await fetch('/api/comments', {
     method: 'DELETE',
-    headers: {
-      ...getSupabaseHeaders(),
-      Prefer: 'return=minimal',
-    },
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: commentId }),
   });
 
   if (!response.ok) {

@@ -1,8 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-
 export type AuthAdminUser = {
   id: string;
   email: string;
@@ -10,79 +5,41 @@ export type AuthAdminUser = {
   user_metadata: Record<string, unknown> | null;
 };
 
-export function getAuthAdminClient() {
-  if (typeof window !== 'undefined') {
-    return null;
-  }
+const pythonApiBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
-}
-
-export async function listAllAuthUsers() {
-  const client = getAuthAdminClient();
-  if (!client) {
-    return {
-      users: [] as AuthAdminUser[],
-      error: 'Supabase service role ausente no backend; o admin mantém fallback local como proteção extra.',
-    };
-  }
-
+async function fetchPythonUsers() {
   try {
-    const users: AuthAdminUser[] = [];
-    const perPage = 200;
-    let page = 1;
+    const response = await fetch(`${pythonApiBase}/api/admin/users`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
 
-    while (true) {
-      const { data, error } = await client.auth.admin.listUsers({ page, perPage });
-      if (error) {
-        return { users: [] as AuthAdminUser[], error: error.message };
-      }
-
-      const rawBatch: Array<AuthAdminUser | null> = (data?.users ?? [])
-        .map((user) => {
-          const email = String(user.email ?? '').trim().toLowerCase();
-          if (!email) {
-            return null;
-          }
-
-          return {
-            id: String(user.id),
-            email,
-            created_at: String(user.created_at ?? new Date().toISOString()),
-            user_metadata: (user.user_metadata as Record<string, unknown> | null) ?? null,
-          } satisfies AuthAdminUser;
-        });
-      const batch = rawBatch.filter((item): item is AuthAdminUser => item !== null);
-
-      users.push(...batch);
-
-      if (batch.length < perPage) {
-        break;
-      }
-
-      page += 1;
-      if (page > 50) {
-        break;
-      }
+    if (!response.ok) {
+      return { users: [] as AuthAdminUser[], error: 'Falha ao consultar usuários no backend Python.' };
     }
 
-    return { users, error: '' };
+    const payload = await response.json();
+    const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+
+    return {
+      users: rows.map((row: Record<string, unknown>) => ({
+        id: String(row.id ?? ''),
+        email: String((row.payload as Record<string, unknown> | undefined)?.email ?? ''),
+        created_at: String(row.updated_at ?? new Date().toISOString()),
+        user_metadata: (row.payload as Record<string, unknown> | undefined) ?? null,
+      })) as AuthAdminUser[],
+      error: '',
+    };
   } catch (error) {
     return {
       users: [] as AuthAdminUser[],
-      error: error instanceof Error ? error.message : 'Falha ao listar usuários do Supabase.',
+      error: error instanceof Error ? error.message : 'Falha ao consultar usuários no backend Python.',
     };
   }
+}
+
+export async function listAllAuthUsers() {
+  return fetchPythonUsers();
 }
 
 export async function findAuthUserByEmail(email: string) {
@@ -96,6 +53,6 @@ export async function findAuthUserByEmail(email: string) {
     return { user: null as AuthAdminUser | null, error };
   }
 
-  const user = users.find((item) => item.email === normalizedEmail) ?? null;
+  const user = users.find((item) => item.email?.toLowerCase() === normalizedEmail) ?? null;
   return { user, error: '' };
 }

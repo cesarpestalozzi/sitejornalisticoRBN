@@ -89,6 +89,33 @@ function stripHtml(content: string) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function normalizeArticleId(value: unknown) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  return String(value).trim();
+}
+
+function idsMatch(left: unknown, right: unknown) {
+  const leftNormalized = normalizeArticleId(left);
+  const rightNormalized = normalizeArticleId(right);
+
+  if (!leftNormalized || !rightNormalized) {
+    return false;
+  }
+
+  return leftNormalized === rightNormalized || String(Number(leftNormalized)) === String(Number(rightNormalized));
+}
+
 function formatArticleMeta(date: Date) {
   const day = new Intl.DateTimeFormat('pt-BR', { day: 'numeric' }).format(date);
   const month = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(date);
@@ -157,7 +184,10 @@ export default function ArticlePageClient() {
         }
 
         const rows = (await response.json()) as Array<{ id?: string; payload?: any }>;
-        const match = rows.find((row) => row.id === params.id || row.payload?.id === params.id);
+        const match = rows.find((row) => {
+          const candidates = [row.id, row.payload?.id];
+          return candidates.some((candidate) => idsMatch(candidate, params.id));
+        });
         const nextArticle = match?.payload ?? match ?? null;
 
         if (isActive) {
