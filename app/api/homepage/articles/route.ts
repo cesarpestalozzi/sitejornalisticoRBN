@@ -26,17 +26,24 @@ export async function GET(request: NextRequest) {
     targetUrl.searchParams.set(key, value);
   }
 
-  const response = await fetch(targetUrl, {
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
-  });
+  try {
+    const response = await fetch(targetUrl, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
 
-  const text = await response.text();
-  return new NextResponse(text, {
-    status: response.status,
-    headers: {
-      'Content-Type': response.headers.get('content-type') || 'application/json',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-    },
-  });
+    const text = await response.text();
+    return new NextResponse(text, {
+      status: response.status,
+      headers: {
+        'Content-Type': response.headers.get('content-type') || 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Serviço da homepage indisponível.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }

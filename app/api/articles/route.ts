@@ -46,7 +46,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar notícias.' }, { status: 502 });
     }
   }
-  return proxyToPython(request, '/api/articles');
+  try {
+    return await proxyToPython(request, '/api/articles');
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Serviço de artigos indisponível.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -58,7 +65,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao salvar notícia.' }, { status: 502 });
     }
   }
-  return proxyToPython(request, '/api/articles');
+  try {
+    return await proxyToPython(request, '/api/articles');
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Serviço de artigos indisponível.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }
 
 export async function PATCH(request: NextRequest) {
@@ -70,7 +84,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao atualizar notícia.' }, { status: 502 });
     }
   }
-  return proxyToPython(request, '/api/articles');
+  try {
+    return await proxyToPython(request, '/api/articles');
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Serviço de artigos indisponível.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }
 
 export async function DELETE(request: NextRequest) {
@@ -90,5 +111,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao excluir notícia.' }, { status: 502 });
     }
   }
-  return proxyToPython(request, '/api/articles');
+  try {
+    return await proxyToPython(request, '/api/articles');
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Serviço de artigos indisponível.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }
