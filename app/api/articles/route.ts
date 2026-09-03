@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { hasArticleStoreConfig, listStoredArticles, saveStoredArticle } from '../_lib/articleStore';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -36,17 +37,58 @@ async function proxyToPython(request: NextRequest, path: string) {
 }
 
 export async function GET(request: NextRequest) {
+  if (hasArticleStoreConfig()) {
+    try {
+      return NextResponse.json(await listStoredArticles(new URL(request.url).searchParams.get('id') || undefined), {
+        headers: { 'Cache-Control': 'no-store' },
+      });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar notícias.' }, { status: 502 });
+    }
+  }
   return proxyToPython(request, '/api/articles');
 }
 
 export async function POST(request: NextRequest) {
+  if (hasArticleStoreConfig()) {
+    try {
+      const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
+      return await saveStoredArticle(body.article || {}, Boolean(body.deleted));
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao salvar notícia.' }, { status: 502 });
+    }
+  }
   return proxyToPython(request, '/api/articles');
 }
 
 export async function PATCH(request: NextRequest) {
+  if (hasArticleStoreConfig()) {
+    try {
+      const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
+      return await saveStoredArticle(body.article || {}, Boolean(body.deleted));
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao atualizar notícia.' }, { status: 502 });
+    }
+  }
   return proxyToPython(request, '/api/articles');
 }
 
 export async function DELETE(request: NextRequest) {
+  if (hasArticleStoreConfig()) {
+    try {
+      const id = new URL(request.url).searchParams.get('id');
+      if (!id) {
+        return NextResponse.json({ error: 'ID da notícia é obrigatório.' }, { status: 400 });
+      }
+      const rows = await listStoredArticles(id);
+      const row = rows.find((candidate) => candidate.id === id);
+      if (!row) {
+        return NextResponse.json({ error: 'Notícia não encontrada.' }, { status: 404 });
+      }
+      return await saveStoredArticle(row.payload, true);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao excluir notícia.' }, { status: 502 });
+    }
+  }
   return proxyToPython(request, '/api/articles');
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { hasArticleStoreConfig, listStoredArticles } from '../_lib/articleStore';
 
 const PYTHON_BACKEND_URL = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -50,18 +51,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const apiUrl = `${PYTHON_BACKEND_URL}/api/articles?id=${encodeURIComponent(id)}`;
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return NextResponse.redirect(new URL('/logo-oficial.png', request.url));
-    }
-
-    const rows = (await response.json()) as Array<{ payload?: Record<string, any> }>;
+    const rows = hasArticleStoreConfig()
+      ? await listStoredArticles(id)
+      : await (async () => {
+          const response = await fetch(`${PYTHON_BACKEND_URL}/api/articles?id=${encodeURIComponent(id)}`, {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+          });
+          if (!response.ok) return [];
+          return (await response.json()) as Array<{ payload?: Record<string, any> }>;
+        })();
     const articlePayload = rows.find((row) => row.payload)?.payload;
     const imageValue = getPrimaryArticleImage(articlePayload);
 

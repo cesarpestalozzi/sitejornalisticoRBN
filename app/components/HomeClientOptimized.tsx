@@ -21,6 +21,7 @@ interface HomeArticle {
   excerpt: string;
   image: string;
   featured: boolean;
+  status?: string;
   updatedAt: string;
   views: number;
 }
@@ -85,6 +86,7 @@ export default function HomeClient({ initialArticles }: { initialArticles: HomeA
   const publishedArticles = useMemo(
     () =>
       [...articles]
+        .filter((article) => String(article.status || 'publicado').toLowerCase() === 'publicado')
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [articles]
   );
