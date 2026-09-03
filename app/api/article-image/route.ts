@@ -3,7 +3,7 @@ import { hasArticleStoreConfig, listStoredArticles } from '../_lib/articleStore'
 
 const PYTHON_BACKEND_URL = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-function getPrimaryArticleImage(payload?: Record<string, any>) {
+function getPrimaryArticleImage(payload?: Record<string, unknown>) {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
@@ -14,7 +14,11 @@ function getPrimaryArticleImage(payload?: Record<string, any>) {
   }
 
   const images = Array.isArray(payload.images) ? payload.images : [];
-  return images.find((item) => typeof item?.url === 'string' && item.url.trim())?.url ?? null;
+  const primary = images.find(
+    (item): item is { url: string } =>
+      typeof item === 'object' && item !== null && 'url' in item && typeof item.url === 'string' && item.url.trim().length > 0
+  );
+  return primary?.url ?? null;
 }
 
 async function proxyRemoteImage(imageUrl: string, request: NextRequest) {
@@ -59,7 +63,7 @@ export async function GET(request: NextRequest) {
             cache: 'no-store',
           });
           if (!response.ok) return [];
-          return (await response.json()) as Array<{ payload?: Record<string, any> }>;
+          return (await response.json()) as Array<{ payload?: Record<string, unknown> }>;
         })();
     const articlePayload = rows.find((row) => row.payload)?.payload;
     const imageValue = getPrimaryArticleImage(articlePayload);
