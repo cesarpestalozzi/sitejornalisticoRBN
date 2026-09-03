@@ -18,6 +18,11 @@ interface HomeArticle {
   views: number;
 }
 
+function isPublished(status: unknown) {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'publicado' || normalized === 'published' || normalized === 'publish' || normalized === 'online';
+}
+
 async function getHomepageArticles(): Promise<HomeArticle[]> {
   const pythonBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -25,7 +30,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
     if (hasArticleStoreConfig()) {
       const rows = await listStoredArticles();
       return rows
-        .filter((row) => !row.deleted && String(row.payload.status || '').toLowerCase() === 'publicado')
+        .filter((row) => !row.deleted && isPublished(row.payload.status))
         .map((row) => ({
           id: row.id,
           title: String(row.payload.title ?? 'Sem título'),
