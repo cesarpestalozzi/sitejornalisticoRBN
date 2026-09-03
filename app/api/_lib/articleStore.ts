@@ -12,7 +12,16 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PU
 const tableUrl = supabaseUrl ? `${supabaseUrl}/rest/v1/pz_news_articles` : null;
 
 export function hasArticleStoreConfig() {
-  return Boolean(tableUrl && supabaseKey);
+  if (!tableUrl || !supabaseKey) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(tableUrl);
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function headers() {
