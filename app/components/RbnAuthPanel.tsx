@@ -263,6 +263,16 @@ export default function RbnAuthPanel({
 
   const completeSignupSuccess = async (recipientEmail: string, displayName: string) => {
     const fallbackName = displayName.trim() || getDisplayNameFromEmail(recipientEmail);
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: recipientEmail, name: fallbackName }),
+      });
+      if (!response.ok) console.warn('Conta não persistida no diretório:', await response.text());
+    } catch (error) {
+      console.warn('Falha ao persistir conta:', error);
+    }
     await sendWelcomeEmail(recipientEmail, fallbackName);
     setNotice('Sua conta foi criada com sucesso. Bem-vindo ao RBN!');
   };

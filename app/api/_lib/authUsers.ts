@@ -39,6 +39,25 @@ async function fetchPythonUsers() {
 }
 
 export async function listAllAuthUsers() {
+  if (hasUserStoreConfig()) {
+    try {
+      const rows = await listStoredUsers();
+      return {
+        users: rows.map((row) => {
+          const payload = row.payload ?? {};
+          return {
+            id: row.id,
+            email: typeof payload.email === 'string' ? payload.email : '',
+            created_at: String(payload.createdAt ?? row.updated_at ?? new Date().toISOString()),
+            user_metadata: payload,
+          };
+        }).filter((user) => user.email),
+        error: '',
+      };
+    } catch (error) {
+      return { users: [] as AuthAdminUser[], error: error instanceof Error ? error.message : 'Falha ao consultar usuários.' };
+    }
+  }
   return fetchPythonUsers();
 }
 
@@ -56,3 +75,4 @@ export async function findAuthUserByEmail(email: string) {
   const user = users.find((item) => item.email?.toLowerCase() === normalizedEmail) ?? null;
   return { user, error: '' };
 }
+import { hasUserStoreConfig, listStoredUsers } from './userStore';

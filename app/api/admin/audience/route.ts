@@ -9,6 +9,7 @@ type AudienceUser = {
   email: string;
   name: string;
   createdAt: string;
+  status?: string;
 };
 
 function getDisplayName(email: string, metadata: Record<string, unknown> | null) {
@@ -47,8 +48,10 @@ export async function GET() {
         email: row.email,
         name: getDisplayName(row.email, row.user_metadata ?? null),
         createdAt: String(row.created_at ?? new Date().toISOString()),
+        status: typeof row.user_metadata?.status === 'string' ? row.user_metadata.status : 'ativo',
       } satisfies AudienceUser;
     })
+    .filter((user) => user.email && !['inativo', 'inactive', 'disabled', 'desativado'].includes(user.status?.toLowerCase() ?? ''))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   return NextResponse.json({ ok: true, users, source: 'supabase-service-role' }, { status: 200 });

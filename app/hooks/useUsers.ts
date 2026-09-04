@@ -356,7 +356,7 @@ async function readRemoteUsers() {
   if (!rows) return null;
   // Usa dados do Supabase diretamente sem aplicar mock defaults
   return rows
-    .filter((row) => row && row.payload)
+    .filter((row) => row && row.payload && ['admin', 'editor-chefe', 'editor', 'jornalista', 'colaborador', 'estagiario'].includes(String(row.payload.role ?? '').toLowerCase()))
     .map((row) => normalizeUserRecord({ ...row.payload, id: row.id }));
 }
 
