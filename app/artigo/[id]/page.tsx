@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import ArticlePageClient from './ArticlePageClient';
+import { hasArticleStoreConfig, listStoredArticles } from '@/app/api/_lib/articleStore';
 
 const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
@@ -49,6 +50,17 @@ async function fetchArticleById(id: string): Promise<ArticlePayload | null> {
   }
 
   try {
+    if (hasArticleStoreConfig()) {
+      const rows = await listStoredArticles(id);
+      const stored = rows.find((row) => row.id === id && !row.deleted);
+      const article = stored?.payload as ArticlePayload | undefined;
+      const status = String(article?.status || '').trim().toLowerCase();
+      if (article && (!status || ['publicado', 'published', 'publish', 'online'].includes(status))) {
+        return article;
+      }
+      return null;
+    }
+
     const apiUrl = `${OFFICIAL_SITE_URL}/api/articles?id=${encodeURIComponent(id)}`;
     const response = await fetch(apiUrl, {
       method: 'GET',
