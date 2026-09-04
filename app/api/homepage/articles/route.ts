@@ -11,13 +11,37 @@ function isPublished(status: unknown) {
   return normalized === 'publicado' || normalized === 'published' || normalized === 'publish' || normalized === 'online';
 }
 
+function resolveArticleImage(id: string, payload: Record<string, unknown>) {
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  const imageWithUrl = images.find(
+    (item): item is { url: string } =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { url?: unknown }).url === 'string' &&
+      Boolean((item as { url: string }).url.trim())
+  );
+  const value = String(payload.image ?? imageWithUrl?.url ?? '').trim();
+
+  if (!value) {
+    return '/logo-oficial.png';
+  }
+  return value.startsWith('data:')
+    ? `/api/article-image?id=${encodeURIComponent(id)}`
+    : value;
+}
+
 export async function GET(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
       const rows = await listStoredArticles();
       const articles = rows
         .filter((row) => !row.deleted && isPublished(row.payload.status))
-        .map((row) => ({ ...row.payload, id: row.id, updatedAt: row.payload.updatedAt || row.updated_at }))
+        .map((row) => ({
+          ...row.payload,
+          id: row.id,
+          image: resolveArticleImage(row.id, row.payload),
+          updatedAt: row.payload.updatedAt || row.updated_at,
+        }))
         .sort((left, right) => String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')));
       return NextResponse.json(articles, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {

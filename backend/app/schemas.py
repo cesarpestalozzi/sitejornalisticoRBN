@@ -51,5 +51,7 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordResetConfirmRequest(BaseModel):
     email: str
-    token: str
-    password: str
+    token: Optional[str] = None
+    password: Optional[str] = None
+    code: Optional[str] = None
+    newPassword: Optional[str] = None

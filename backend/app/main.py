@@ -8,7 +8,9 @@ import json
 import os
 import random
 import secrets
-from datetime import datetime, timezone
+import urllib.request
+import urllib.error
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -124,6 +126,33 @@ def user_payload_to_row(record: UserRecord) -> Dict[str, Any]:
 
 def hash_password_value(value: str) -> str:
     return base64.b64encode(value.encode("utf-8")).decode("ascii")
+
+
+def send_password_reset_email(email: str, code: str) -> bool:
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    if not api_key:
+        return False
+    sender = os.getenv("RESEND_FROM", "RBN <noreply@rbnbrasil.com.br>")
+    payload = json.dumps(
+        {
+            "from": sender,
+            "to": [email],
+            "subject": "Código para redefinir sua senha — RBN",
+            "text": f"Seu código de recuperação é {code}. Ele expira em 15 minutos.",
+            "html": f"<p>Seu código de recuperação é <strong>{code}</strong>.</p><p>Ele expira em 15 minutos.</p>",
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return 200 <= response.status < 300
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError):
+        return False
 
 
 def create_totp_secret() -> str:
@@ -486,20 +515,41 @@ def password_reset_request(body: PasswordResetRequest, db: Session = Depends(get
             break
     if user is None:
         return {"ok": True, "message": "Se o e-mail existir, o código será enviado."}
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    payload = user.payload if isinstance(user.payload, dict) else {}
+    payload["passwordResetCodeHash"] = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    payload["passwordResetExpiresAt"] = (utc_now() + timedelta(minutes=15)).isoformat()
+    user.payload = payload
+    user.updated_at = utc_now()
+    db.commit()
+    if not send_password_reset_email(email, code):
+        return {"ok": False, "error": "Não foi possível enviar o código de recuperação."}
     return {"ok": True, "message": "Código enviado com sucesso."}
 
 
 @app.post("/api/password-reset/confirm")
 def password_reset_confirm(body: PasswordResetConfirmRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     email = body.email.strip().lower()
-    if not email or not body.token or not body.password:
+    token = (body.token or body.code or "").strip()
+    password = body.password or body.newPassword or ""
+    if not email or not token or not password or len(password) < 8:
         raise HTTPException(status_code=400, detail="Dados inválidos.")
     rows = db.execute(select(UserRecord)).scalars().all()
     for row in rows:
         payload = row.payload if isinstance(row.payload, dict) else {}
         if str(payload.get("email") or "").lower() != email:
             continue
-        payload["passwordHash"] = hash_password_value(body.password)
+        expected_hash = str(payload.get("passwordResetCodeHash") or "")
+        expires_at = str(payload.get("passwordResetExpiresAt") or "")
+        try:
+            expired = datetime.fromisoformat(expires_at).timestamp() < utc_now().timestamp()
+        except ValueError:
+            expired = True
+        if not expected_hash or expired or not hmac.compare_digest(expected_hash, hashlib.sha256(token.encode("utf-8")).hexdigest()):
+            raise HTTPException(status_code=400, detail="Código inválido ou expirado.")
+        payload["passwordHash"] = hash_password_value(password)
+        payload.pop("passwordResetCodeHash", None)
+        payload.pop("passwordResetExpiresAt", None)
         row.payload = payload
         row.updated_at = utc_now()
         db.commit()

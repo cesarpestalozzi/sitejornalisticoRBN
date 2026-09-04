@@ -23,6 +23,34 @@ function isPublished(status: unknown) {
   return normalized === 'publicado' || normalized === 'published' || normalized === 'publish' || normalized === 'online';
 }
 
+function resolveArticleImage(articleId: string, payload: Record<string, unknown>) {
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  const primaryImage = images.find(
+    (item): item is { url: string; isPrimary?: boolean } =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { url?: unknown }).url === 'string' &&
+      Boolean((item as { url: string }).url.trim()) &&
+      Boolean((item as { isPrimary?: boolean }).isPrimary)
+  ) as { url: string } | undefined;
+  const firstImage = images.find(
+    (item): item is { url: string } =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { url?: unknown }).url === 'string' &&
+      Boolean((item as { url: string }).url.trim())
+  ) as { url: string } | undefined;
+  const value = String(payload.image ?? primaryImage?.url ?? firstImage?.url ?? '').trim();
+
+  if (!value) {
+    return '/logo-oficial.png';
+  }
+  if (value.startsWith('data:')) {
+    return `/api/article-image?id=${encodeURIComponent(articleId)}`;
+  }
+  return value;
+}
+
 async function getHomepageArticles(): Promise<HomeArticle[]> {
   const pythonBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
@@ -38,7 +66,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
           category: String(row.payload.category ?? 'Geral'),
           author: String(row.payload.author ?? 'RBN'),
           excerpt: String(row.payload.excerpt ?? row.payload.content ?? ''),
-          image: String(row.payload.image ?? ''),
+          image: resolveArticleImage(row.id, row.payload),
           featured: Boolean(row.payload.featured),
           status: String(row.payload.status ?? 'publicado'),
           updatedAt: String(row.payload.updatedAt ?? row.updated_at ?? new Date().toISOString()),
@@ -60,7 +88,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
           category: String(article.category ?? 'Geral'),
           author: String(article.author ?? 'RBN'),
           excerpt: String(article.excerpt ?? ''),
-          image: String(article.image ?? ''),
+          image: String(article.image ?? '/logo-oficial.png'),
           featured: Boolean(article.featured),
           updatedAt: String(article.updatedAt ?? new Date().toISOString()),
           views: Number(article.views ?? 0),
