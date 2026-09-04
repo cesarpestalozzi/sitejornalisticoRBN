@@ -341,8 +341,9 @@ export default function ArticlePageClient() {
 
   const shareTitle = article?.title || fallbackFeaturedArticle.title;
   const shareText = article?.subtitle || 'Leia esta notícia no PORTAL IWP';
+  const shareVersion = article?.updatedAt || article?.lastUpdatedAt || article?.publishedAt;
   const shareUrl = typeof window !== 'undefined'
-    ? `${OFFICIAL_SITE_URL}/artigo/${params?.id ?? ''}`
+    ? `${OFFICIAL_SITE_URL}/artigo/${params?.id ?? ''}${shareVersion ? `?v=${encodeURIComponent(shareVersion)}` : ''}`
     : '';
   const sharePreviewText = `${shareTitle} — ${shareUrl}`;
 

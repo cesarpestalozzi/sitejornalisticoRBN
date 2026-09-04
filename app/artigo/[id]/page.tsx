@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
 import ArticlePageClient from './ArticlePageClient';
 
-const OFFICIAL_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.rbnbrasil.com.br';
+const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
-function resolveAbsoluteImageUrl(value?: string | null, articleId?: string): string {
+function resolveAbsoluteImageUrl(value?: string | null, articleId?: string, version?: string): string {
   const fallbackImage = `${OFFICIAL_SITE_URL}/logo-oficial.png`;
 
   if (!value) {
     return fallbackImage;
   }
 
-  if (value.startsWith('data:')) {
-    if (!articleId) {
-      return fallbackImage;
+  if (articleId) {
+    const imageUrl = new URL('/api/article-image', OFFICIAL_SITE_URL);
+    imageUrl.searchParams.set('id', articleId);
+    if (version) {
+      imageUrl.searchParams.set('v', version);
     }
-    return `${OFFICIAL_SITE_URL}/api/article-image?id=${encodeURIComponent(articleId)}`;
+    return imageUrl.toString();
   }
 
   if (/^https?:\/\//i.test(value)) {
@@ -36,6 +38,9 @@ type ArticlePayload = {
   image?: string;
   images?: Array<{ url?: string; isPrimary?: boolean }>;
   status?: string;
+  updatedAt?: string;
+  lastUpdatedAt?: string;
+  publishedAt?: string;
 };
 
 async function fetchArticleById(id: string): Promise<ArticlePayload | null> {
@@ -105,7 +110,8 @@ export async function generateMetadata({
      article.images?.find((image) => image.isPrimary)?.url ||
      article.images?.[0]?.url ||
      `${OFFICIAL_SITE_URL}/logo-oficial.png`,
-   resolved.id
+   resolved.id,
+   article.updatedAt || article.lastUpdatedAt || article.publishedAt
   );
 
   return {
