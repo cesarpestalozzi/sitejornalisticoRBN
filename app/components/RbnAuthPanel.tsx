@@ -247,13 +247,12 @@ export default function RbnAuthPanel({
         }),
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        console.warn('Welcome email not sent:', text);
-        return { ok: false, skipped: true };
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.ok || payload.skipped) {
+        console.error('Welcome email not sent:', payload.error || payload.message || `HTTP ${response.status}`);
+        return { ok: false, skipped: Boolean(payload.skipped), error: payload.error || payload.message };
       }
 
-      const payload = await response.json().catch(() => ({}));
       return payload;
     } catch (error) {
       console.warn('Welcome email send failed:', error);
@@ -273,8 +272,12 @@ export default function RbnAuthPanel({
     } catch (error) {
       console.warn('Falha ao persistir conta:', error);
     }
-    await sendWelcomeEmail(recipientEmail, fallbackName);
-    setNotice('Sua conta foi criada com sucesso. Bem-vindo ao RBN!');
+    const welcomeEmail = await sendWelcomeEmail(recipientEmail, fallbackName);
+    setNotice(
+      welcomeEmail.ok
+        ? 'Sua conta foi criada com sucesso. Bem-vindo ao RBN!'
+        : 'Sua conta foi criada, mas o e-mail de boas-vindas não pôde ser enviado agora.'
+    );
   };
 
   const handleEmailContinue = () => {

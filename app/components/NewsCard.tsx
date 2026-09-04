@@ -20,6 +20,7 @@ export default function NewsCardComponent({ article }: NewsCardProps) {
             alt={article.title}
             width={400}
             height={192}
+            unoptimized={article.image.startsWith('/api/')}
             loading="lazy"
             className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
           />

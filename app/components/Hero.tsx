@@ -78,6 +78,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
                  alt={article.title} 
                  width={1200}
                  height={400}
+                 unoptimized={article.image.startsWith('/api/')}
                  className="block h-full w-full object-cover object-center transition duration-300 group-hover:scale-105"
                  priority
                  loading="eager"
@@ -129,6 +130,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
                        alt={secondaryArticle.title} 
                        fill
                        sizes="(max-width: 640px) 80px, 112px"
+                       unoptimized={secondaryArticle.image.startsWith('/api/')}
                        className="h-full w-full object-cover object-center"
                        loading="lazy"
                      />
