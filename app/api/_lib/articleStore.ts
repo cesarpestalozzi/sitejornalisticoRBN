@@ -97,3 +97,47 @@ export async function saveStoredArticle(article: Record<string, unknown>, delete
   }
   return NextResponse.json({ ok: true, id });
 }
+
+export async function permanentlyDeleteStoredArticle(id: string) {
+  if (!tableUrl || !supabaseKey) {
+    throw new Error('Supabase não configurado para armazenar notícias.');
+  }
+
+  const response = await fetch(`${tableUrl}?id=eq.${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: {
+      ...headers(),
+      Prefer: 'return=minimal',
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Supabase recusou a exclusão permanente (${response.status}): ${detail.slice(0, 300)}`);
+  }
+
+  return NextResponse.json({ ok: true, id });
+}
+
+export async function permanentlyDeleteStoredTrash() {
+  if (!tableUrl || !supabaseKey) {
+    throw new Error('Supabase não configurado para armazenar notícias.');
+  }
+
+  const response = await fetch(`${tableUrl}?deleted=eq.true`, {
+    method: 'DELETE',
+    headers: {
+      ...headers(),
+      Prefer: 'return=minimal',
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Supabase recusou a limpeza permanente (${response.status}): ${detail.slice(0, 300)}`);
+  }
+
+  return NextResponse.json({ ok: true });
+}

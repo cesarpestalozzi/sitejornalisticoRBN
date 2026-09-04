@@ -38,13 +38,14 @@ export async function POST(request: Request) {
     const isAdminInvite = inviteType === 'admin-user';
     const hasOnboardingData = Boolean(login && temporaryPassword);
 
+    const recipientName = name || email.split('@')[0] || 'Leitor';
     const html = (isAdminInvite || hasOnboardingData)
       ? `
       <div style="font-family: Arial, Helvetica, sans-serif; background:#f5f5f5; padding: 32px 16px; color:#111827;">
         <div style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb;">
           <p style="margin: 0 0 12px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #991b1b; font-weight: 700;">RBN</p>
           <h1 style="margin: 0 0 16px; font-size: 24px; color: #111827;">Bem-vindo ao time RBN — Seus dados de acesso</h1>
-          <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7; color: #374151;">Olá, ${escapeHtml(name)}!</p>
+          <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7; color: #374151;">Olá, ${escapeHtml(recipientName)}!</p>
           <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7; color: #374151;">É com grande satisfação que damos as boas-vindas a você ao time RBN.</p>
           <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7; color: #374151;">A partir de agora, você faz parte da nossa equipe e poderá acessar o sistema utilizando os dados abaixo:</p>
           <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin: 0 0 20px;">
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
       <div style="font-family: Arial, Helvetica, sans-serif; background:#f5f5f5; padding: 32px 16px; color:#111827;">
         <div style="max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb;">
           <p style="margin: 0 0 12px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #991b1b; font-weight: 700;">RBN</p>
-          <h1 style="margin: 0 0 20px; font-size: 28px; color: #111827;">Olá, ${escapeHtml(name)}!</h1>
+          <h1 style="margin: 0 0 20px; font-size: 28px; color: #111827;">Olá, ${escapeHtml(recipientName)}!</h1>
           <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.7; color: #374151;">
             <strong>Sua conta no RBN – Notícias foi criada com sucesso.</strong>
           </p>

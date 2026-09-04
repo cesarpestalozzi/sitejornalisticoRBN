@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { hasArticleStoreConfig, listStoredArticles, saveStoredArticle } from '../_lib/articleStore';
+import { hasArticleStoreConfig, listStoredArticles, permanentlyDeleteStoredArticle, permanentlyDeleteStoredTrash, saveStoredArticle } from '../_lib/articleStore';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -138,16 +138,15 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
+      const searchParams = new URL(request.url).searchParams;
       const id = new URL(request.url).searchParams.get('id');
+      if (searchParams.get('trash') === 'true') {
+        return await permanentlyDeleteStoredTrash();
+      }
       if (!id) {
         return NextResponse.json({ error: 'ID da notícia é obrigatório.' }, { status: 400 });
       }
-      const rows = await listStoredArticles(id);
-      const row = rows.find((candidate) => candidate.id === id);
-      if (!row) {
-        return NextResponse.json({ error: 'Notícia não encontrada.' }, { status: 404 });
-      }
-      return await saveStoredArticle(row.payload, true);
+      return await permanentlyDeleteStoredArticle(id);
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao excluir notícia.' }, { status: 502 });
     }

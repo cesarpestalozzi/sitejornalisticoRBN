@@ -13,7 +13,11 @@ type AudienceUser = {
 };
 
 function getDisplayName(email: string, metadata: Record<string, unknown> | null) {
-  const rawName = typeof metadata?.full_name === 'string' ? metadata.full_name : '';
+  const rawName = typeof metadata?.name === 'string'
+    ? metadata.name
+    : typeof metadata?.full_name === 'string'
+      ? metadata.full_name
+      : '';
   if (rawName.trim()) {
     return rawName.trim();
   }
