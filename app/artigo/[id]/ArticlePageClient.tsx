@@ -116,6 +116,36 @@ function idsMatch(left: unknown, right: unknown) {
   return leftNormalized === rightNormalized || String(Number(leftNormalized)) === String(Number(rightNormalized));
 }
 
+function resolveArticleMediaUrl(value: unknown, articleId: string) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return '';
+  }
+
+  const normalizedValue = value.trim();
+  return normalizedValue.startsWith('data:')
+    ? `/api/article-image?id=${encodeURIComponent(articleId)}`
+    : normalizedValue;
+}
+
+function normalizeLoadedArticle(article: any, articleId: string) {
+  if (!article || typeof article !== 'object') {
+    return article;
+  }
+
+  const images = Array.isArray(article.images)
+    ? article.images.map((image: MediaImageItem) => ({
+        ...image,
+        url: resolveArticleMediaUrl(image?.url, articleId),
+      }))
+    : article.images;
+
+  return {
+    ...article,
+    image: resolveArticleMediaUrl(article.image, articleId),
+    images,
+  };
+}
+
 function formatArticleMeta(date: Date) {
   const day = new Intl.DateTimeFormat('pt-BR', { day: 'numeric' }).format(date);
   const month = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(date);
@@ -188,7 +218,7 @@ export default function ArticlePageClient() {
           const candidates = [row.id, row.payload?.id];
           return candidates.some((candidate) => idsMatch(candidate, params.id));
         });
-        const nextArticle = match?.payload ?? match ?? null;
+        const nextArticle = normalizeLoadedArticle(match?.payload ?? match ?? null, params.id);
 
         if (isActive) {
           setArticleRecord(nextArticle);
