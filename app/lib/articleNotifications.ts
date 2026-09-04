@@ -43,8 +43,9 @@ export async function notifyArticleRecipients(requestUrl: string, article: unkno
     return;
   }
 
+  const officialSiteUrl = 'https://www.rbnbrasil.com.br';
   const requestOrigin = new URL(requestUrl).origin;
-  const articleUrl = new URL(`/artigo/${encodeURIComponent(articleId)}`, requestOrigin).toString();
+  const articleUrl = new URL(`/artigo/${encodeURIComponent(articleId)}`, officialSiteUrl).toString();
   const response = await fetch(new URL('/api/admin/article-notify', requestOrigin).toString(), {
     method: 'POST',
     headers: {
@@ -56,7 +57,7 @@ export async function notifyArticleRecipients(requestUrl: string, article: unkno
       title,
       excerpt,
       recipients,
-      siteUrl: requestOrigin,
+      siteUrl: officialSiteUrl,
       publishedAt: publishedAtIso,
     }),
   });

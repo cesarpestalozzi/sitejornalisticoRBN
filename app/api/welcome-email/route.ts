@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const name = String(body?.name || '').trim();
     const login = String(body?.login || '').trim();
     const temporaryPassword = String(body?.temporaryPassword || '').trim();
-    const accessUrl = String(body?.accessUrl || '').trim() || 'https://www.rbnbrasil.com.br/admin/login';
+    const accessUrl = 'https://www.rbnbrasil.com.br/admin/login';
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ ok: false, error: 'E-mail inválido.' }, { status: 400 });
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RESEND_FROM || 'RBN <noreply@rbnbrasil.com.br>';
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.rbnbrasil.com.br';
+    const siteUrl = 'https://www.rbnbrasil.com.br';
 
     if (!apiKey) {
       return NextResponse.json({ ok: true, skipped: true, message: 'Welcome email not sent because RESEND_API_KEY is not configured.' });

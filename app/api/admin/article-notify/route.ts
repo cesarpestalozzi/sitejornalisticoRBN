@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM || 'RBN <noreply@rbnbrasil.com.br>';
-const defaultSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://www.rbnbrasil.com.br';
+const defaultSiteUrl = 'https://www.rbnbrasil.com.br';
 
 type ArticleRecipient = {
   email: string;
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     const recipientsRaw = Array.isArray(body?.recipients) ? body.recipients : [];
     const siteUrlRaw = String(body?.siteUrl || '').trim();
     const articleUrlRaw = String(body?.articleUrl || '').trim();
-    const siteUrl = siteUrlRaw || defaultSiteUrl;
+    const siteUrl = defaultSiteUrl;
 
     if (!articleId || !title) {
       return NextResponse.json({ ok: false, error: 'Dados da notícia inválidos para disparo.' }, { status: 400 });
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Os destinatários selecionados estão inválidos.' }, { status: 400 });
     }
 
-    const articleLink = articleUrlRaw || getArticleLink(siteUrl, articleId);
+    const articleLink = getArticleLink(siteUrl, articleId);
     const failures: { email: string; error: string }[] = [];
     let sentCount = 0;
 
