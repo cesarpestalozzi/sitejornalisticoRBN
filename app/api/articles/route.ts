@@ -6,6 +6,15 @@ export const revalidate = 0;
 
 const pythonApiBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
+function normalizeCategory(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 async function proxyToPython(request: NextRequest, path: string) {
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL(path, `${pythonApiBase}/`);
@@ -39,7 +48,21 @@ async function proxyToPython(request: NextRequest, path: string) {
 export async function GET(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
-      return NextResponse.json(await listStoredArticles(new URL(request.url).searchParams.get('id') || undefined), {
+      const searchParams = new URL(request.url).searchParams;
+      const id = searchParams.get('id') || undefined;
+      const category = searchParams.get('category')?.trim().toLowerCase();
+      const includeDeleted = searchParams.get('includeDeleted') === 'true';
+      const rows = await listStoredArticles(id);
+      const visibleRows = rows.filter((row) => {
+        if (!includeDeleted && row.deleted) {
+          return false;
+        }
+        if (!category) {
+          return true;
+        }
+        return normalizeCategory(String(row.payload.category ?? '')) === normalizeCategory(category);
+      });
+      return NextResponse.json(visibleRows, {
         headers: { 'Cache-Control': 'no-store' },
       });
     } catch (error) {

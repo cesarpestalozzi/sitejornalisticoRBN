@@ -127,7 +127,7 @@ async function readRemoteArticles() {
   }
 
   try {
-    const response = await fetch('/api/articles', {
+    const response = await fetch('/api/articles?includeDeleted=true', {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',

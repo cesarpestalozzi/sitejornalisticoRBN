@@ -48,7 +48,7 @@ async function fetchArticleById(id: string): Promise<ArticlePayload | null> {
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: { Accept: 'application/json' },
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
 
     if (!response.ok) {
