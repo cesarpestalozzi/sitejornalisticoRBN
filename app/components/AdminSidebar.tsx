@@ -35,6 +35,7 @@ const menuItems = [
   { label: 'Categorias', href: '/admin/categorias', icon: FolderOpen },
   { label: 'Podcasts', href: '/admin/podcasts', icon: Volume2 },
   { label: 'Comentários', href: '/admin/comentarios', icon: MessageCircle },
+  { label: 'Mensagens', href: '/admin/mensagens', icon: MessageCircle },
   { label: 'Gerador de Card', href: '/admin/gerador-card', icon: ImageUp },
   { label: 'Usuários', href: '/admin/usuarios', icon: Users },
   { label: 'Colunistas', href: '/admin/colunistas', icon: PencilLine },

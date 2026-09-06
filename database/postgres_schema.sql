@@ -99,6 +99,33 @@ BEFORE UPDATE ON public.pz_news_user_integrations
 FOR EACH ROW
 EXECUTE FUNCTION public.set_updated_at();
 
+CREATE TABLE IF NOT EXISTS public.rbn_message_conversations (
+  id text PRIMARY KEY,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rbn_message_conversations_updated_at ON public.rbn_message_conversations (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.rbn_messages (
+  id text PRIMARY KEY,
+  conversation_id text NOT NULL REFERENCES public.rbn_message_conversations(id) ON DELETE CASCADE,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_rbn_messages_conversation_created ON public.rbn_messages (conversation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS public.rbn_message_notifications (
+  id text PRIMARY KEY,
+  user_id text NOT NULL,
+  conversation_id text NOT NULL REFERENCES public.rbn_message_conversations(id) ON DELETE CASCADE,
+  message_id text NOT NULL REFERENCES public.rbn_messages(id) ON DELETE CASCADE,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  read_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_rbn_message_notifications_user_unread ON public.rbn_message_notifications (user_id, read_at, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS public.rbn_auth_sessions (
   id text PRIMARY KEY,
   user_id text NOT NULL,

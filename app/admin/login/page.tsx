@@ -54,6 +54,14 @@ export default function AdminLogin() {
   const [pendingUserId, setPendingUserId] = useState('');
   const [pendingUserData, setPendingUserData] = useState<Record<string, unknown> | null>(null);
 
+  const markLoginActivity = (userId: string) => {
+    void fetch('/api/admin/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-user-id': userId },
+      body: JSON.stringify({ event: 'login' }),
+    }).catch(() => undefined);
+  };
+
   const loginHint = useMemo(() => {
     if (!isLoaded || !users.length) {
       return ADMIN_LOGIN;
@@ -96,6 +104,18 @@ export default function AdminLogin() {
       return;
     }
 
+    // O painel legado mantém a sessão no navegador; espelhe o usuário no
+    // armazenamento do servidor para que APIs protegidas possam autorizá-lo.
+    try {
+      await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id, payload: user }),
+      });
+    } catch {
+      // A autenticação continua funcionando quando o backend está temporariamente indisponível.
+    }
+
     const userData = {
       id: user.id,
       name: user.name,
@@ -130,6 +150,7 @@ export default function AdminLogin() {
       // Se nao conseguir verificar MFA, continua sem ele
     }
 
+    markLoginActivity(user.id);
     localStorage.setItem('adminUser', JSON.stringify(userData));
     if (shouldForcePasswordChange(user)) {
       router.push('/admin/alterar-senha');
@@ -212,6 +233,7 @@ export default function AdminLogin() {
         return;
       }
 
+      markLoginActivity(pendingUserId);
       localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
       router.push(pendingUserData?.mustChangePassword ? '/admin/alterar-senha' : '/admin/dashboard');
     } catch {
@@ -282,6 +304,7 @@ export default function AdminLogin() {
         return;
       }
 
+      markLoginActivity(pendingUserId);
       localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
       router.push(pendingUserData?.mustChangePassword ? '/admin/alterar-senha' : '/admin/dashboard');
     } catch {

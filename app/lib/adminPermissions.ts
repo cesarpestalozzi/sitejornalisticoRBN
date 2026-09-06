@@ -22,6 +22,8 @@ export type AdminPermission =
   | 'publicities:manage'
   | 'analytics:view'
   | 'users:manage'
+  | 'messages:view'
+  | 'messages:send'
   | 'settings:manage';
 
 export interface AdminSessionUser {
@@ -35,6 +37,9 @@ export interface AdminSessionUser {
   permissions?: string[];
   mustChangePassword?: boolean;
   onboardingStatus?: 'invite-sent' | 'first-access-pending' | 'password-changed' | 'active';
+  lastLoginAt?: string;
+  lastSeenAt?: string;
+  isOnline?: boolean;
 }
 
 const ADMIN_USER_KEY = 'adminUser';
@@ -76,6 +81,8 @@ const ALL_PERMISSIONS: AdminPermission[] = [
   'analytics:view',
   'users:manage',
   'settings:manage',
+  'messages:view',
+  'messages:send',
 ];
 
 const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
@@ -92,6 +99,8 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'categories:manage',
     'comments:manage',
     'users:manage',
+    'messages:view',
+    'messages:send',
     'settings:manage',
   ],
   editor: [
@@ -105,10 +114,12 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'headlines:manage',
     'categories:manage',
     'comments:manage',
+    'messages:view',
+    'messages:send',
   ],
-  jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own'],
-  colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own'],
-  estagiario: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own'],
+  jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send'],
+  colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send'],
+  estagiario: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own', 'messages:view', 'messages:send'],
 };
 
 export function getDefaultPermissionsForRole(role: AdminRole): AdminPermission[] {
@@ -193,6 +204,9 @@ export function getCurrentAdminUser(): AdminSessionUser | null {
         parsed.onboardingStatus === 'active'
           ? parsed.onboardingStatus
           : 'active',
+      lastLoginAt: typeof parsed.lastLoginAt === 'string' ? parsed.lastLoginAt : undefined,
+      lastSeenAt: typeof parsed.lastSeenAt === 'string' ? parsed.lastSeenAt : undefined,
+      isOnline: Boolean(parsed.isOnline),
     };
   } catch {
     return null;
@@ -307,6 +321,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
 
   if (pathname.startsWith('/admin/usuarios')) {
     return hasPermission(user, 'users:manage');
+  }
+
+  if (pathname.startsWith('/admin/mensagens')) {
+    return hasPermission(user, 'messages:view');
   }
 
   if (pathname.startsWith('/admin/colunistas')) {

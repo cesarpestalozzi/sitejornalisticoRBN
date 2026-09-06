@@ -49,3 +49,33 @@ class UserIntegrationRecord(Base):
     payload = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class MessageConversationRecord(Base):
+    __tablename__ = "rbn_message_conversations"
+
+    id = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class MessageRecord(Base):
+    __tablename__ = "rbn_messages"
+
+    id = Column(String, primary_key=True)
+    conversation_id = Column(String, nullable=False, index=True)
+    payload = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class MessageNotificationRecord(Base):
+    __tablename__ = "rbn_message_notifications"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, nullable=False, index=True)
+    conversation_id = Column(String, nullable=False, index=True)
+    message_id = Column(String, nullable=False)
+    payload = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    read_at = Column(DateTime(timezone=True), nullable=True)

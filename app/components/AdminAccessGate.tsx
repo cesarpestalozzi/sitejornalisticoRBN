@@ -37,6 +37,19 @@ export default function AdminAccessGate({ children }: { children: ReactNode }) {
 
     setAllowed(canAccessAdminRoute(user, pathname));
     setReady(true);
+
+    if (user) {
+      const heartbeat = () => {
+        void fetch('/api/admin/activity', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-admin-user-id': user.id },
+          body: JSON.stringify({ event: 'heartbeat' }),
+        }).catch(() => undefined);
+      };
+      heartbeat();
+      const interval = window.setInterval(heartbeat, 60_000);
+      return () => window.clearInterval(interval);
+    }
   }, [pathname, router]);
 
   if (pathname === '/admin/login') {

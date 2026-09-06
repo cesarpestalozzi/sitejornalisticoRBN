@@ -111,6 +111,9 @@ export interface User {
   employmentType?: string;
   professionalStartDate?: string;
   professionalStatus?: string;
+  lastLoginAt?: string;
+  lastSeenAt?: string;
+  isOnline?: boolean;
   internalNotes?: string;
   changeHistory?: Array<{ id: string; action: string; changedAt: string; changedBy: string }>;
   socialLinks?: Array<{ label: string; url: string }>;
@@ -269,6 +272,9 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
     employmentType: typeof user?.employmentType === 'string' ? user.employmentType : '',
     professionalStartDate: typeof user?.professionalStartDate === 'string' ? user.professionalStartDate : '',
     professionalStatus: typeof user?.professionalStatus === 'string' ? user.professionalStatus : '',
+    lastLoginAt: typeof user?.lastLoginAt === 'string' ? user.lastLoginAt : '',
+    lastSeenAt: typeof user?.lastSeenAt === 'string' ? user.lastSeenAt : '',
+    isOnline: Boolean(user?.isOnline),
     internalNotes: typeof user?.internalNotes === 'string' ? user.internalNotes : '',
     changeHistory: Array.isArray(user?.changeHistory) ? user.changeHistory : [],
     socialLinks: Array.isArray(user?.socialLinks) ? user.socialLinks : [],

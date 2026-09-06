@@ -121,3 +121,39 @@ create trigger trg_set_updated_at_integrations
 before update on public.pz_news_user_integrations
 for each row
 execute function public.set_updated_at();
+
+-- Comunicação interna: a API sempre filtra pelo participante autenticado.
+create table if not exists public.rbn_message_conversations (
+  id text primary key,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_rbn_message_conversations_updated_at on public.rbn_message_conversations (updated_at desc);
+
+create table if not exists public.rbn_messages (
+  id text primary key,
+  conversation_id text not null references public.rbn_message_conversations(id) on delete cascade,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_rbn_messages_conversation_created on public.rbn_messages (conversation_id, created_at);
+
+create table if not exists public.rbn_message_notifications (
+  id text primary key,
+  user_id text not null,
+  conversation_id text not null references public.rbn_message_conversations(id) on delete cascade,
+  message_id text not null references public.rbn_messages(id) on delete cascade,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+create index if not exists idx_rbn_message_notifications_user_unread
+  on public.rbn_message_notifications (user_id, read_at, created_at desc);
+
+alter table public.rbn_message_conversations enable row level security;
+alter table public.rbn_messages enable row level security;
+alter table public.rbn_message_notifications enable row level security;
+create policy "service_role_messages_access" on public.rbn_message_conversations for all using (true) with check (true);
+create policy "service_role_message_rows_access" on public.rbn_messages for all using (true) with check (true);
+create policy "service_role_message_notifications_access" on public.rbn_message_notifications for all using (true) with check (true);

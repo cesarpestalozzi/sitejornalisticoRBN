@@ -20,7 +20,15 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from .database import Base, engine, get_db
-from .models import ArticleRecord, CommentRecord, UserIntegrationRecord, UserRecord
+from .models import (
+    ArticleRecord,
+    CommentRecord,
+    MessageConversationRecord,
+    MessageNotificationRecord,
+    MessageRecord,
+    UserIntegrationRecord,
+    UserRecord,
+)
 from .schemas import (
     ArticleRowSchema,
     ArticleUpsertRequest,
@@ -79,7 +87,7 @@ def ids_match(left: Any, right: Any) -> bool:
         return True
     try:
         return str(float(left_val)) == str(float(right_val))
-    except ValueError:
+    except (ValueError, TypeError):
         return False
 
 
@@ -408,6 +416,174 @@ def disable_user(id: Optional[str] = None, db: Session = Depends(get_db)) -> Dic
     payload["updatedAt"] = utc_now().isoformat()
     row.payload = payload
     row.updated_at = utc_now()
+    db.commit()
+    return {"ok": True}
+
+
+def messaging_actor(request: Request, db: Session, required_permission: str = "messages:view") -> UserRecord:
+    user_id = (request.headers.get("x-admin-user-id") or "").strip()
+    row = db.get(UserRecord, user_id) if user_id else None
+    if row is None or not is_active_user(row.payload if isinstance(row.payload, dict) else {}):
+        raise HTTPException(status_code=401, detail="Sessão de mensagens inválida.")
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    role = str(payload.get("role") or "").strip().lower()
+    permissions = payload.get("permissions") if isinstance(payload.get("permissions"), list) else []
+    known_role = role in {"admin", "administrador", "administrador principal", "editor-chefe", "editor chefe", "editor", "jornalista", "colaborador", "estagiario"}
+    if role not in {"admin", "administrador", "administrador principal"} and permissions and required_permission not in permissions:
+        raise HTTPException(status_code=403, detail="Sem permissão para mensagens.")
+    if not known_role and required_permission not in permissions:
+        raise HTTPException(status_code=403, detail="Sem permissão para mensagens.")
+    return row
+
+
+def message_conversation_payload(row: MessageConversationRecord) -> Dict[str, Any]:
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    return {
+        "id": row.id,
+        "participantIds": [str(item) for item in payload.get("participantIds", [])] if isinstance(payload.get("participantIds"), list) else [],
+        "createdBy": str(payload.get("createdBy") or ""),
+        "createdAt": str(payload.get("createdAt") or row.created_at.isoformat()),
+        "lastActivityAt": str(payload.get("lastActivityAt") or row.updated_at.isoformat()),
+        "lastMessagePreview": payload.get("lastMessagePreview"),
+    }
+
+
+def user_is_online(payload: Dict[str, Any]) -> bool:
+    value = payload.get("lastSeenAt")
+    if not payload.get("isOnline") or not isinstance(value, str):
+        return False
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")) >= utc_now() - timedelta(minutes=5)
+    except ValueError:
+        return False
+
+
+@app.get("/api/admin/messaging")
+def list_messaging(request: Request, action: str = "conversations", conversationId: Optional[str] = None, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    actor = messaging_actor(request, db)
+    actor_id = actor.id
+    users = db.execute(select(UserRecord).order_by(UserRecord.updated_at.desc())).scalars().all()
+    if action == "users":
+        directory = []
+        for row in users:
+            payload = row.payload if isinstance(row.payload, dict) else {}
+            if row.id == actor_id or not is_active_user(payload):
+                continue
+            directory.append({
+                "id": row.id,
+                "name": payload.get("publicName") or payload.get("name") or "Usuário",
+                "email": payload.get("email") or "",
+                "avatar": payload.get("avatar") or "",
+                "role": payload.get("role") or "",
+                "lastSeenAt": payload.get("lastSeenAt"),
+                "isOnline": user_is_online(payload),
+            })
+        return {"ok": True, "users": directory}
+
+    rows = db.execute(select(MessageConversationRecord).order_by(MessageConversationRecord.updated_at.desc())).scalars().all()
+    conversations = [message_conversation_payload(row) for row in rows]
+    conversations = [item for item in conversations if len(item["participantIds"]) == 2 and actor_id in item["participantIds"]]
+    if action == "messages":
+        conversation = next((item for item in conversations if item["id"] == conversationId), None)
+        if conversation is None:
+            raise HTTPException(status_code=404, detail="Conversa não encontrada.")
+        message_rows = db.execute(select(MessageRecord).where(MessageRecord.conversation_id == conversationId).order_by(MessageRecord.created_at.asc())).scalars().all()
+        return {"ok": True, "conversation": conversation, "messages": [
+            {
+                "id": row.id,
+                "conversationId": row.conversation_id,
+                "senderId": (row.payload or {}).get("senderId", ""),
+                "body": (row.payload or {}).get("body", ""),
+                "createdAt": (row.payload or {}).get("createdAt") or row.created_at.isoformat(),
+                "readAt": (row.payload or {}).get("readAt"),
+            }
+            for row in message_rows
+        ]}
+
+    notifications = db.execute(select(MessageNotificationRecord).where(MessageNotificationRecord.user_id == actor_id).order_by(MessageNotificationRecord.created_at.desc())).scalars().all()
+    unread = [row for row in notifications if row.read_at is None]
+    unread_by_conversation: Dict[str, int] = {}
+    for row in unread:
+        unread_by_conversation[row.conversation_id] = unread_by_conversation.get(row.conversation_id, 0) + 1
+    return {"ok": True, "conversations": conversations, "unreadByConversation": unread_by_conversation, "unreadCount": len(unread)}
+
+
+@app.post("/api/admin/messaging")
+async def create_messaging(request: Request, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    body = await request.json()
+    action = str(body.get("action") or "")
+    actor = messaging_actor(request, db, "messages:send")
+    now = utc_now()
+    if action == "heartbeat":
+        payload = dict(actor.payload or {})
+        payload.update({"lastSeenAt": now.isoformat(), "isOnline": True, "updatedAt": now.isoformat()})
+        actor.payload = payload
+        actor.updated_at = now
+        db.commit()
+        return {"ok": True}
+    if action == "conversation":
+        target_id = str(body.get("participantId") or "").strip()
+        target = db.get(UserRecord, target_id)
+        target_payload = target.payload if target and isinstance(target.payload, dict) else {}
+        if not target or target_id == actor.id or not is_active_user(target_payload):
+            raise HTTPException(status_code=404, detail="O participante não existe ou está inativo.")
+        participants = sorted([actor.id, target_id])
+        rows = db.execute(select(MessageConversationRecord)).scalars().all()
+        existing = next((row for row in rows if sorted((row.payload or {}).get("participantIds", [])) == participants), None)
+        if existing:
+            return {"ok": True, "conversation": message_conversation_payload(existing)}
+        conversation = {
+            "id": secrets.token_urlsafe(24),
+            "participantIds": participants,
+            "createdBy": actor.id,
+            "createdAt": now.isoformat(),
+            "lastActivityAt": now.isoformat(),
+        }
+        db.add(MessageConversationRecord(id=conversation["id"], payload=conversation, created_at=now, updated_at=now))
+        db.commit()
+        return {"ok": True, "conversation": conversation}
+    if action == "message":
+        conversation_id = str(body.get("conversationId") or "").strip()
+        text = str(body.get("body") or "").strip()
+        row = db.get(MessageConversationRecord, conversation_id)
+        conversation = message_conversation_payload(row) if row else None
+        if not conversation or actor.id not in conversation["participantIds"]:
+            raise HTTPException(status_code=404, detail="Conversa não encontrada.")
+        if not text or len(text) > 5000:
+            raise HTTPException(status_code=400, detail="A mensagem deve ter entre 1 e 5000 caracteres.")
+        message = {"id": secrets.token_urlsafe(24), "conversationId": conversation_id, "senderId": actor.id, "body": text, "createdAt": now.isoformat()}
+        db.add(MessageRecord(id=message["id"], conversation_id=conversation_id, payload=message, created_at=now))
+        updated = dict(row.payload or {})
+        updated.update({"lastActivityAt": now.isoformat(), "lastMessagePreview": text[:140]})
+        row.payload = updated
+        row.updated_at = now
+        recipient = next((item for item in conversation["participantIds"] if item != actor.id), None)
+        if recipient:
+            db.add(MessageNotificationRecord(id=secrets.token_urlsafe(24), user_id=recipient, conversation_id=conversation_id, message_id=message["id"], payload={"createdAt": now.isoformat()}, created_at=now))
+        actor_payload = dict(actor.payload or {})
+        actor_payload.update({"lastSeenAt": now.isoformat(), "isOnline": True})
+        actor.payload = actor_payload
+        actor.updated_at = now
+        db.commit()
+        return {"ok": True, "message": message}
+    raise HTTPException(status_code=400, detail="Ação de mensagens inválida.")
+
+
+@app.patch("/api/admin/messaging")
+async def read_messaging(request: Request, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    actor = messaging_actor(request, db)
+    body = await request.json()
+    conversation_id = body.get("conversationId")
+    if conversation_id:
+        row = db.get(MessageConversationRecord, str(conversation_id))
+        conversation = message_conversation_payload(row) if row else None
+        if not conversation or actor.id not in conversation["participantIds"]:
+            raise HTTPException(status_code=404, detail="Conversa não encontrada.")
+    stmt = select(MessageNotificationRecord).where(MessageNotificationRecord.user_id == actor.id, MessageNotificationRecord.read_at.is_(None))
+    if conversation_id:
+        stmt = stmt.where(MessageNotificationRecord.conversation_id == str(conversation_id))
+    for notification in db.execute(stmt).scalars().all():
+        notification.read_at = utc_now()
     db.commit()
     return {"ok": True}
 
