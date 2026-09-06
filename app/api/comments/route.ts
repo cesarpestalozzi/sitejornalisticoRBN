@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { deleteStoredComment, hasCommentStoreConfig, listStoredComments, saveStoredComment } from '@/app/api/_lib/commentStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,13 +36,44 @@ async function proxyToPython(request: NextRequest, path: string) {
 }
 
 export async function GET(request: NextRequest) {
+  if (hasCommentStoreConfig()) {
+    try {
+      return NextResponse.json(await listStoredComments(new URL(request.url).searchParams.get('articleId') || undefined), { headers: { 'Cache-Control': 'no-store' } });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar comentários.' }, { status: 502 });
+    }
+  }
+  if (process.env.VERCEL === '1') return NextResponse.json({ error: 'Armazenamento de comentários não configurado.' }, { status: 503 });
   return proxyToPython(request, '/api/comments');
 }
 
 export async function POST(request: NextRequest) {
+  if (hasCommentStoreConfig()) {
+    try {
+      const body = await request.json() as { comment?: { id?: string } & Record<string, unknown> };
+      const comment = body.comment;
+      if (!comment?.id) return NextResponse.json({ error: 'ID do comentário é obrigatório.' }, { status: 400 });
+      await saveStoredComment(String(comment.id), comment);
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao salvar comentário.' }, { status: 502 });
+    }
+  }
+  if (process.env.VERCEL === '1') return NextResponse.json({ error: 'Armazenamento de comentários não configurado.' }, { status: 503 });
   return proxyToPython(request, '/api/comments');
 }
 
 export async function DELETE(request: NextRequest) {
+  if (hasCommentStoreConfig()) {
+    try {
+      const body = await request.json() as { id?: string };
+      if (!body.id) return NextResponse.json({ error: 'ID obrigatório.' }, { status: 400 });
+      await deleteStoredComment(body.id);
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao excluir comentário.' }, { status: 502 });
+    }
+  }
+  if (process.env.VERCEL === '1') return NextResponse.json({ error: 'Armazenamento de comentários não configurado.' }, { status: 503 });
   return proxyToPython(request, '/api/comments');
 }

@@ -180,7 +180,7 @@ const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
 export default function ArticlePageClient() {
   const params = useParams<{ id: string }>();
-  const { incrementArticleViews, incrementArticleShares, isLoaded: isArticlesLoaded } = useArticles();
+  const { isLoaded: isArticlesLoaded } = useArticles();
   const [articleRecord, setArticleRecord] = useState<any | null>(null);
   const [commentsByArticle, setCommentsByArticle] = useState<Record<string, ArticleComment[]>>({});
   const [isLoaded, setIsLoaded] = useState(false);
@@ -306,8 +306,20 @@ export default function ArticlePageClient() {
     }
 
     sessionStorage.setItem(viewKey, '1');
-    incrementArticleViews(article.id);
-  }, [article?.id, incrementArticleViews, isArticlesLoaded]);
+    void fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: crypto.randomUUID(),
+        eventType: 'article_view',
+        articleId: article.id,
+        category: article.category,
+        authorUserIds: article.authorUserIds ?? [],
+        occurredAt: new Date().toISOString(),
+      }),
+      keepalive: true,
+    }).catch((error) => console.warn('Falha ao registrar visualização:', error));
+  }, [article?.id, isArticlesLoaded]);
 
   const recordShare = (articleId?: string) => {
     if (!articleId || typeof window === 'undefined') {
@@ -320,7 +332,12 @@ export default function ArticlePageClient() {
     }
 
     sessionStorage.setItem(shareKey, '1');
-    incrementArticleShares(articleId);
+    void fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: crypto.randomUUID(), eventType: 'article_share', articleId, occurredAt: new Date().toISOString() }),
+      keepalive: true,
+    }).catch((error) => console.warn('Falha ao registrar compartilhamento:', error));
   };
 
   const relatedArticles: Array<{ id: string; title: string; updatedAt: string; category: string; image?: string }> = [];

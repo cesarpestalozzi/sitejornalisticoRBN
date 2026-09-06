@@ -25,6 +25,22 @@ CREATE TABLE IF NOT EXISTS public.pz_news_comments (
 CREATE INDEX IF NOT EXISTS idx_pz_news_comments_updated_at
   ON public.pz_news_comments (updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS public.pz_news_analytics_events (
+  id text PRIMARY KEY,
+  event_type text NOT NULL CHECK (event_type IN ('article_view', 'article_share', 'page_view')),
+  article_id text,
+  category text,
+  author_user_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_pz_news_analytics_events_occurred_at
+  ON public.pz_news_analytics_events (occurred_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_pz_news_analytics_events_article
+  ON public.pz_news_analytics_events (article_id, occurred_at DESC);
+
 CREATE TABLE IF NOT EXISTS public.pz_news_users (
   id text PRIMARY KEY,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,

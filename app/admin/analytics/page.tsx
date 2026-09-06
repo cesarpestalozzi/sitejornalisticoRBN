@@ -31,6 +31,14 @@ type SignupUser = {
   createdAt: string;
 };
 
+type AnalyticsEvent = {
+  id: string;
+  event_type: 'article_view' | 'article_share' | 'page_view';
+  article_id?: string | null;
+  category?: string | null;
+  occurred_at: string;
+};
+
 type AnalyticsRangeKey = 'today' | 'yesterday' | 'last3' | 'last7' | 'previousWeek' | 'last30' | 'last60' | 'last90' | 'all';
 
 const analyticsRangeOptions: Array<{ value: AnalyticsRangeKey; label: string }> = [
@@ -73,6 +81,9 @@ export default function AnalyticsPage() {
   const { allComments, isLoaded: isCommentsLoaded } = useComments();
   const [analyticsRange, setAnalyticsRange] = useState<AnalyticsRangeKey>('last7');
   const [signupUsers, setSignupUsers] = useState<SignupUser[]>([]);
+  const [analyticsEvents, setAnalyticsEvents] = useState<AnalyticsEvent[]>([]);
+  const [remoteComments, setRemoteComments] = useState<Array<{ createdAt?: string; articleId?: string; author?: string; text?: string }>>([]);
+  const [analyticsError, setAnalyticsError] = useState('');
 
   const getRangeDates = useCallback((range: AnalyticsRangeKey) => {
     const today = startOfDay(new Date());
@@ -221,6 +232,29 @@ export default function AnalyticsPage() {
   );
   const activeRangeDates = useMemo(() => getRangeDates(analyticsRange), [analyticsRange, getRangeDates]);
 
+  useEffect(() => {
+    let active = true;
+    const query = activeRangeDates
+      ? `?from=${encodeURIComponent(activeRangeDates.start.toISOString())}&to=${encodeURIComponent(activeRangeDates.end.toISOString())}`
+      : '';
+    fetch(`/api/admin/analytics${query}`, { cache: 'no-store', headers: { Accept: 'application/json' } })
+      .then(async (response) => {
+        const data = await response.json() as { ok?: boolean; events?: AnalyticsEvent[]; comments?: Array<{ payload?: { createdAt?: string; articleId?: string; author?: string; text?: string } }>; error?: string };
+        if (!response.ok || !data.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        if (!active) return;
+        setAnalyticsEvents(Array.isArray(data.events) ? data.events : []);
+        setRemoteComments((data.comments ?? []).map((row) => row.payload ?? {}).filter((comment) => typeof comment.createdAt === 'string'));
+        setAnalyticsError('');
+      })
+      .catch((error) => {
+        if (!active) return;
+        setAnalyticsEvents([]);
+        setRemoteComments([]);
+        setAnalyticsError(error instanceof Error ? error.message : 'Não foi possível consultar as métricas remotas.');
+      });
+    return () => { active = false; };
+  }, [activeRangeDates]);
+
   const filteredPublishedArticles = useMemo(
     () =>
       publishedArticles.filter((article) =>
@@ -230,46 +264,50 @@ export default function AnalyticsPage() {
   );
 
   const filteredComments = useMemo(
-    () => allComments.filter((comment) => isWithinRange(comment.createdAt, activeRangeDates)),
-    [allComments, activeRangeDates]
+    () => remoteComments.filter((comment) => isWithinRange(comment.createdAt, activeRangeDates)),
+    [remoteComments, activeRangeDates]
   );
 
   const totalViews = useMemo(
-    () => filteredPublishedArticles.reduce((sum, article) => sum + (article.views ?? 0), 0),
-    [filteredPublishedArticles]
+    () => analyticsEvents.filter((event) => event.event_type === 'article_view').length,
+    [analyticsEvents]
   );
   const totalShares = useMemo(
-    () => filteredPublishedArticles.reduce((sum, article) => sum + (article.shares ?? 0), 0),
-    [filteredPublishedArticles]
+    () => analyticsEvents.filter((event) => event.event_type === 'article_share').length,
+    [analyticsEvents]
   );
   const totalComments = filteredComments.length;
 
   const topArticles = useMemo(
     () =>
-      [...filteredPublishedArticles]
-        .sort((left, right) => (right.views ?? 0) - (left.views ?? 0))
-        .slice(0, 5)
-        .map((article) => ({ title: article.title, views: article.views ?? 0 })),
-    [filteredPublishedArticles]
+      [...analyticsEvents.filter((event) => event.event_type === 'article_view').reduce((map, event) => {
+        const id = String(event.article_id ?? '');
+        map.set(id, (map.get(id) ?? 0) + 1);
+        return map;
+      }, new Map<string, number>()).entries()]
+        .map(([id, views]) => ({ title: publishedArticles.find((article) => article.id === id)?.title ?? `Artigo ${id}`, views }))
+        .sort((left, right) => right.views - left.views)
+        .slice(0, 5),
+    [analyticsEvents, publishedArticles]
   );
 
   const categoryData = useMemo(() => {
     const map = new Map<string, number>();
 
-    filteredPublishedArticles.forEach((article) => {
-      const key = article.category || 'Outros';
-      map.set(key, (map.get(key) ?? 0) + (article.views ?? 0));
+    analyticsEvents.filter((event) => event.event_type === 'article_view').forEach((event) => {
+      const key = event.category || publishedArticles.find((article) => article.id === event.article_id)?.category || 'Outros';
+      map.set(key, (map.get(key) ?? 0) + 1);
     });
 
     return [...map.entries()]
       .map(([name, value]) => ({ name, value }))
       .sort((left, right) => right.value - left.value)
       .slice(0, 5);
-  }, [filteredPublishedArticles]);
+  }, [analyticsEvents, publishedArticles]);
 
   const viewsData = useMemo(() => {
-    const sourceDates = filteredPublishedArticles
-      .map((article) => new Date(article.publishedAt ?? article.createdAt))
+    const sourceDates = analyticsEvents
+      .map((event) => new Date(event.occurred_at))
       .filter((date) => !Number.isNaN(date.getTime()))
       .sort((left, right) => left.getTime() - right.getTime());
     const today = startOfDay(new Date());
@@ -283,20 +321,20 @@ export default function AnalyticsPage() {
       buckets.set(key, { dia: key, visualizações: 0, compartilhamentos: 0 });
     }
 
-    filteredPublishedArticles.forEach((article) => {
-      const baseDate = article.publishedAt ? new Date(article.publishedAt) : new Date(article.createdAt);
+    analyticsEvents.forEach((event) => {
+      const baseDate = new Date(event.occurred_at);
       const key = formatDay(baseDate);
       const bucket = buckets.get(key);
       if (!bucket) {
         return;
       }
 
-      bucket.visualizações += article.views ?? 0;
-      bucket.compartilhamentos += article.shares ?? 0;
+      if (event.event_type === 'article_view') bucket.visualizações += 1;
+      if (event.event_type === 'article_share') bucket.compartilhamentos += 1;
     });
 
     return [...buckets.values()];
-  }, [filteredPublishedArticles, activeRangeDates]);
+  }, [analyticsEvents, activeRangeDates]);
 
   const growth = useMemo(() => {
     if (analyticsRange === 'all') {
@@ -448,7 +486,7 @@ export default function AnalyticsPage() {
           comment.author,
           article?.title ?? 'Matéria não encontrada',
           comment.text,
-          new Date(comment.createdAt).toLocaleString('pt-BR'),
+          new Date(comment.createdAt ?? '').toLocaleString('pt-BR'),
         ];
       }),
     ];

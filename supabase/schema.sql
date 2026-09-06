@@ -30,6 +30,30 @@ create table if not exists public.pz_news_settings (
 );
 alter table public.pz_news_settings enable row level security;
 create index if not exists idx_pz_news_settings_updated_at on public.pz_news_settings (updated_at desc);
+
+create table if not exists public.pz_news_comments (
+  id text primary key,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists idx_pz_news_comments_updated_at on public.pz_news_comments (updated_at desc);
+alter table public.pz_news_comments enable row level security;
+
+create table if not exists public.pz_news_analytics_events (
+  id text primary key,
+  event_type text not null check (event_type in ('article_view', 'article_share', 'page_view')),
+  article_id text,
+  category text,
+  author_user_ids jsonb not null default '[]'::jsonb,
+  occurred_at timestamptz not null default now(),
+  metadata jsonb not null default '{}'::jsonb
+);
+create index if not exists idx_pz_news_analytics_events_occurred_at
+  on public.pz_news_analytics_events (occurred_at desc);
+create index if not exists idx_pz_news_analytics_events_article
+  on public.pz_news_analytics_events (article_id, occurred_at desc);
+alter table public.pz_news_analytics_events enable row level security;
 alter table public.pz_news_users enable row level security;
 create policy "admin_users_service_role_access" on public.pz_news_users for all using (true) with check (true);
 
