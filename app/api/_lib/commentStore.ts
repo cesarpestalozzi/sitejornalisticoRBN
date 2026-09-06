@@ -35,7 +35,10 @@ export async function saveStoredComment(id: string, payload: Record<string, unkn
   if (response.ok) return;
   if (response.status !== 404) throw new Error(`Supabase recusou o comentário (${response.status}).`);
   const fallback = await fetch(fallbackTable, { method: 'POST', headers: { ...headers(), Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ id: `__comment__:${id}`, payload, deleted: false, updated_at: new Date().toISOString() }), cache: 'no-store' });
-  if (!fallback.ok) throw new Error(`Supabase recusou o comentário (${fallback.status}).`);
+  if (!fallback.ok) {
+    const detail = await fallback.text();
+    throw new Error(`Supabase recusou o fallback de comentário (${fallback.status}): ${detail.slice(0, 300)}`);
+  }
 }
 
 export async function deleteStoredComment(id: string) {

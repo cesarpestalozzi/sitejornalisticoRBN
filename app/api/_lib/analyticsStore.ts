@@ -45,7 +45,10 @@ export async function saveAnalyticsEvent(event: AnalyticsEvent) {
     body: JSON.stringify({ id: `__analytics__:${event.id}`, payload: { ...event, _type: 'analytics_event' }, deleted: false, updated_at: event.occurred_at }),
     cache: 'no-store',
   });
-  if (!fallback.ok) throw new Error(`Supabase recusou o evento de métrica (${fallback.status}).`);
+  if (!fallback.ok) {
+    const detail = await fallback.text();
+    throw new Error(`Supabase recusou o fallback de métrica (${fallback.status}): ${detail.slice(0, 300)}`);
+  }
 }
 
 export async function listAnalyticsEvents(from?: string, to?: string) {
