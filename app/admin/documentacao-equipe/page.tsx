@@ -237,6 +237,7 @@ export default function TeamDocumentationPage() {
               <p className="text-sm font-semibold uppercase tracking-wide text-[#991B1B]">Gestão interna</p>
               <h1 className="mt-1 text-3xl font-bold text-gray-900">Documentação da equipe</h1>
               <p className="mt-2 max-w-2xl text-sm text-gray-600">Central protegida para receber, revisar e acompanhar documentos profissionais sem expor arquivos publicamente.</p>
+              {canRequest && <p className="mt-2 text-xs font-semibold text-[#991B1B]">Para escolher vários documentos, clique em “Solicitar documento”. A lista com caixas de seleção aparece nessa janela.</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               {canRequest && <button type="button" onClick={() => openForm('request')} className="inline-flex items-center gap-2 rounded-lg border border-[#991B1B] px-4 py-2 text-sm font-semibold text-[#991B1B]"><ClipboardCheck className="h-4 w-4" /> Solicitar documento</button>}
