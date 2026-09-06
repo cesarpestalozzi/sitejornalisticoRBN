@@ -517,7 +517,7 @@ export default function UsersPage() {
     setFormData((current) => ({ ...current, avatar }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canManageUsers) {
       addToast('Somente admin e editor-chefe podem salvar alterações em usuários.', 'error', 3000);
       return;
@@ -536,7 +536,7 @@ export default function UsersPage() {
     try {
       if (editingId) {
         const nextPasswordHash = passwordInput.trim() ? hashPassword(passwordInput.trim()) : formData.passwordHash;
-        updateUser(editingId, {
+        await updateUser(editingId, {
           ...payload,
           passwordHash: nextPasswordHash,
           passwordChangeRequired: passwordInput.trim() ? false : formData.passwordChangeRequired,
@@ -552,7 +552,7 @@ export default function UsersPage() {
           onboardingStatus: 'invite-sent' as const,
         };
 
-        addUser(onboardingPayload);
+        await addUser(onboardingPayload);
         void fetch('/api/welcome-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

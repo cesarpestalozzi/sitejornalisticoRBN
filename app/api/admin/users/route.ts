@@ -17,6 +17,10 @@ function normalizePersonName(value: unknown) {
   return typeof value === 'string' ? value.trim().replace(/^por\s+/i, '') : '';
 }
 
+function normalizeCpf(value: unknown) {
+  return typeof value === 'string' ? value.replace(/\D/g, '') : '';
+}
+
 async function proxyToPython(request: NextRequest, path: string) {
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL(path, `${pythonApiBase}/`);
@@ -75,7 +79,25 @@ export async function POST(request: NextRequest) {
       const previous = (await listStoredUsers()).find((row) => row.id === id);
       const previousName = normalizePersonName(previous?.payload.name);
       const nextName = normalizePersonName(body.payload.name) || previousName;
-      await saveStoredUser(id, { ...body.payload, name: nextName });
+      const nextCpf = normalizeCpf(body.payload.cpf);
+      if (!nextCpf || nextCpf.length !== 11) {
+        return NextResponse.json({ ok: false, error: 'O CPF deve conter 11 dígitos.' }, { status: 400 });
+      }
+      const nextLogin = String(body.payload.login || '').trim().toUpperCase();
+      if (!/^RBN\d{11}$/.test(nextLogin)) {
+        return NextResponse.json({ ok: false, error: 'O login deve seguir o padrão RBN + CPF.' }, { status: 400 });
+      }
+      const conflict = (await listStoredUsers()).find((row) => {
+        if (row.id === id) return false;
+        const status = String(row.payload.status ?? 'ativo').toLowerCase();
+        if (['removido', 'removed', 'deleted'].includes(status)) return false;
+        return normalizeCpf(row.payload.cpf) === nextCpf || String(row.payload.login || '').trim().toUpperCase() === nextLogin;
+      });
+      if (conflict) {
+        const sameCpf = normalizeCpf(conflict.payload.cpf) === nextCpf;
+        return NextResponse.json({ ok: false, error: sameCpf ? 'CPF já cadastrado.' : 'Login já está em uso.' }, { status: 409 });
+      }
+      await saveStoredUser(id, { ...body.payload, name: nextName, cpf: nextCpf, login: nextLogin });
       if (previousName && nextName && previousName !== nextName) {
         const articles = await listStoredArticles();
         await Promise.all(articles.map(async (row) => {

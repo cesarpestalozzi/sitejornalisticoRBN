@@ -118,11 +118,15 @@ async function readRemoteUsersViaApi(): Promise<SupabaseUserRow[] | null> {
 }
 
 async function upsertRemoteUserViaApi(user: User): Promise<void> {
-  await fetch('/api/admin/users', {
+  const response = await fetch('/api/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id: user.id, payload: user }),
   });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || 'Não foi possível persistir o usuário.');
+  }
 }
 
 async function deleteRemoteUserByIdViaApi(id: string): Promise<void> {
@@ -372,9 +376,7 @@ async function readRemoteUsers() {
 }
 
 async function upsertRemoteUser(user: User) {
-  await upsertRemoteUserViaApi(user).catch((error) => {
-    console.error('Erro ao salvar usuario remoto:', error);
-  });
+  await upsertRemoteUserViaApi(user);
 }
 
 async function deleteRemoteUserById(id: string) {
@@ -507,7 +509,7 @@ export function useUsers() {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
   }, [users, isLoaded]);
 
-  const addUser = (user: Omit<User, 'id' | 'joinDate' | 'createdAt' | 'updatedAt'> & { joinDate?: string; createdAt?: string; updatedAt?: string }) => {
+  const addUser = async (user: Omit<User, 'id' | 'joinDate' | 'createdAt' | 'updatedAt'> & { joinDate?: string; createdAt?: string; updatedAt?: string }) => {
     const currentUser = getCurrentAdminUser();
     if (!canManageUsersDirectory(currentUser)) {
       throw new Error('Sem permissão para criar usuários.');
@@ -524,7 +526,10 @@ export function useUsers() {
       throw new Error('Já existe um funcionário cadastrado com este CPF.');
     }
 
-    const normalizedLogin = (user.login || buildUserLogin(cpfDigits)).trim().toUpperCase();
+    const normalizedLogin = buildUserLogin(cpfDigits);
+    if (users.some((existing) => existing.login.toUpperCase() === normalizedLogin)) {
+      throw new Error('Já existe um funcionário cadastrado com este login.');
+    }
     const newUser: User = {
       ...user,
       cpf: cpfDigits,
@@ -538,14 +543,12 @@ export function useUsers() {
       permissions: user.permissions?.length ? user.permissions : getDefaultPermissionsForRole(user.role),
     };
 
+    await upsertRemoteUser(newUser);
     setUsers((current) => [newUser, ...current]);
-    void upsertRemoteUser(newUser).catch((error) => {
-      console.error('Erro ao sincronizar novo usuário:', error);
-    });
     return newUser;
   };
 
-  const updateUser = (id: string, updates: Partial<User>) => {
+  const updateUser = async (id: string, updates: Partial<User>) => {
     const currentUser = getCurrentAdminUser();
     if (!canManageUsersDirectory(currentUser)) {
       throw new Error('Sem permissão para editar usuários.');
@@ -563,12 +566,17 @@ export function useUsers() {
         if (duplicate) {
           throw new Error('Não é possível salvar: já existe outro funcionário com este CPF.');
         }
+        const nextLogin = (updates.login ?? user.login ?? buildUserLogin(nextCpf)).trim().toUpperCase();
+        const duplicateLogin = current.some((entry) => entry.id !== id && entry.login.toUpperCase() === nextLogin);
+        if (duplicateLogin) {
+          throw new Error('Não é possível salvar: este login já está em uso.');
+        }
 
         nextUser = {
           ...user,
           ...updates,
           cpf: nextCpf,
-          login: (updates.login ?? user.login ?? buildUserLogin(nextCpf)).toUpperCase(),
+          login: nextLogin,
           permissions: updates.permissions?.length ? updates.permissions : user.permissions,
           id: user.id,
           passwordChangeRequired:
@@ -589,9 +597,13 @@ export function useUsers() {
       })
     );
 
-    if (nextUser) {
-      syncUpdatedUser(nextUser);
+    if (!nextUser) {
+      throw new Error('Usuário não encontrado.');
     }
+    await upsertRemoteUser(nextUser);
+    setUsers((current) => current.map((user) => user.id === id ? nextUser as User : user));
+    syncCurrentAdminSession(nextUser);
+    return nextUser;
   };
 
   const updateCurrentUserPassword = (passwordHash: string) => {
