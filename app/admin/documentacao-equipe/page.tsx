@@ -87,6 +87,9 @@ export default function TeamDocumentationPage() {
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<AuditEntry[]>([]);
   const [historyDocument, setHistoryDocument] = useState<Document | null>(null);
+  const [pin, setPin] = useState('');
+  const [unlocked, setUnlocked] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
   const canUpload = hasPermission(currentUser, 'documentation:upload');
   const canRequest = hasPermission(currentUser, 'documentation:request');
@@ -108,9 +111,29 @@ export default function TeamDocumentationPage() {
   }, []);
 
   useEffect(() => {
+    if (!unlocked) return;
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [load, unlocked]);
+
+  const unlockHumanResources = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setUnlocking(true);
+    try {
+      await api('/api/admin/documentacao-equipe/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      setPin('');
+      setUnlocked(true);
+      setError('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível desbloquear Recursos Humanos.');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const userById = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
   const filteredUsers = useMemo(() => {
@@ -208,6 +231,7 @@ export default function TeamDocumentationPage() {
       <AdminSidebar />
       <main className="min-w-0 flex-1 p-4 md:p-8">
         <div className="mx-auto max-w-7xl">
+          {!unlocked ? <section className="mx-auto mt-16 max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm"><ShieldAlert className="mx-auto h-10 w-10 text-[#991B1B]" /><h1 className="mt-4 text-2xl font-bold text-gray-900">Recursos Humanos</h1><p className="mt-2 text-sm text-gray-600">Informe o PIN para acessar a documentação protegida da equipe.</p><form onSubmit={unlockHumanResources} className="mt-6 space-y-3"><input type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="PIN de acesso" className="w-full rounded-lg border border-gray-300 px-4 py-3 text-center tracking-[0.35em] focus:border-[#991B1B] focus:outline-none" /><button type="submit" disabled={!pin.trim() || unlocking} className="w-full rounded-lg bg-[#991B1B] px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">{unlocking ? 'Validando...' : 'Acessar documentação'}</button></form>{error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}</section> : <>
           <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-[#991B1B]">Gestão interna</p>
@@ -245,6 +269,7 @@ export default function TeamDocumentationPage() {
             </section>
           </section>
           <p className="flex items-center gap-2 text-xs text-gray-500"><ShieldAlert className="h-4 w-4" /> Arquivos são entregues somente após autorização no servidor e não possuem URL pública.</p>
+          </>}
         </div>
       </main>
       {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"><form onSubmit={submitForm} className="w-full max-w-xl rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between rounded-t-2xl bg-[#991B1B] px-6 py-4 text-white"><div><h2 className="font-bold">{formMode === 'upload' ? 'Enviar documento' : 'Solicitar documentos'}</h2><p className="text-xs text-white/75">Selecione manualmente somente os documentos necessários.</p></div><button type="button" onClick={() => setShowForm(false)}><XCircle className="h-5 w-5" /></button></div><div className="space-y-4 p-6"><label className="block text-sm font-semibold text-gray-800">Usuário<select required value={form.userId} onChange={(event) => setForm((current) => ({ ...current, userId: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"><option value="">Selecionar usuário</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>{formMode === 'request' ? <fieldset><legend className="text-sm font-semibold text-gray-800">Documentos disponíveis</legend><div className="mt-2 grid gap-2 rounded-lg border border-gray-200 p-3 sm:grid-cols-2">{documentTypes.map((type) => <label key={type} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-normal hover:bg-gray-50"><input type="checkbox" checked={form.selectedTypes.includes(type)} onChange={(event) => setForm((current) => ({ ...current, selectedTypes: event.target.checked ? [...current.selectedTypes, type] : current.selectedTypes.filter((item) => item !== type) }))} />{type}</label>)}</div><p className="mt-1 text-xs font-normal text-gray-500">{form.selectedTypes.length} documento(s) selecionado(s)</p></fieldset> : <><label className="block text-sm font-semibold text-gray-800">Tipo do documento<select required value={form.documentType} onChange={(event) => setForm((current) => ({ ...current, documentType: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"><option value="">Selecionar tipo</option>{documentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label className="block text-sm font-semibold text-gray-800">Arquivo<input required type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx" onChange={(event) => setForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))} className="mt-1 block w-full rounded-lg border border-dashed border-gray-300 p-3 text-sm font-normal" /><span className="mt-1 block text-xs font-normal text-gray-500">PDF, imagem ou Word · máximo 10 MB</span></label></>}{formMode === 'request' && <label className="block text-sm font-semibold text-gray-800">Motivo da solicitação<textarea required value={form.requestReason} onChange={(event) => setForm((current) => ({ ...current, requestReason: event.target.value }))} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label>}<label className="block text-sm font-semibold text-gray-800">Validade (opcional)<input type="date" value={form.expiresAt} onChange={(event) => setForm((current) => ({ ...current, expiresAt: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><label className="block text-sm font-semibold text-gray-800">Observações<textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancelar</button><button type="submit" disabled={saving || (formMode === 'request' && form.selectedTypes.length === 0)} className="inline-flex items-center gap-2 rounded-lg bg-[#991B1B] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Salvando...' : <><Plus className="h-4 w-4" /> {formMode === 'request' ? 'Solicitar documentos' : 'Salvar'}</>}</button></div></div></form></div>}

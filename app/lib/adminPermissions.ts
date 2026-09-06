@@ -349,7 +349,7 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return hasPermission(user, 'messages:view');
   }
 
-  if (pathname.startsWith('/admin/documentacao-equipe')) {
+  if (pathname.startsWith('/admin/documentacao-equipe') || pathname.startsWith('/admin/recursos-humanos')) {
     return hasPermission(user, 'documentation:view');
   }
 

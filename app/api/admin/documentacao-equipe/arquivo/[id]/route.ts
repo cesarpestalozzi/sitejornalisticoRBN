@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveAdminUser } from '@/app/api/_lib/adminServerAuth';
+import { hasDocumentationPinAccess, resolveAdminUser } from '@/app/api/_lib/adminServerAuth';
 import { getDocument, hasDocumentationStoreConfig } from '@/app/api/_lib/documentationStore';
 
 export const dynamic = 'force-dynamic';
@@ -8,6 +8,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   const user = await resolveAdminUser(request);
   if (!user || !user.permissions.includes('documentation:view') && user.role !== 'admin') {
     return NextResponse.json({ ok: false, error: 'Sessão ou permissão de documentação inválida.' }, { status: 401 });
+  }
+  if (!hasDocumentationPinAccess(request, user.id)) {
+    return NextResponse.json({ ok: false, error: 'Desbloqueie Recursos Humanos com o PIN.' }, { status: 403 });
   }
   if (!hasDocumentationStoreConfig()) {
     return NextResponse.json({ ok: false, error: 'Armazenamento de documentação não configurado.' }, { status: 503 });

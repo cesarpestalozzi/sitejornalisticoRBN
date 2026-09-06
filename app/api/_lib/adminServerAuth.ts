@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { hasUserStoreConfig, listStoredUsers } from '@/app/api/_lib/userStore';
 
 export type ServerAdminUser = {
@@ -128,5 +129,32 @@ export async function updateStoredUserActivity(userId: string, fields: Record<st
     });
     if (!response.ok) return false;
   }
+
   return true;
+}
+
+function documentationPinSecret() {
+  return process.env.HR_DOCUMENTATION_PIN?.trim() || process.env.DOCUMENTATION_PIN?.trim() || '';
+}
+
+export function createDocumentationPinToken(userId: string) {
+  const secret = documentationPinSecret();
+  if (!secret) return '';
+  const expiresAt = Date.now() + 30 * 60 * 1000;
+  const value = `${userId}.${expiresAt}`;
+  const signature = createHmac('sha256', secret).update(value).digest('hex');
+  return `${value}.${signature}`;
+}
+
+export function hasDocumentationPinAccess(request: NextRequest, userId: string) {
+  const secret = documentationPinSecret();
+  const token = request.cookies.get('rbn_hr_documentation_access')?.value || '';
+  const [tokenUserId, expiresAt, signature] = token.split('.');
+  if (!secret || tokenUserId !== userId || !expiresAt || !signature || Number(expiresAt) < Date.now()) return false;
+  const expected = createHmac('sha256', secret).update(`${tokenUserId}.${expiresAt}`).digest('hex');
+  return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+export function hasDocumentationPinConfigured() {
+  return Boolean(documentationPinSecret());
 }
