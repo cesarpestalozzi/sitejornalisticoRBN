@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { useSettings } from '@/app/lib/settings';
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -11,9 +13,10 @@ export default function PwaInstallPrompt() {
   const [visible, setVisible] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const { getSettings } = useSettings();
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || !getSettings().pwa.enabled || !getSettings().pwa.installPromptEnabled) {
       return;
     }
 
@@ -47,7 +50,7 @@ export default function PwaInstallPrompt() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, []);
+  }, [getSettings]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
@@ -67,7 +70,7 @@ export default function PwaInstallPrompt() {
   return (
     <div className="fixed bottom-4 right-4 z-[60] max-w-sm rounded-2xl border border-[#e5e7eb] bg-white/95 p-4 shadow-[0_18px_45px_rgba(17,17,17,0.16)] backdrop-blur-sm">
       <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#991B1B] text-lg font-black text-white">R</div>
+        <Image src={getSettings().pwa.icon || '/rbn-icon-192.png'} alt="RBN" width={44} height={44} className="h-11 w-11 rounded-xl object-cover" />
         <div className="flex-1">
           <p className="text-sm font-bold text-gray-900">Instalar RBN Brasil</p>
           <p className="mt-1 text-xs leading-5 text-gray-600">Use o site como app no seu computador ou celular, sem perder as páginas e o conteúdo atual.</p>

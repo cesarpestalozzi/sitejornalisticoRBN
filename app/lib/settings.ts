@@ -133,6 +133,15 @@ export interface SiteSettings {
     privacyMode: boolean;
   };
 
+  pwa: {
+    enabled: boolean;
+    appName: string;
+    shortName: string;
+    installPromptEnabled: boolean;
+    notificationsEnabled: boolean;
+    icon: string;
+  };
+
   // Backup e Restauração
   backup: {
     autoBackupEnabled: boolean;
@@ -244,6 +253,14 @@ export const defaultSettings: SiteSettings = {
     trackUserBehavior: true,
     trackConversions: true,
     privacyMode: false,
+  },
+  pwa: {
+    enabled: true,
+    appName: 'RBN',
+    shortName: 'RBN',
+    installPromptEnabled: true,
+    notificationsEnabled: true,
+    icon: '/rbn-icon-512.png',
   },
   backup: {
     autoBackupEnabled: true,

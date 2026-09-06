@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Save, AlertCircle, Check, ChevronDown, Shield, Zap, Mail, Share2, Database, Eye, Lock, Globe } from 'lucide-react';
+import { Save, AlertCircle, Check, ChevronDown, Shield, Zap, Mail, Share2, Database, Eye, Lock, Globe, Smartphone } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useSettings, SiteSettings, defaultSettings, validateSettings } from '@/app/lib/settings';
 import { useToast, ToastContainer } from '@/app/components/Toast';
@@ -83,6 +83,7 @@ export default function SettingsPage() {
     { id: 'social', label: 'Redes Sociais', icon: Share2 },
     { id: 'content', label: 'Conteúdo', icon: Database },
     { id: 'analytics', label: 'Analytics', icon: Eye },
+    { id: 'pwa', label: 'Aplicativo (PWA)', icon: Smartphone },
     { id: 'backup', label: 'Backup', icon: Database },
   ];
 
@@ -172,6 +173,9 @@ export default function SettingsPage() {
             )}
             {activeTab === 'analytics' && (
               <AnalyticsSettings settings={settings} onChange={handleInputChange} />
+            )}
+            {activeTab === 'pwa' && (
+              <PwaSettings settings={settings} onChange={handleInputChange} />
             )}
             {activeTab === 'backup' && (
               <BackupSettings settings={settings} onChange={handleInputChange} />
@@ -1010,6 +1014,39 @@ function ContentSettings({ settings, onChange }: any) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PwaSettings({ settings, onChange }: any) {
+  return (
+    <div>
+      <h2 className="mb-2 text-xl font-bold text-gray-900">Aplicativo instalável (PWA)</h2>
+      <p className="mb-6 text-sm text-gray-600">Controle a instalação do RBN e a permissão de notificações nos dispositivos compatíveis.</p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="flex items-center gap-3 rounded-lg border p-4 text-sm font-semibold">
+          <input type="checkbox" checked={settings.pwa.enabled} onChange={(event) => onChange('pwa', 'enabled', event.target.checked)} />
+          PWA ativado
+        </label>
+        <label className="flex items-center gap-3 rounded-lg border p-4 text-sm font-semibold">
+          <input type="checkbox" checked={settings.pwa.installPromptEnabled} onChange={(event) => onChange('pwa', 'installPromptEnabled', event.target.checked)} />
+          Mostrar convite de instalação
+        </label>
+        <label className="flex items-center gap-3 rounded-lg border p-4 text-sm font-semibold">
+          <input type="checkbox" checked={settings.pwa.notificationsEnabled} onChange={(event) => onChange('pwa', 'notificationsEnabled', event.target.checked)} />
+          Permitir notificações
+        </label>
+        <label className="text-sm font-semibold">Nome do aplicativo
+          <input className="mt-1 w-full rounded border p-2" value={settings.pwa.appName} onChange={(event) => onChange('pwa', 'appName', event.target.value)} />
+        </label>
+        <label className="text-sm font-semibold">Nome curto
+          <input className="mt-1 w-full rounded border p-2" value={settings.pwa.shortName} onChange={(event) => onChange('pwa', 'shortName', event.target.value)} />
+        </label>
+        <label className="text-sm font-semibold">Ícone do aplicativo (URL)
+          <input className="mt-1 w-full rounded border p-2" value={settings.pwa.icon} onChange={(event) => onChange('pwa', 'icon', event.target.value)} />
+        </label>
+      </div>
+      <p className="mt-5 rounded-lg bg-gray-50 p-4 text-xs leading-5 text-gray-600">O navegador decide quando exibir a instalação. No iPhone/iPad, use Compartilhar → Adicionar à Tela de Início. Notificações push completas exigem suporte do navegador e configuração de servidor Web Push; o portal já oferece notificações locais quando autorizadas.</p>
     </div>
   );
 }
