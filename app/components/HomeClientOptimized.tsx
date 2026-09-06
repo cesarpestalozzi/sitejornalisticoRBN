@@ -265,31 +265,6 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
         </div>
       )}
 
-      {columnists.length > 0 && (
-        <section className="mx-auto max-w-7xl px-4 pt-2">
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 sm:p-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#991B1B]">Opinião e análise</p>
-                <h2 className="mt-1 text-2xl font-bold text-gray-900">Colunistas</h2>
-              </div>
-              <span className="text-sm text-gray-500">Conheça nossos autores</span>
-            </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {columnists.map((columnist) => (
-                <a key={columnist.id} href={`/colunistas/${columnist.columnistSlug || columnist.id}`} className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                  <img src={columnist.avatar || '/logo-oficial.png'} alt={columnist.name} className="h-16 w-16 shrink-0 rounded-full object-cover" />
-                  <span className="min-w-0">
-                    <strong className="block truncate text-base text-[#1264B0]">{columnist.name}</strong>
-                    <span className="mt-1 line-clamp-2 text-sm text-gray-600">{columnist.bio || 'Veja o perfil e as matérias deste colunista.'}</span>
-                  </span>
-                </a>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       <div className="mx-auto max-w-7xl px-4 py-12">
         <div className={`grid grid-cols-1 gap-8 ${contentGridClass}`}>
           <div className={`order-2 space-y-8 lg:order-1 ${contentColumnClass}`}>
@@ -324,6 +299,31 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
           )}
         </div>
       </div>
+
+      {columnists.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 pb-10">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5 sm:p-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#991B1B]">Opinião e análise</p>
+                <h2 className="mt-1 text-2xl font-bold text-gray-900">Colunistas</h2>
+              </div>
+              <span className="text-sm text-gray-500">Conheça nossos autores</span>
+            </div>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {columnists.map((columnist) => (
+                <a key={columnist.id} href={`/colunistas/${columnist.columnistSlug || columnist.id}`} className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                  <img src={columnist.avatar || '/logo-oficial.png'} alt={columnist.name} className="h-16 w-16 shrink-0 rounded-full object-cover" />
+                  <span className="min-w-0">
+                    <strong className="block truncate text-base text-[#1264B0]">{columnist.name}</strong>
+                    <span className="mt-1 line-clamp-2 text-sm text-gray-600">{columnist.bio || 'Veja o perfil e as matérias deste colunista.'}</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {showPodcastsOnHomepage && null}
     </>
