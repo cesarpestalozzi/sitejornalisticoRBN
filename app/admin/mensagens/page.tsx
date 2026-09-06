@@ -188,6 +188,45 @@ export default function AdminMessagesPage() {
   // Mobile navigation
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
 
+  // Videoconferência & Toast States
+  const [activeView, setActiveView] = useState<'chat' | 'videoconferencia'>('chat');
+  const [meetingRoomName, setMeetingRoomName] = useState('RBN_Geral');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  }, []);
+
+  const copyMeetingLink = useCallback((room?: string) => {
+    const roomToUse = room || meetingRoomName || (selectedId ? `RBN_Call_${selectedId}` : 'RBN_Geral');
+    const url = `https://meet.jit.si/${roomToUse}`;
+    navigator.clipboard.writeText(url);
+    showToast('Link da Videoconferência copiado para a área de transferência!');
+  }, [meetingRoomName, selectedId, showToast]);
+
+  const sendMeetingLinkToChat = useCallback(async () => {
+    const roomToUse = meetingRoomName || (selectedId ? `RBN_Call_${selectedId}` : 'RBN_Geral');
+    const url = `https://meet.jit.si/${roomToUse}`;
+    const text = `📹 *Videoconferência RBN (WebRTC Realtime)*\n\nLink de Acesso Direto:\n${url}`;
+
+    if (selectedId) {
+      try {
+        const data = await api<{ ok: true; message: Message }>('/api/admin/messaging', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'message', conversationId: selectedId, body: text }),
+        });
+        setMessages((current) => [...current, data.message]);
+        showToast('Link da reunião enviado na conversa atual!');
+      } catch {
+        showToast('Não foi possível enviar o link na conversa.');
+      }
+    } else {
+      navigator.clipboard.writeText(text);
+      showToast('Link copiado! Escolha um colega ou grupo na barra lateral para colar e enviar.');
+    }
+  }, [meetingRoomName, selectedId, showToast]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -556,6 +595,12 @@ export default function AdminMessagesPage() {
     <div className="flex min-h-screen bg-[#f5f3ef]">
       <AdminSidebar />
       <main className="min-w-0 flex-1 p-3 md:p-6">
+        {toastMessage && (
+          <div className="fixed top-5 right-5 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in text-xs font-semibold">
+            <Check className="w-4 h-4 text-white" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
         <div className="mx-auto max-w-7xl">
           {/* Header */}
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -565,6 +610,18 @@ export default function AdminMessagesPage() {
               <p className="mt-0.5 text-xs text-gray-600 md:text-sm">Mensagens instantâneas, arquivos, áudios e conferência para a equipe RBN.</p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveView((v) => (v === 'videoconferencia' ? 'chat' : 'videoconferencia'))}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm transition ${
+                  activeView === 'videoconferencia'
+                    ? 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700'
+                    : 'border-[#991B1B] bg-white text-[#991B1B] hover:bg-red-50'
+                }`}
+              >
+                <Video className="h-4 w-4" />
+                {activeView === 'videoconferencia' ? '← Voltar pras Mensagens' : 'Videoconferência RBN'}
+              </button>
               <button
                 type="button"
                 onClick={() => setShowCreateGroupModal(true)}
@@ -633,19 +690,29 @@ export default function AdminMessagesPage() {
 
                 {/* Filter Tabs */}
                 <div className="flex gap-1 overflow-x-auto pt-1">
-                  {(['all', 'unread', 'groups', 'archived'] as const).map((tab) => (
+                  {(['all', 'unread', 'groups', 'archived', 'videoconferencia'] as const).map((tab) => (
                     <button
                       key={tab}
                       type="button"
-                      onClick={() => setTabFilter(tab)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                        tabFilter === tab ? 'bg-[#991B1B] text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      onClick={() => {
+                        if (tab === 'videoconferencia') {
+                          setActiveView('videoconferencia');
+                        } else {
+                          setActiveView('chat');
+                          setTabFilter(tab);
+                        }
+                      }}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition shrink-0 ${
+                        (activeView === 'videoconferencia' && tab === 'videoconferencia') || (activeView === 'chat' && tabFilter === tab)
+                          ? 'bg-[#991B1B] text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
                       {tab === 'all' && 'Todas'}
                       {tab === 'unread' && 'Não lidas'}
                       {tab === 'groups' && 'Grupos'}
                       {tab === 'archived' && 'Arquivadas'}
+                      {tab === 'videoconferencia' && '📹 Conferência'}
                     </button>
                   ))}
                 </div>
@@ -750,8 +817,88 @@ export default function AdminMessagesPage() {
 
             {/* Chat & Info Panel Container (Column 2) */}
             <div className={`flex min-w-0 flex-1 ${mobileView === 'list' ? 'hidden md:flex' : 'flex'}`}>
-              {/* Center Chat View */}
-              <section className="flex min-w-0 flex-1 flex-col bg-gray-50">
+              {/* Center Chat View or Embedded Videoconferência */}
+              {activeView === 'videoconferencia' ? (
+                <section className="flex min-w-0 flex-1 flex-col bg-gray-950 text-white">
+                  {/* Top Bar with VOLTAR Button */}
+                  <header className="flex flex-wrap items-center justify-between border-b border-gray-800 bg-gray-900 px-4 py-3 shadow-md md:px-6">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setActiveView('chat')}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#991B1B] px-3.5 py-2 text-xs font-bold text-white shadow transition hover:bg-red-700 active:scale-95"
+                        title="Voltar para as conversas"
+                      >
+                        <ArrowLeft className="h-4 w-4" /> VOLTAR PARA CONVERSAS
+                      </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-bold text-white">Videoconferência RBN (WebRTC)</h2>
+                          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">🟢 Ao Vivo</span>
+                        </div>
+                        <p className="text-[11px] text-gray-400">Transmissão em tempo real integrada aos usuários do sistema</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 mt-2 sm:mt-0">
+                      <button
+                        type="button"
+                        onClick={() => copyMeetingLink()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-semibold text-gray-200 transition hover:bg-gray-700"
+                        title="Copiar link de acesso"
+                      >
+                        <Copy className="h-4 w-4 text-emerald-400" /> Copiar Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void sendMeetingLinkToChat()}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 shadow"
+                        title="Enviar link na conversa atual"
+                      >
+                        <Send className="h-4 w-4" /> Enviar Link no Chat
+                      </button>
+                    </div>
+                  </header>
+
+                  {/* Registered Users Directory Bar */}
+                  <div className="border-b border-gray-800 bg-gray-900/90 px-4 py-2.5 text-xs flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Users className="h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="font-semibold text-gray-300 shrink-0">Usuários Cadastrados ({directory.length}):</span>
+                      <div className="flex flex-wrap gap-1.5 overflow-x-auto max-h-12 py-0.5">
+                        {directory.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => {
+                              const room = `RBN_${user.name.replace(/\s+/g, '_')}`;
+                              setMeetingRoomName(room);
+                              copyMeetingLink(room);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 px-2 py-1 text-[11px] font-medium text-gray-200 hover:bg-gray-700 transition"
+                            title={`Convidar / Iniciar reunião com ${user.name}`}
+                          >
+                            <span className={`h-2 w-2 rounded-full ${user.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-500'}`} />
+                            <span className="font-semibold">{user.name}</span>
+                            <span className="text-[9px] text-gray-400">({user.role})</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* WebRTC Video Room Iframe */}
+                  <div className="flex-1 bg-black p-2 relative">
+                    <iframe
+                      src={`https://meet.jit.si/${meetingRoomName}#userInfo.displayName="${encodeURIComponent(currentUser?.name || 'Membro RBN')}"`}
+                      className="w-full h-full rounded-xl border-0 shadow-2xl"
+                      allow="camera; microphone; display-capture; autoplay; clipboard-write"
+                      title="Sala de Videoconferência RBN"
+                    />
+                  </div>
+                </section>
+              ) : (
+                <section className="flex min-w-0 flex-1 flex-col bg-gray-50">
                 {selectedConversation ? (
                   <>
                     {/* Chat Header */}
@@ -1278,10 +1425,18 @@ export default function AdminMessagesPage() {
                   <div className="my-auto p-12 text-center text-gray-400">
                     <MessageCircle className="mx-auto h-12 w-12 text-gray-300" />
                     <h3 className="mt-3 text-lg font-semibold text-gray-700">Selecione uma conversa</h3>
-                    <p className="mt-1 text-xs text-gray-500">Escolha um colega ou grupo na barra lateral para iniciar o bate-papo.</p>
+                    <p className="mt-1 text-xs text-gray-500 mb-6">Escolha um colega ou grupo na barra lateral para iniciar o bate-papo.</p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveView('videoconferencia')}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#991B1B] px-5 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-[#7f1616] active:scale-95"
+                    >
+                      <Video className="h-4 w-4" /> Entrar na Videoconferência RBN (WebRTC)
+                    </button>
                   </div>
                 )}
               </section>
+            )}
 
               {/* Information Drawer (Column 3) */}
               {showInfoPanel && selectedConversation && (
@@ -1476,19 +1631,28 @@ export default function AdminMessagesPage() {
             <div className="flex items-center gap-3">
               <span className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
               <div>
-                <h3 className="font-bold text-base">{conversationTitle} — Videoconferência (WebRTC)</h3>
+                <h3 className="font-bold text-base">{conversationTitle || 'Equipe RBN'} — Videoconferência (WebRTC)</h3>
                 <p className="text-xs text-emerald-400">
                   Transmissão ao vivo via RBN Meet (0% de custo de banda)
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowVideoCallModal(false)}
-              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 shadow-md"
-            >
-              Encerrar Reunião
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => copyMeetingLink(selectedId ? `RBN_Call_${selectedId}` : 'RBN_Geral')}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-200 hover:bg-gray-800 transition"
+              >
+                <Copy className="h-3.5 w-3.5 text-emerald-400" /> Copiar Link
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVideoCallModal(false)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 shadow-md transition"
+              >
+                <ArrowLeft className="h-4 w-4" /> VOLTAR / Sair da Reunião
+              </button>
+            </div>
           </header>
 
           {/* WebRTC Video Room */}
