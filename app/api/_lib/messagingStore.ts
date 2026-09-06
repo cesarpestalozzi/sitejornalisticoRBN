@@ -52,7 +52,14 @@ async function requestTable(path: string, init?: RequestInit) {
     error.status = response.status;
     throw error;
   }
-  return response.status === 204 ? [] : ((await response.json()) as Row[]);
+  if (response.status === 204) return [];
+  const text = await response.text();
+  if (!text.trim()) return [];
+  try {
+    return JSON.parse(text) as Row[];
+  } catch {
+    throw new Error('Supabase retornou uma resposta inválida para o mensageiro.');
+  }
 }
 
 function isMissingTable(error: unknown) {

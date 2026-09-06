@@ -9,16 +9,24 @@ type DirectoryUser = { id: string; name: string; email: string; avatar?: string;
 type Conversation = { id: string; participantIds: string[]; lastActivityAt: string; lastMessagePreview?: string };
 type Message = { id: string; senderId: string; body: string; createdAt: string };
 
-async function api(path: string, options: RequestInit = {}) {
+async function api<T extends Record<string, unknown> = Record<string, unknown>>(path: string, options: RequestInit = {}) {
   const user = getCurrentAdminUser();
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/json');
   if (user?.id) headers.set('x-admin-user-id', user.id);
   if (options.body) headers.set('Content-Type', 'application/json');
   const response = await fetch(path, { ...options, headers, cache: 'no-store' });
-  const data = await response.json().catch(() => ({}));
+  const text = await response.text();
+  let data: { ok?: boolean; error?: string; [key: string]: unknown } = {};
+  if (text.trim()) {
+    try {
+      data = JSON.parse(text) as typeof data;
+    } catch {
+      throw new Error('O servidor retornou uma resposta inválida para as mensagens.');
+    }
+  }
   if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível concluir a operação.');
-  return data;
+  return data as T;
 }
 
 export default function AdminMessagesPage() {
@@ -58,8 +66,8 @@ export default function AdminMessagesPage() {
     setLoading(true);
     try {
       const [conversationData, usersData] = await Promise.all([
-        api('/api/admin/messaging?action=conversations'),
-        api('/api/admin/messaging?action=users'),
+        api<{ ok: true; conversations: Conversation[]; unreadByConversation?: Record<string, number> }>('/api/admin/messaging?action=conversations'),
+        api<{ ok: true; users: DirectoryUser[] }>('/api/admin/messaging?action=users'),
       ]);
       setConversations(conversationData.conversations);
       setUnreadByConversation(conversationData.unreadByConversation ?? {});
@@ -86,7 +94,7 @@ export default function AdminMessagesPage() {
       setMessages([]);
       return;
     }
-    void api(`/api/admin/messaging?action=messages&conversationId=${encodeURIComponent(selectedId)}`)
+    void api<{ ok: true; messages: Message[] }>(`/api/admin/messaging?action=messages&conversationId=${encodeURIComponent(selectedId)}`)
       .then((data) => {
         setMessages(data.messages);
         return api('/api/admin/messaging', { method: 'PATCH', body: JSON.stringify({ conversationId: selectedId }) });
@@ -98,7 +106,7 @@ export default function AdminMessagesPage() {
   const startConversation = async () => {
     if (!selectedUserId) return;
     try {
-      const data = await api('/api/admin/messaging', { method: 'POST', body: JSON.stringify({ action: 'conversation', participantId: selectedUserId }) });
+      const data = await api<{ ok: true; conversation: Conversation }>('/api/admin/messaging', { method: 'POST', body: JSON.stringify({ action: 'conversation', participantId: selectedUserId }) });
       setConversations((current) => current.some((item) => item.id === data.conversation.id) ? current : [data.conversation, ...current]);
       setSelectedId(data.conversation.id);
       setSelectedUserId('');
@@ -111,7 +119,7 @@ export default function AdminMessagesPage() {
     event.preventDefault();
     if (!selectedId || !draft.trim()) return;
     try {
-      const data = await api('/api/admin/messaging', { method: 'POST', body: JSON.stringify({ action: 'message', conversationId: selectedId, body: draft }) });
+      const data = await api<{ ok: true; message: Message }>('/api/admin/messaging', { method: 'POST', body: JSON.stringify({ action: 'message', conversationId: selectedId, body: draft }) });
       setMessages((current) => [...current, data.message]);
       setDraft('');
       setConversations((current) => current.map((conversation) => conversation.id === selectedId ? { ...conversation, lastActivityAt: data.message.createdAt, lastMessagePreview: data.message.body } : conversation));
