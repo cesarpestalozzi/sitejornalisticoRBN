@@ -600,7 +600,7 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!canManageUsers) {
       addToast('Somente admin e editor-chefe podem remover usuários.', 'error', 3000);
       return;
@@ -610,7 +610,7 @@ export default function UsersPage() {
     }
 
     try {
-      deleteUser(id);
+      await deleteUser(id);
       addToast('Usuário removido.', 'success', 2500);
     } catch (error) {
       addToast(error instanceof Error ? error.message : 'Sem permissão para excluir este usuário.', 'error', 3000);

@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
     try {
       const rows = (await listStoredUsers()).filter((row) => {
         const role = normalizeRole(row.payload.role);
-        return ADMIN_ROLES.has(role);
+        const status = String(row.payload.status ?? 'ativo').toLowerCase().trim();
+        return ADMIN_ROLES.has(role) && !['removido', 'removed', 'deleted'].includes(status);
       }).map((row) => ({
         ...row,
         payload: { ...row.payload, name: normalizePersonName(row.payload.name) || row.payload.name },
@@ -103,7 +104,12 @@ export async function DELETE(request: NextRequest) {
       if (!id) return NextResponse.json({ ok: false, error: 'id é obrigatório.' }, { status: 400 });
       const row = (await listStoredUsers()).find((item) => item.id === id);
       if (!row) return NextResponse.json({ ok: true });
-      return await saveStoredUser(id, { ...row.payload, status: 'inativo', updatedAt: new Date().toISOString() });
+      return await saveStoredUser(id, {
+        ...row.payload,
+        status: 'removido',
+        removedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
     } catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Falha ao desativar usuário.' }, { status: 502 }); }
   }
   if (process.env.VERCEL === '1') return NextResponse.json({ ok: false, error: 'Armazenamento de usuários não configurado.' }, { status: 503 });

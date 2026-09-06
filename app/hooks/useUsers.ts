@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AdminRole, ROLE_LEVELS, getCurrentAdminUser, getDefaultPermissionsForRole } from '@/app/lib/adminPermissions';
 
 export type UserRole = AdminRole;
-export type UserStatus = 'ativo' | 'inativo';
+export type UserStatus = 'ativo' | 'inativo' | 'removido';
 export type UserOnboardingStatus = 'invite-sent' | 'first-access-pending' | 'password-changed' | 'active';
 
 function normalizeUserStatus(value: unknown): UserStatus {
@@ -14,6 +14,10 @@ function normalizeUserStatus(value: unknown): UserStatus {
     case 'desativado':
     case 'disabled':
       return 'inativo';
+    case 'removido':
+    case 'removed':
+    case 'deleted':
+      return 'removido';
     case 'ativo':
     case 'active':
     case 'enabled':
@@ -374,9 +378,11 @@ async function upsertRemoteUser(user: User) {
 }
 
 async function deleteRemoteUserById(id: string) {
-  await deleteRemoteUserByIdViaApi(id).catch((error) => {
-    console.error('Erro ao excluir usuario remoto:', error);
-  });
+  const response = await fetch(`/api/admin/users?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || 'Não foi possível remover o usuário no banco de dados.');
+  }
 }
 
 function syncCurrentAdminSession(nextUser: User) {
@@ -711,7 +717,7 @@ export function useUsers() {
     return nextUser;
   };
 
-  const deleteUser = (id: string) => {
+  const deleteUser = async (id: string) => {
     const currentUser = getCurrentAdminUser();
     if (!canManageUsersDirectory(currentUser)) {
       throw new Error('Sem permissão para excluir usuários.');
@@ -726,16 +732,8 @@ export function useUsers() {
       throw new Error('Não é possível remover o usuário administrativo principal.');
     }
 
-    const nextUser = normalizeUserRecord({
-      ...target,
-      status: 'inativo',
-      updatedAt: new Date().toISOString(),
-    });
-
-    setUsers((current) => current.map((user) => (user.id === id ? nextUser : user)));
-    void deleteRemoteUserById(id).catch((error) => {
-      console.error('Erro ao desativar usuário remoto:', error);
-    });
+    await deleteRemoteUserById(id);
+    setUsers((current) => current.filter((user) => user.id !== id));
   };
 
   return {
