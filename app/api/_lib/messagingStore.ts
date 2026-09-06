@@ -1,5 +1,19 @@
 import { hasUserStoreConfig } from '@/app/api/_lib/userStore';
 
+export type Attachment = {
+  id: string;
+  name: string;
+  type: 'image' | 'video' | 'audio' | 'document' | 'other';
+  url: string;
+  size?: number;
+  mimeType?: string;
+};
+
+export type MessageReaction = {
+  emoji: string;
+  userIds: string[];
+};
+
 export type Conversation = {
   id: string;
   participantIds: string[];
@@ -8,6 +22,13 @@ export type Conversation = {
   createdAt: string;
   lastActivityAt: string;
   lastMessagePreview?: string;
+  isGroup?: boolean;
+  name?: string;
+  avatar?: string;
+  description?: string;
+  archivedFor?: string[];
+  mutedFor?: string[];
+  pinnedFor?: string[];
 };
 
 export type Message = {
@@ -16,7 +37,14 @@ export type Message = {
   senderId: string;
   body: string;
   createdAt: string;
+  updatedAt?: string;
+  isEdited?: boolean;
   readAt?: string;
+  replyToId?: string;
+  replyToPreview?: { senderName?: string; text?: string };
+  attachments?: Attachment[];
+  reactions?: MessageReaction[];
+  pinned?: boolean;
 };
 
 export type Notification = {
@@ -89,6 +117,13 @@ function conversationFromRow(row: Row): Conversation {
     createdAt: String(payload.createdAt ?? row.created_at ?? new Date().toISOString()),
     lastActivityAt: String(payload.lastActivityAt ?? row.created_at ?? new Date().toISOString()),
     lastMessagePreview: typeof payload.lastMessagePreview === 'string' ? payload.lastMessagePreview : undefined,
+    isGroup: Boolean(payload.isGroup),
+    name: typeof payload.name === 'string' ? payload.name : undefined,
+    avatar: typeof payload.avatar === 'string' ? payload.avatar : undefined,
+    description: typeof payload.description === 'string' ? payload.description : undefined,
+    archivedFor: Array.isArray(payload.archivedFor) ? payload.archivedFor.map(String) : [],
+    mutedFor: Array.isArray(payload.mutedFor) ? payload.mutedFor.map(String) : [],
+    pinnedFor: Array.isArray(payload.pinnedFor) ? payload.pinnedFor.map(String) : [],
   };
 }
 
@@ -125,7 +160,17 @@ function messageFromRow(row: Row): Message {
     senderId: String(payload.senderId ?? ''),
     body: String(payload.body ?? ''),
     createdAt: String(payload.createdAt ?? row.created_at ?? new Date().toISOString()),
+    updatedAt: typeof payload.updatedAt === 'string' ? payload.updatedAt : undefined,
+    isEdited: Boolean(payload.isEdited),
     readAt: typeof payload.readAt === 'string' ? payload.readAt : undefined,
+    replyToId: typeof payload.replyToId === 'string' ? payload.replyToId : undefined,
+    replyToPreview: payload.replyToPreview && typeof payload.replyToPreview === 'object' ? {
+      senderName: String((payload.replyToPreview as Record<string, unknown>).senderName ?? ''),
+      text: String((payload.replyToPreview as Record<string, unknown>).text ?? ''),
+    } : undefined,
+    attachments: Array.isArray(payload.attachments) ? payload.attachments as Attachment[] : undefined,
+    reactions: Array.isArray(payload.reactions) ? payload.reactions as MessageReaction[] : undefined,
+    pinned: Boolean(payload.pinned),
   };
 }
 

@@ -137,19 +137,133 @@ export async function POST(request: NextRequest) {
     if (action === 'message') {
       const conversationId = String(body.conversationId ?? '').trim();
       const text = String(body.body ?? '').trim();
+      const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+      const replyToId = typeof body.replyToId === 'string' ? body.replyToId : undefined;
+      const replyToPreview = body.replyToPreview && typeof body.replyToPreview === 'object' ? {
+        senderName: String((body.replyToPreview as Record<string, unknown>).senderName ?? ''),
+        text: String((body.replyToPreview as Record<string, unknown>).text ?? ''),
+      } : undefined;
+
       const conversation = (await listConversations()).find((item) => item.id === conversationId);
       if (!conversation || !conversation.participantIds.includes(user!.id)) return jsonError('Conversa não encontrada.', 404);
-      if (!text || text.length > 5000) return jsonError('A mensagem deve ter entre 1 e 5000 caracteres.');
+      if (!text && attachments.length === 0) return jsonError('A mensagem deve conter texto ou arquivo.');
       const now = new Date().toISOString();
-      const message = { id: randomUUID(), conversationId, senderId: user!.id, body: text, createdAt: now };
+      const message = {
+        id: randomUUID(),
+        conversationId,
+        senderId: user!.id,
+        body: text,
+        createdAt: now,
+        replyToId,
+        replyToPreview,
+        attachments,
+      };
       await saveMessage(message);
 
-      // Unhide conversation for both participants when a new message is sent
-      await saveConversation({ ...conversation, hiddenFor: [], lastActivityAt: now, lastMessagePreview: text.slice(0, 140) });
-      const recipientId = conversation.participantIds.find((id) => id !== user!.id);
-      if (recipientId) await saveNotification({ id: randomUUID(), userId: recipientId, conversationId, messageId: message.id, createdAt: now });
+      const previewText = text || (attachments.length > 0 ? `📎 ${attachments.length} arquivo(s)` : 'Nova mensagem');
+      await saveConversation({ ...conversation, hiddenFor: [], lastActivityAt: now, lastMessagePreview: previewText.slice(0, 140) });
+      for (const recipientId of conversation.participantIds) {
+        if (recipientId !== user!.id) {
+          await saveNotification({ id: randomUUID(), userId: recipientId, conversationId, messageId: message.id, createdAt: now });
+        }
+      }
       await updateStoredUserActivity(user!.id, { lastSeenAt: now, isOnline: true });
       return NextResponse.json({ ok: true, message });
+    }
+
+    if (action === 'group') {
+      const groupName = String(body.name ?? '').trim();
+      const participantIds = Array.isArray(body.participantIds) ? body.participantIds.map(String) : [];
+      if (!groupName) return jsonError('O nome do grupo é obrigatório.');
+      if (participantIds.length < 1) return jsonError('Adicione pelo menos 1 participante ao grupo.');
+      
+      const allParticipants = Array.from(new Set([user!.id, ...participantIds]));
+      const now = new Date().toISOString();
+      const conversation: Conversation = {
+        id: randomUUID(),
+        participantIds: allParticipants,
+        createdBy: user!.id,
+        createdAt: now,
+        lastActivityAt: now,
+        isGroup: true,
+        name: groupName,
+        description: typeof body.description === 'string' ? body.description.trim() : undefined,
+        lastMessagePreview: `Grupo "${groupName}" criado`,
+      };
+      await saveConversation(conversation);
+      return NextResponse.json({ ok: true, conversation });
+    }
+
+    if (action === 'reaction') {
+      const messageId = String(body.messageId ?? '').trim();
+      const emoji = String(body.emoji ?? '').trim();
+      if (!messageId || !emoji) return jsonError('Dados de reação inválidos.');
+      const msg = await getMessage(messageId);
+      if (!msg) return jsonError('Mensagem não encontrada.', 404);
+
+      let reactions = msg.reactions || [];
+      const existingIdx = reactions.findIndex((r) => r.emoji === emoji);
+      if (existingIdx >= 0) {
+        const userIds = reactions[existingIdx].userIds;
+        if (userIds.includes(user!.id)) {
+          const newUserIds = userIds.filter((id) => id !== user!.id);
+          if (newUserIds.length === 0) {
+            reactions = reactions.filter((_, idx) => idx !== existingIdx);
+          } else {
+            reactions[existingIdx] = { ...reactions[existingIdx], userIds: newUserIds };
+          }
+        } else {
+          reactions[existingIdx] = { ...reactions[existingIdx], userIds: [...userIds, user!.id] };
+        }
+      } else {
+        reactions.push({ emoji, userIds: [user!.id] });
+      }
+
+      const updatedMsg = { ...msg, reactions };
+      await saveMessage(updatedMsg);
+      return NextResponse.json({ ok: true, message: updatedMsg });
+    }
+
+    if (action === 'pinMessage') {
+      const messageId = String(body.messageId ?? '').trim();
+      const msg = await getMessage(messageId);
+      if (!msg) return jsonError('Mensagem não encontrada.', 404);
+      const updatedMsg = { ...msg, pinned: !msg.pinned };
+      await saveMessage(updatedMsg);
+      return NextResponse.json({ ok: true, message: updatedMsg });
+    }
+
+    if (action === 'toggleArchive') {
+      const conversationId = String(body.conversationId ?? '').trim();
+      const conversation = (await listConversations()).find((item) => item.id === conversationId);
+      if (!conversation || !conversation.participantIds.includes(user!.id)) return jsonError('Conversa não encontrada.', 404);
+      const archived = conversation.archivedFor || [];
+      const isArchived = archived.includes(user!.id);
+      const newArchived = isArchived ? archived.filter((id) => id !== user!.id) : [...archived, user!.id];
+      await saveConversation({ ...conversation, archivedFor: newArchived });
+      return NextResponse.json({ ok: true, archived: !isArchived });
+    }
+
+    if (action === 'toggleMute') {
+      const conversationId = String(body.conversationId ?? '').trim();
+      const conversation = (await listConversations()).find((item) => item.id === conversationId);
+      if (!conversation || !conversation.participantIds.includes(user!.id)) return jsonError('Conversa não encontrada.', 404);
+      const muted = conversation.mutedFor || [];
+      const isMuted = muted.includes(user!.id);
+      const newMuted = isMuted ? muted.filter((id) => id !== user!.id) : [...muted, user!.id];
+      await saveConversation({ ...conversation, mutedFor: newMuted });
+      return NextResponse.json({ ok: true, muted: !isMuted });
+    }
+
+    if (action === 'togglePinConv') {
+      const conversationId = String(body.conversationId ?? '').trim();
+      const conversation = (await listConversations()).find((item) => item.id === conversationId);
+      if (!conversation || !conversation.participantIds.includes(user!.id)) return jsonError('Conversa não encontrada.', 404);
+      const pinned = conversation.pinnedFor || [];
+      const isPinned = pinned.includes(user!.id);
+      const newPinned = isPinned ? pinned.filter((id) => id !== user!.id) : [...pinned, user!.id];
+      await saveConversation({ ...conversation, pinnedFor: newPinned });
+      return NextResponse.json({ ok: true, pinned: !isPinned });
     }
     return jsonError('Ação de mensagens inválida.');
   } catch (error) {
