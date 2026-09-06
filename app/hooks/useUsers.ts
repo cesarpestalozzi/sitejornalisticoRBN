@@ -641,63 +641,67 @@ export function useUsers() {
       throw new Error('Sem permissão para editar usuários.');
     }
 
-    let nextUser: User | null = null;
-    setUsers((current) =>
-      current.map((user) => {
-        if (user.id !== id) {
-          return user;
-        }
+    const cleanId = String(id || '').trim();
+    const cleanCpf = updates.cpf ? normalizeCpf(updates.cpf) : '';
+    const cleanLogin = updates.login ? updates.login.trim().toUpperCase() : '';
 
-        const nextCpf = normalizeCpf(updates.cpf ?? user.cpf);
-        const duplicate = current.some((entry) => entry.id !== id && normalizeCpf(entry.cpf) === nextCpf);
-        if (duplicate) {
-          throw new Error('Não é possível salvar: já existe outro funcionário com este CPF.');
-        }
-        const nextLogin = (updates.login ?? user.login ?? buildUserLogin(nextCpf)).trim().toUpperCase();
-        const duplicateLogin = current.some((entry) => entry.id !== id && entry.login.toUpperCase() === nextLogin);
-        if (duplicateLogin) {
-          throw new Error('Não é possível salvar: este login já está em uso.');
-        }
-
-        nextUser = {
-          ...user,
-          ...updates,
-          cpf: nextCpf,
-          login: nextLogin,
-          permissions: updates.permissions?.length ? updates.permissions : user.permissions,
-          id: user.id,
-          passwordChangeRequired:
-            typeof updates.passwordChangeRequired === 'boolean'
-              ? updates.passwordChangeRequired
-              : typeof updates.passwordHash === 'string'
-                ? false
-                : user.passwordChangeRequired,
-          onboardingStatus:
-            updates.onboardingStatus ??
-            (typeof updates.passwordHash === 'string'
-              ? 'password-changed'
-              : user.onboardingStatus),
-          updatedAt: new Date().toISOString(),
-          changeHistory: [
-            ...(user.changeHistory ?? []),
-            {
-              id: `change-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-              action: 'Cadastro atualizado',
-              changedAt: new Date().toISOString(),
-              changedBy: currentUser?.name ?? 'Administrador',
-            },
-          ].slice(-50),
-        };
-
-        return nextUser;
-      })
+    const existingUser = users.find(
+      (user) =>
+        user.id === cleanId ||
+        (cleanCpf && normalizeCpf(user.cpf) === cleanCpf) ||
+        (cleanLogin && user.login.toUpperCase() === cleanLogin) ||
+        (user.cpf && normalizeCpf(user.cpf) === cleanId)
     );
 
-    if (!nextUser) {
-      throw new Error('Usuário não encontrado.');
+    if (!existingUser) {
+      throw new Error('Usuário não encontrado no cadastro.');
     }
+
+    const targetId = existingUser.id;
+    const nextCpf = cleanCpf || normalizeCpf(existingUser.cpf);
+    const duplicateCpf = users.some((entry) => entry.id !== targetId && normalizeCpf(entry.cpf) === nextCpf);
+    if (duplicateCpf) {
+      throw new Error('Não é possível salvar: já existe outro funcionário com este CPF.');
+    }
+
+    const nextLogin = cleanLogin || (existingUser.login ?? buildUserLogin(nextCpf)).trim().toUpperCase();
+    const duplicateLogin = users.some((entry) => entry.id !== targetId && entry.login.toUpperCase() === nextLogin);
+    if (duplicateLogin) {
+      throw new Error('Não é possível salvar: este login já está em uso.');
+    }
+
+    const nextUser: User = {
+      ...existingUser,
+      ...updates,
+      cpf: nextCpf,
+      login: nextLogin,
+      permissions: updates.permissions?.length ? updates.permissions : existingUser.permissions,
+      id: targetId,
+      passwordChangeRequired:
+        typeof updates.passwordChangeRequired === 'boolean'
+          ? updates.passwordChangeRequired
+          : typeof updates.passwordHash === 'string'
+            ? false
+            : existingUser.passwordChangeRequired,
+      onboardingStatus:
+        updates.onboardingStatus ??
+        (typeof updates.passwordHash === 'string'
+          ? 'password-changed'
+          : existingUser.onboardingStatus),
+      updatedAt: new Date().toISOString(),
+      changeHistory: [
+        ...(existingUser.changeHistory ?? []),
+        {
+          id: `change-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          action: 'Cadastro atualizado',
+          changedAt: new Date().toISOString(),
+          changedBy: currentUser?.name ?? 'Administrador',
+        },
+      ].slice(-50),
+    };
+
     await upsertRemoteUser(nextUser);
-    setUsers((current) => current.map((user) => user.id === id ? nextUser as User : user));
+    setUsers((current) => current.map((user) => (user.id === targetId ? nextUser : user)));
     syncCurrentAdminSession(nextUser);
     return nextUser;
   };

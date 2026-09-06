@@ -758,6 +758,10 @@ export function useArticles() {
     }
 
     setArticles((current) => [newArticle, ...current]);
+    syncLocalStorageSnapshot([newArticle, ...articles], deletedArticles);
+    void upsertRemoteArticle(newArticle, false).catch((error) => {
+      warnSupabaseWriteIssue('salvar novo artigo no Supabase', error);
+    });
     return newArticle;
   };
 
@@ -819,7 +823,7 @@ export function useArticles() {
           maybeSendBrowserNotification(nextArticle);
         }
 
-        void updateRemoteArticle(nextArticle, false).catch((error) => {
+        void upsertRemoteArticle(nextArticle, false).catch((error) => {
           warnSupabaseWriteIssue('sincronizar atualização do artigo', error);
         });
         return nextArticle;

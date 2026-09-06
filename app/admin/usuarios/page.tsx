@@ -491,25 +491,25 @@ export default function UsersPage() {
     const nextErrors: Record<string, string> = {};
 
     if (!formData.name.trim()) {
-      nextErrors.name = 'Informe o nome do usuário.';
+      nextErrors.name = 'Preencha o campo Nome completo.';
     }
 
     if (!formData.email.trim()) {
-      nextErrors.email = 'Informe o e-mail.';
+      nextErrors.email = 'Preencha o campo E-mail.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      nextErrors.email = 'Informe um e-mail válido.';
+      nextErrors.email = 'Preencha um e-mail válido (ex: usuario@rbn.com.br).';
     }
 
     if (!formData.cpf.trim()) {
-      nextErrors.cpf = 'Informe o CPF.';
+      nextErrors.cpf = 'Preencha o campo CPF.';
     }
 
     if (!formData.login.trim()) {
-      nextErrors.login = 'Informe o login.';
+      nextErrors.login = 'Preencha o campo Login.';
     }
 
     if (!formData.bio.trim()) {
-      nextErrors.bio = 'Descreva a função ou especialidade do usuário.';
+      nextErrors.bio = 'Preencha a Biografia / Função do usuário.';
     }
 
     if (editingId && passwordInput.trim() && passwordInput.trim().length > MAX_PASSWORD_LENGTH) {
@@ -517,7 +517,7 @@ export default function UsersPage() {
     }
 
     if (editingId && confirmPasswordInput.trim() && !passwordInput.trim()) {
-      nextErrors.confirmPassword = 'Informe a senha antes de confirmar.';
+      nextErrors.confirmPassword = 'Informe a nova senha antes de confirmar.';
     }
 
     if (editingId && passwordInput.trim() && !confirmPasswordInput.trim()) {
@@ -529,7 +529,8 @@ export default function UsersPage() {
     }
 
     setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    const errorKeys = Object.keys(nextErrors);
+    return { isValid: errorKeys.length === 0, firstError: errorKeys.length > 0 ? nextErrors[errorKeys[0]] : null };
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -549,8 +550,9 @@ export default function UsersPage() {
       addToast('Somente admin e editor-chefe podem salvar alterações em usuários.', 'error', 3000);
       return;
     }
-    if (!validateForm()) {
-      addToast('Revise os campos obrigatórios antes de salvar.', 'error', 3000);
+    const validation = validateForm();
+    if (!validation.isValid) {
+      addToast(validation.firstError || 'Revise os campos obrigatórios antes de salvar.', 'error', 4000);
       return;
     }
 
@@ -569,7 +571,7 @@ export default function UsersPage() {
           passwordChangeRequired: passwordInput.trim() ? false : formData.passwordChangeRequired,
           onboardingStatus: passwordInput.trim() ? 'password-changed' : formData.onboardingStatus,
         });
-        addToast('Usuário atualizado com sucesso.', 'success', 2500);
+        addToast('Usuário atualizado com sucesso!', 'success', 3000);
       } else {
         const temporaryPassword = generateTemporaryPassword(10);
         const onboardingPayload = {
@@ -580,6 +582,7 @@ export default function UsersPage() {
         };
 
         await addUser(onboardingPayload);
+        addToast('Usuário cadastrado com sucesso!', 'success', 3000);
         void fetch('/api/welcome-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
