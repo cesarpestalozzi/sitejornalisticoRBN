@@ -34,10 +34,38 @@ function normalizeRole(value: unknown) {
   return ROLE_ALIASES[role] ?? role;
 }
 
+export function isTestUser(payload: Record<string, unknown> | null | undefined): boolean {
+  if (!payload) return true;
+  const name = String(payload.name ?? '').toLowerCase().trim();
+  const email = String(payload.email ?? '').toLowerCase().trim();
+  const login = String(payload.login ?? '').toUpperCase().trim();
+  const status = String(payload.status ?? '').toLowerCase().trim();
+  const role = String(payload.role ?? '').toLowerCase().trim();
+
+  if (['removido', 'removed', 'deleted', 'inativo', 'inactive', 'disabled', 'desativado'].includes(status)) return true;
+  if (role === 'leitor' || role === 'reader') return true;
+
+  if (
+    name.includes('teste') ||
+    name.includes('test') ||
+    name.startsWith('por redação') ||
+    name.startsWith('usuario teste') ||
+    email.includes('test') ||
+    email.includes('teste') ||
+    email.includes('persist-test') ||
+    login.includes('999999999') ||
+    login.startsWith('RBN99999') ||
+    login === '-' ||
+    login === ''
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function isActive(payload: Record<string, unknown>) {
-  return !['inativo', 'inactive', 'disabled', 'desativado', 'removido', 'removed', 'deleted'].includes(
-    String(payload.status ?? 'ativo').trim().toLowerCase(),
-  );
+  return !isTestUser(payload);
 }
 
 function permissionsFor(payload: Record<string, unknown>, role: string) {
@@ -57,14 +85,17 @@ function permissionsFor(payload: Record<string, unknown>, role: string) {
 
 export async function getAdminDirectory(): Promise<DirectoryRow[]> {
   if (hasUserStoreConfig()) {
-    return (await listStoredUsers()).map((row) => ({ id: row.id, payload: row.payload }));
+    return (await listStoredUsers())
+      .filter((row) => !isTestUser(row.payload))
+      .map((row) => ({ id: row.id, payload: row.payload }));
   }
 
   const base = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
   const response = await fetch(`${base}/api/admin/users`, { cache: 'no-store', headers: { Accept: 'application/json' } });
   if (!response.ok) return [];
   const data = await response.json();
-  return Array.isArray(data.rows) ? data.rows as DirectoryRow[] : [];
+  const rows = Array.isArray(data.rows) ? (data.rows as DirectoryRow[]) : [];
+  return rows.filter((row) => !isTestUser(row.payload));
 }
 
 export async function resolveAdminUser(request: NextRequest): Promise<ServerAdminUser | null> {

@@ -205,6 +205,40 @@ function createAvatar(name: string, background: string) {
   `);
 }
 
+export function isTestUser(user: Partial<User> | Record<string, unknown> | null | undefined): boolean {
+  if (!user) return true;
+  const name = String(user.name ?? '').toLowerCase().trim();
+  const email = String(emailValue(user) ?? '').toLowerCase().trim();
+  const login = String(user.login ?? '').toUpperCase().trim();
+  const status = String(user.status ?? '').toLowerCase().trim();
+  const role = String(user.role ?? '').toLowerCase().trim();
+
+  if (['removido', 'removed', 'deleted', 'inativo', 'inactive', 'disabled', 'desativado'].includes(status)) return true;
+  if (role === 'leitor' || role === 'reader') return true;
+
+  if (
+    name.includes('teste') ||
+    name.includes('test') ||
+    name.startsWith('por redação') ||
+    name.startsWith('usuario teste') ||
+    email.includes('test') ||
+    email.includes('teste') ||
+    email.includes('persist-test') ||
+    login.includes('999999999') ||
+    login.startsWith('RBN99999') ||
+    login === '-' ||
+    login === ''
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function emailValue(user: Partial<User> | Record<string, unknown>): unknown {
+  return 'email' in user ? user.email : (user as Record<string, unknown>).email;
+}
+
 function getMockUsers(): User[] {
   // Usa data muito antiga para que dados reais do Supabase sempre ganhem no merge
   const epoch = '2020-01-01T00:00:00.000Z';
@@ -327,7 +361,7 @@ function canManageUsersDirectory(currentUser: ReturnType<typeof getCurrentAdminU
 }
 
 function ensureOfficialAdminUser(nextUsers: User[]) {
-  const sanitized = nextUsers.map((user) => normalizeUserRecord(user));
+  const sanitized = nextUsers.filter((u) => !isTestUser(u)).map((user) => normalizeUserRecord(user));
 
   const adminIndex = sanitized.findIndex(
     (user) =>
@@ -380,6 +414,7 @@ function mergeUsers(...groups: User[][]) {
   const map = new Map<string, User>();
 
   groups.flat().forEach((rawUser) => {
+    if (isTestUser(rawUser)) return;
     const user = normalizeUserRecord(rawUser);
     const key = getUserIdentity(user);
     const existing = map.get(key);
@@ -406,7 +441,8 @@ function readLocalUsers() {
 
   try {
     const parsed = JSON.parse(stored) as User[];
-    return ensureOfficialAdminUser(Array.isArray(parsed) ? parsed : []).map(normalizeUserRecord);
+    const valid = Array.isArray(parsed) ? parsed.filter((u) => !isTestUser(u)) : [];
+    return ensureOfficialAdminUser(valid).map(normalizeUserRecord);
   } catch (error) {
     console.error('Erro ao carregar usuarios:', error);
     return ensureOfficialAdminUser([]).map(normalizeUserRecord);
@@ -419,8 +455,9 @@ async function readRemoteUsers() {
   // Usa dados do Supabase diretamente sem aplicar mock defaults
   return rows
     .filter((row) => {
+      if (!row || !row.payload || isTestUser(row.payload)) return false;
       const role = String(row.payload?.role ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
-      return row && row.payload && ['admin', 'administrador', 'administrador principal', 'editor-chefe', 'editor chefe', 'editor', 'jornalista', 'colaborador', 'estagiario'].includes(role);
+      return ['admin', 'administrador', 'administrador principal', 'editor-chefe', 'editor chefe', 'editor', 'jornalista', 'colaborador', 'estagiario'].includes(role);
     })
     .map((row) => normalizeUserRecord({ ...row.payload, id: row.id }));
 }

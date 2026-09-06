@@ -102,9 +102,36 @@ export default function UserMonitoringPage() {
     }
   };
 
+  const realUsers = useMemo(() => {
+    return users.filter((u) => {
+      const name = u.name.toLowerCase();
+      const email = u.email.toLowerCase();
+      const login = u.login.toUpperCase();
+      const role = u.role.toLowerCase();
+
+      if (role === 'leitor' || role === 'reader') return false;
+      if (
+        name.includes('teste') ||
+        name.includes('test') ||
+        name.startsWith('por redação') ||
+        name.startsWith('usuario teste') ||
+        email.includes('test') ||
+        email.includes('teste') ||
+        email.includes('persist-test') ||
+        login.includes('999999999') ||
+        login.startsWith('RBN99999') ||
+        login === '-' ||
+        login === ''
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [users]);
+
   const filteredUsers = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return users.filter((u) => {
+    return realUsers.filter((u) => {
       const matchesText =
         !q ||
         `${u.name} ${u.fullName} ${u.login} ${u.email} ${u.role}`.toLowerCase().includes(q);
@@ -114,10 +141,10 @@ export default function UserMonitoringPage() {
         (statusFilter === 'offline' && !u.isOnline);
       return matchesText && matchesStatus;
     });
-  }, [users, query, statusFilter]);
+  }, [realUsers, query, statusFilter]);
 
-  const onlineCount = useMemo(() => users.filter((u) => u.isOnline).length, [users]);
-  const offlineCount = useMemo(() => users.filter((u) => !u.isOnline).length, [users]);
+  const onlineCount = useMemo(() => realUsers.filter((u) => u.isOnline).length, [realUsers]);
+  const offlineCount = useMemo(() => realUsers.filter((u) => !u.isOnline).length, [realUsers]);
 
   if (!currentUser) return null;
 
@@ -163,7 +190,7 @@ export default function UserMonitoringPage() {
                 </p>
                 <Users className="h-5 w-5 text-gray-400" />
               </div>
-              <p className="mt-2 text-3xl font-bold text-gray-900">{users.length}</p>
+              <p className="mt-2 text-3xl font-bold text-gray-900">{realUsers.length}</p>
             </div>
 
             <button

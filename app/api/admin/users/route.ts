@@ -1,4 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
+import { isTestUser } from '@/app/api/_lib/adminServerAuth';
 import { hasUserStoreConfig, listStoredUsers, saveStoredUser } from '@/app/api/_lib/userStore';
 import { listStoredArticles, saveStoredArticle } from '@/app/api/_lib/articleStore';
 
@@ -70,8 +71,7 @@ export async function GET(request: NextRequest) {
     try {
       const rows = (await listStoredUsers()).filter((row) => {
         const role = normalizeRole(row.payload.role);
-        const status = String(row.payload.status ?? 'ativo').toLowerCase().trim();
-        return ADMIN_ROLES.has(role) && !['removido', 'removed', 'deleted'].includes(status);
+        return ADMIN_ROLES.has(role) && !isTestUser(row.payload);
       }).map((row) => ({
         ...row,
         payload: { ...row.payload, name: normalizePersonName(row.payload.name) || row.payload.name },
