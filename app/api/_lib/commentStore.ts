@@ -12,16 +12,16 @@ const url = env('NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL').replace(/\/$/, '');
 const key = env('SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY');
 const table = url ? `${url}/rest/v1/pz_news_comments` : '';
 const fallbackTable = url ? `${url}/rest/v1/pz_news_settings` : '';
-const headers = () => ({ apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json', 'Content-Type': 'application/json' });
+const headers = () => ({ apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json', 'Content-Type': 'application/json' });
 
 export function hasCommentStoreConfig() { return Boolean(table && key); }
 
 export async function listStoredComments(articleId?: string) {
-  const params = new URLSearchParams({ select: 'id,payload,updated_at', order: 'updated_at.desc' });
+  const params = new URLSearchParams({ select: 'id,payload,updated_at', order: 'updated_at.desc', limit: '10000' });
   if (articleId) params.set('payload->>articleId', `eq.${articleId}`);
   const response = await fetch(`${table}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
   if (response.status === 404) {
-    const fallbackResponse = await fetch(`${fallbackTable}?id=like.comment:*&select=id,payload,updated_at&order=updated_at.desc&limit=1000`, { headers: headers(), cache: 'no-store' });
+    const fallbackResponse = await fetch(`${fallbackTable}?id=like.comment:*&select=id,payload,updated_at&order=updated_at.desc&limit=10000`, { headers: headers(), cache: 'no-store' });
     if (!fallbackResponse.ok) throw new Error(`Supabase recusou a consulta de comentários (${fallbackResponse.status}).`);
     const rows = await fallbackResponse.json() as StoredCommentRow[];
     return articleId ? rows.filter((row) => String(row.payload.articleId ?? '') === articleId) : rows;

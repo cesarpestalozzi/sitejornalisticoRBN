@@ -1,15 +1,11 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { hasArticleStoreConfig, listStoredArticles } from '../../_lib/articleStore';
+import { isPublishedArticle } from '@/app/lib/articleStatus';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const pythonApiBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
-
-function isPublished(status: unknown) {
-  const normalized = String(status || '').trim().toLowerCase();
-  return normalized === 'publicado' || normalized === 'published' || normalized === 'publish' || normalized === 'online';
-}
 
 function resolveArticleImage(id: string, payload: Record<string, unknown>) {
   const images = Array.isArray(payload.images) ? payload.images : [];
@@ -35,7 +31,7 @@ export async function GET(request: NextRequest) {
     try {
       const rows = await listStoredArticles();
       const articles = rows
-        .filter((row) => !row.deleted && isPublished(row.payload.status))
+        .filter((row) => !row.deleted && isPublishedArticle(row.payload.status))
         .map((row) => ({
           ...row.payload,
           id: row.id,

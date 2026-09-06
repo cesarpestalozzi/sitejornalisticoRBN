@@ -22,7 +22,7 @@ const table = url ? `${url}/rest/v1/pz_news_analytics_events` : '';
 const fallbackTable = url ? `${url}/rest/v1/pz_news_settings` : '';
 
 function headers(extra: Record<string, string> = {}) {
-  return { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json', 'Content-Type': 'application/json', ...extra };
+  return { apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json', 'Content-Type': 'application/json', ...extra };
 }
 
 export function hasAnalyticsStoreConfig() {
@@ -64,7 +64,7 @@ export async function listAnalyticsEvents(from?: string, to?: string) {
     if (to) params.append('occurred_at', `lte.${to}`);
     const response = await fetch(`${table}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
     if (response.status === 404) {
-      const fallbackResponse = await fetch(`${fallbackTable}?id=like.analytics:*&select=payload&order=updated_at.asc&limit=1000`, { headers: headers(), cache: 'no-store' });
+      const fallbackResponse = await fetch(`${fallbackTable}?id=like.analytics:*&select=payload&order=updated_at.asc&limit=10000`, { headers: headers(), cache: 'no-store' });
       if (!fallbackResponse.ok) throw new Error(`Supabase recusou a consulta de métricas (${fallbackResponse.status}).`);
       const fallbackRows = await fallbackResponse.json() as Array<{ payload?: AnalyticsEvent & { _type?: string } }>;
       return fallbackRows.map((row) => row.payload).filter((event): event is AnalyticsEvent => event?._type === 'analytics_event' && (!from || event.occurred_at >= from) && (!to || event.occurred_at <= to));
