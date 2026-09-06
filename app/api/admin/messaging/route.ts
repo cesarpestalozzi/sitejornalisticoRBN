@@ -82,11 +82,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const user = await resolveAdminUser(request);
-  if (!canUseMessaging(user, 'send')) return jsonError('Sessão ou permissão de mensagens inválida.', 401);
-  if (!hasMessagingStoreConfig()) return proxyAdminRequest(request, '/api/admin/messaging');
   const body = await readBody(request);
+  const action = String(body.action ?? '');
+  if (!canUseMessaging(user, action === 'heartbeat' ? 'view' : 'send')) return jsonError('Sessão ou permissão de mensagens inválida.', 401);
+  if (!hasMessagingStoreConfig()) return proxyAdminRequest(request, '/api/admin/messaging');
   try {
-    const action = String(body.action ?? '');
     if (action === 'heartbeat') {
       await updateStoredUserActivity(user!.id, { lastSeenAt: new Date().toISOString(), isOnline: true });
       return NextResponse.json({ ok: true });

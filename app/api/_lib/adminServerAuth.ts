@@ -31,9 +31,11 @@ function isActive(payload: Record<string, unknown>) {
 }
 
 function permissionsFor(payload: Record<string, unknown>, role: string) {
-  const permissions = Array.isArray(payload.permissions) ? payload.permissions.filter((item): item is string => typeof item === 'string') : [];
+  const storedPermissions = Array.isArray(payload.permissions) ? payload.permissions : null;
+  const hasStoredPermissions = storedPermissions !== null;
+  const permissions = storedPermissions ? storedPermissions.filter((item): item is string => typeof item === 'string') : [];
   if (role === 'admin') return [...new Set([...permissions, 'messages:view', 'messages:send'])];
-  return [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS])];
+  return hasStoredPermissions ? [...new Set(permissions)] : [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS])];
 }
 
 export async function getAdminDirectory(): Promise<DirectoryRow[]> {

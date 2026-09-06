@@ -28,6 +28,8 @@ export default function AdminMessagesPage() {
   const [selectedId, setSelectedId] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+  const [conversationSearch, setConversationSearch] = useState('');
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,6 +40,19 @@ export default function AdminMessagesPage() {
     const id = selectedConversation?.participantIds.find((participantId) => participantId !== currentUser?.id);
     return directory.find((user) => user.id === id);
   }, [currentUser?.id, directory, selectedConversation]);
+  const filteredDirectory = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    return directory.filter((user) => !query || `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(query));
+  }, [directory, userSearch]);
+  const filteredConversations = useMemo(() => {
+    const query = conversationSearch.trim().toLowerCase();
+    return conversations.filter((conversation) => {
+      if (!query) return true;
+      const participantId = conversation.participantIds.find((id) => id !== currentUser?.id);
+      const participant = directory.find((user) => user.id === participantId);
+      return `${participant?.name ?? ''} ${conversation.lastMessagePreview ?? ''}`.toLowerCase().includes(query);
+    });
+  }, [conversations, conversationSearch, currentUser?.id, directory]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,15 +143,19 @@ export default function AdminMessagesPage() {
                 <div className="flex gap-2">
                   <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm">
                     <option value="">Selecionar colega</option>
-                    {directory.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                    {filteredDirectory.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                   </select>
                   <button type="button" onClick={startConversation} disabled={!selectedUserId} className="rounded-lg bg-[#991B1B] p-2 text-white disabled:opacity-40" aria-label="Iniciar conversa"><Plus className="h-5 w-5" /></button>
                 </div>
+                <input value={userSearch} onChange={(event) => setUserSearch(event.target.value)} placeholder="Pesquisar usuários autorizados" className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+              </div>
+              <div className="border-b border-gray-200 p-4">
+                <input value={conversationSearch} onChange={(event) => setConversationSearch(event.target.value)} placeholder="Pesquisar conversas" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
               </div>
               <div className="max-h-[510px] overflow-y-auto">
                 {loading && <p className="p-5 text-sm text-gray-500">Carregando conversas...</p>}
                 {!loading && conversations.length === 0 && <p className="p-5 text-sm text-gray-500">Nenhuma conversa iniciada.</p>}
-                {conversations.map((conversation) => {
+                {filteredConversations.map((conversation) => {
                   const participantId = conversation.participantIds.find((id) => id !== currentUser.id);
                   const participant = directory.find((user) => user.id === participantId);
                   return <button type="button" key={conversation.id} onClick={() => setSelectedId(conversation.id)} className={`flex w-full items-start gap-3 border-b border-gray-100 p-4 text-left transition ${selectedId === conversation.id ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
