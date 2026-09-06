@@ -102,19 +102,23 @@ export default function TeamDocumentationPage() {
       const data = await api('/api/admin/documentacao-equipe');
       setUsers(data.users ?? []);
       setDocuments(data.documents ?? []);
+      setUnlocked(true);
       setError('');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Não foi possível carregar a documentação.');
+      const msg = reason instanceof Error ? reason.message : 'Não foi possível carregar a documentação.';
+      setError(msg);
+      if (msg.includes('PIN')) {
+        setUnlocked(false);
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!unlocked) return;
     const timer = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(timer);
-  }, [load, unlocked]);
+  }, [load]);
 
   const unlockHumanResources = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -126,8 +130,8 @@ export default function TeamDocumentationPage() {
         body: JSON.stringify({ pin }),
       });
       setPin('');
-      setUnlocked(true);
       setError('');
+      await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível desbloquear Recursos Humanos.');
     } finally {

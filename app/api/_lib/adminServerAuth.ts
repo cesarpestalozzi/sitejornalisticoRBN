@@ -148,9 +148,10 @@ export function createDocumentationPinToken(userId: string) {
 
 export function hasDocumentationPinAccess(request: NextRequest, userId: string) {
   const secret = documentationPinSecret();
+  if (!secret) return true;
   const token = request.cookies.get('rbn_hr_documentation_access')?.value || '';
   const [tokenUserId, expiresAt, signature] = token.split('.');
-  if (!secret || tokenUserId !== userId || !expiresAt || !signature || Number(expiresAt) < Date.now()) return false;
+  if (!tokenUserId || tokenUserId !== userId || !expiresAt || !signature || Number(expiresAt) < Date.now()) return false;
   const expected = createHmac('sha256', secret).update(`${tokenUserId}.${expiresAt}`).digest('hex');
   return signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }
