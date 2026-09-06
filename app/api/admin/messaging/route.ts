@@ -8,6 +8,8 @@ import {
   updateStoredUserActivity,
 } from '@/app/api/_lib/adminServerAuth';
 import {
+  deleteMessage,
+  getMessage,
   hasMessagingStoreConfig,
   listConversations,
   listMessages,
@@ -160,10 +162,23 @@ export async function DELETE(request: NextRequest) {
   if (!canUseMessaging(user, 'send')) return jsonError('Sessão ou permissão de mensagens inválida.', 401);
   if (!hasMessagingStoreConfig()) return proxyAdminRequest(request, '/api/admin/messaging');
 
-  const conversationId = request.nextUrl.searchParams.get('conversationId') || (await readBody(request)).conversationId;
-  if (!conversationId) return jsonError('ID da conversa é obrigatório.');
+  const bodyData = await readBody(request);
+  const messageId = request.nextUrl.searchParams.get('messageId') || bodyData.messageId;
+  const conversationId = request.nextUrl.searchParams.get('conversationId') || bodyData.conversationId;
 
   try {
+    if (messageId) {
+      const msg = await getMessage(messageId);
+      if (!msg) return jsonError('Mensagem não encontrada.', 404);
+      if (msg.senderId !== user!.id && user!.role !== 'admin') {
+        return jsonError('Você só pode apagar suas próprias mensagens.', 403);
+      }
+      await deleteMessage(messageId);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!conversationId) return jsonError('ID da conversa ou mensagem é obrigatório.');
+
     const conversations = await listConversations();
     const conversation = conversations.find((item) => item.id === conversationId);
     if (!conversation || !conversation.participantIds.includes(user!.id)) {
@@ -176,7 +191,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : 'Falha ao excluir conversa.', 502);
+    return jsonError(error instanceof Error ? error.message : 'Falha ao excluir.', 502);
   }
 }
 
@@ -185,8 +200,24 @@ export async function PATCH(request: NextRequest) {
   if (!canUseMessaging(user, 'view')) return jsonError('Sessão ou permissão de mensagens inválida.', 401);
   if (!hasMessagingStoreConfig()) return proxyAdminRequest(request, '/api/admin/messaging');
   const body = await readBody(request);
-  const conversationId = typeof body.conversationId === 'string' ? body.conversationId : undefined;
+  const action = String(body.action ?? '');
+
   try {
+    if (action === 'edit' || body.messageId) {
+      const messageId = String(body.messageId ?? '').trim();
+      const text = String(body.body ?? '').trim();
+      if (!messageId || !text) return jsonError('Dados inválidos para edição.');
+      const msg = await getMessage(messageId);
+      if (!msg) return jsonError('Mensagem não encontrada.', 404);
+      if (msg.senderId !== user!.id && user!.role !== 'admin') {
+        return jsonError('Você só pode editar suas próprias mensagens.', 403);
+      }
+      const updatedMsg = { ...msg, body: text };
+      await saveMessage(updatedMsg);
+      return NextResponse.json({ ok: true, message: updatedMsg });
+    }
+
+    const conversationId = typeof body.conversationId === 'string' ? body.conversationId : undefined;
     if (conversationId) {
       const conversation = (await listConversations()).find((item) => item.id === conversationId);
       if (!conversation || !visibleConversation(conversation, user!.id)) return jsonError('Conversa não encontrada.', 404);
@@ -194,6 +225,6 @@ export async function PATCH(request: NextRequest) {
     await markNotificationsRead(user!.id, conversationId);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : 'Falha ao marcar mensagens como lidas.', 502);
+    return jsonError(error instanceof Error ? error.message : 'Falha ao atualizar mensagem.', 502);
   }
 }

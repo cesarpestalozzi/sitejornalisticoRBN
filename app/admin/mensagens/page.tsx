@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { getCurrentAdminUser, hasPermission } from '@/app/lib/adminPermissions';
-import { Check, CheckCheck, MessageCircle, Plus, Search, Send, Trash2, Users } from 'lucide-react';
+import { Check, CheckCheck, MessageCircle, Pencil, Plus, Search, Send, Trash2, Users, X } from 'lucide-react';
 
 type DirectoryUser = { id: string; name: string; email: string; avatar?: string; role: string; lastSeenAt?: string | null; isOnline?: boolean };
 type Conversation = { id: string; participantIds: string[]; lastActivityAt: string; lastMessagePreview?: string };
@@ -43,6 +43,8 @@ export default function AdminMessagesPage() {
   const [error, setError] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingMsgId, setEditingMsgId] = useState('');
+  const [editingMsgText, setEditingMsgText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentUser = getCurrentAdminUser();
 
@@ -148,6 +150,31 @@ export default function AdminMessagesPage() {
     }
   };
 
+  const saveEditMessage = async (messageId: string) => {
+    if (!editingMsgText.trim()) return;
+    try {
+      const data = await api<{ ok: true; message: Message }>('/api/admin/messaging', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'edit', messageId, body: editingMsgText.trim() }),
+      });
+      setMessages((current) => current.map((m) => (m.id === messageId ? { ...m, body: data.message.body } : m)));
+      setEditingMsgId('');
+      setEditingMsgText('');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível editar a mensagem.');
+    }
+  };
+
+  const deleteSingleMessage = async (messageId: string) => {
+    if (!window.confirm('Deseja apagar esta mensagem?')) return;
+    try {
+      await api('/api/admin/messaging', { method: 'DELETE', body: JSON.stringify({ messageId }) });
+      setMessages((current) => current.filter((m) => m.id !== messageId));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Não foi possível apagar a mensagem.');
+    }
+  };
+
   const confirmDeleteConversation = async () => {
     if (!selectedId) return;
     setDeleting(true);
@@ -213,30 +240,42 @@ export default function AdminMessagesPage() {
                   const isSelected = selectedId === conversation.id;
 
                   return (
-                    <button
-                      type="button"
+                    <div
                       key={conversation.id}
-                      onClick={() => { setSelectedId(conversation.id); void fetchMessages(conversation.id); }}
-                      className={`flex w-full items-center gap-3 border-b border-gray-100 p-3.5 text-left transition ${isSelected ? 'bg-red-50/80 font-medium' : 'hover:bg-gray-50'}`}
+                      className={`group flex items-center justify-between border-b border-gray-100 p-3 transition ${isSelected ? 'bg-red-50/90 font-medium' : 'hover:bg-gray-50'}`}
                     >
-                      <div className="relative shrink-0">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#991B1B] text-sm font-bold text-white">
-                          {(participant?.name ?? 'U').slice(0, 1).toUpperCase()}
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedId(conversation.id); void fetchMessages(conversation.id); }}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
+                        <div className="relative shrink-0">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#991B1B] text-sm font-bold text-white">
+                            {(participant?.name ?? 'U').slice(0, 1).toUpperCase()}
+                          </div>
+                          <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${participant?.isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`} />
                         </div>
-                        <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${participant?.isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <strong className="truncate text-sm text-gray-900">{participant?.name ?? 'Colega de trabalho'}</strong>
-                          {unreadCount > 0 && (
-                            <span className="rounded-full bg-[#991B1B] px-2 py-0.5 text-[10px] font-bold text-white">
-                              {unreadCount}
-                            </span>
-                          )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <strong className="truncate text-sm text-gray-900">{participant?.name ?? 'Colega de trabalho'}</strong>
+                            {unreadCount > 0 && (
+                              <span className="rounded-full bg-[#991B1B] px-2 py-0.5 text-[10px] font-bold text-white">
+                                {unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 block truncate text-xs text-gray-500">{conversation.lastMessagePreview || 'Conversa iniciada'}</p>
                         </div>
-                        <p className="mt-0.5 block truncate text-xs text-gray-500">{conversation.lastMessagePreview || 'Conversa iniciada'}</p>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setSelectedId(conversation.id); setShowDeleteModal(true); }}
+                        className="ml-1 rounded-md p-1.5 text-gray-400 hover:bg-red-100 hover:text-red-700"
+                        title="Excluir conversa"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -279,22 +318,83 @@ export default function AdminMessagesPage() {
                     )}
                     {messages.map((message) => {
                       const isMine = message.senderId === currentUser.id;
+                      const isEditing = editingMsgId === message.id;
+
                       return (
-                        <div key={message.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                          <div className={`max-w-[78%] rounded-2xl px-4 py-3 shadow-sm text-sm ${isMine ? 'bg-[#991B1B] text-white rounded-br-none' : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'}`}>
-                            <p className="whitespace-pre-wrap break-words">{message.body}</p>
-                            <div className={`mt-1.5 flex items-center justify-end gap-1 text-[10px] ${isMine ? 'text-white/80' : 'text-gray-400'}`}>
-                              <time>{new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time>
-                              {isMine && (
-                                <span title={message.isRead ? 'Visualizada' : 'Entregue'}>
-                                  {message.isRead ? (
-                                    <CheckCheck className="h-3.5 w-3.5 text-sky-300" />
-                                  ) : (
-                                    <CheckCheck className="h-3.5 w-3.5 text-white/70" />
-                                  )}
-                                </span>
+                        <div key={message.id} className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                          <div className="relative max-w-[80%]">
+                            <div className={`rounded-2xl px-4 py-3 shadow-sm text-sm ${isMine ? 'bg-[#991B1B] text-white rounded-br-none' : 'bg-white text-gray-800 rounded-bl-none border border-gray-200'}`}>
+                              {isEditing ? (
+                                <div className="flex flex-col gap-2">
+                                  <textarea
+                                    value={editingMsgText}
+                                    onChange={(e) => setEditingMsgText(e.target.value)}
+                                    className="w-full rounded-lg border border-white/40 bg-white/10 p-2 text-sm text-white focus:outline-none"
+                                    rows={2}
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingMsgId('')}
+                                      className="rounded bg-white/20 p-1 text-xs text-white hover:bg-white/30"
+                                      title="Cancelar"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void saveEditMessage(message.id)}
+                                      className="rounded bg-white px-2 py-1 text-xs font-bold text-[#991B1B]"
+                                      title="Salvar alteração"
+                                    >
+                                      Salvar
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                                  <div className={`mt-1.5 flex items-center justify-end gap-1.5 text-[10px] ${isMine ? 'text-white/80' : 'text-gray-400'}`}>
+                                    <time>{new Date(message.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</time>
+                                    {isMine && (
+                                      <span title={message.isRead ? 'Visualizada' : 'Entregue'}>
+                                        {message.isRead ? (
+                                          <CheckCheck className="h-3.5 w-3.5 text-sky-300" />
+                                        ) : (
+                                          <CheckCheck className="h-3.5 w-3.5 text-white/70" />
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
+                                </>
                               )}
                             </div>
+
+                            {/* Message Actions (Edit & Delete) */}
+                            {!isEditing && (
+                              <div className={`absolute top-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 ${isMine ? '-left-16' : '-right-16'}`}>
+                                {isMine && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditingMsgId(message.id); setEditingMsgText(message.body); }}
+                                    className="rounded-full bg-white p-1.5 text-gray-500 shadow hover:bg-gray-100 hover:text-gray-800"
+                                    title="Editar mensagem"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                {(isMine || currentUser.role === 'admin') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteSingleMessage(message.id)}
+                                    className="rounded-full bg-white p-1.5 text-red-500 shadow hover:bg-red-50 hover:text-red-700"
+                                    title="Apagar mensagem"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

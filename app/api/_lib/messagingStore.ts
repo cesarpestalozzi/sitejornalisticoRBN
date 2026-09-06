@@ -140,6 +140,30 @@ export async function listMessages(conversationId: string) {
   return rows.map(messageFromRow);
 }
 
+export async function getMessage(messageId: string): Promise<Message | null> {
+  let rows: Row[];
+  try {
+    rows = await requestTable(`rbn_messages?id=eq.${encodeURIComponent(messageId)}&select=id,conversation_id,payload,created_at`);
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    rows = await fallbackRows(`__message:${messageId}`);
+  }
+  return rows[0] ? messageFromRow(rows[0]) : null;
+}
+
+export async function deleteMessage(messageId: string) {
+  try {
+    await requestTable(`rbn_messages?id=eq.${encodeURIComponent(messageId)}`, {
+      method: 'DELETE',
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    await requestTable(`pz_news_articles?id=eq.${encodeURIComponent(`__message:${messageId}`)}`, {
+      method: 'DELETE',
+    });
+  }
+}
+
 export async function saveMessage(message: Message) {
   try {
     await requestTable('rbn_messages', {
