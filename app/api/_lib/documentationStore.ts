@@ -31,6 +31,7 @@ const baseUrl = env('NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_URL').replace(/\/$/, '
 const key = env('SUPABASE_SERVICE_ROLE_KEY');
 const table = baseUrl ? `${baseUrl}/rest/v1/pz_news_team_documents` : '';
 const auditTable = baseUrl ? `${baseUrl}/rest/v1/pz_news_team_document_audit` : '';
+const fallbackTable = baseUrl ? `${baseUrl}/rest/v1/pz_news_articles` : '';
 
 export function hasDocumentationStoreConfig() {
   if (!table || !key) return false;
@@ -59,10 +60,21 @@ async function request(url: string, init?: RequestInit) {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
-    throw new Error(`Supabase recusou a operação de documentação (${response.status}).${detail ? ` ${detail.slice(0, 180)}` : ''}`);
+    const error = new Error(`Supabase recusou a operação de documentação (${response.status}).${detail ? ` ${detail.slice(0, 180)}` : ''}`) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
+
   if (response.status === 204) return [];
   return (await response.json()) as DocumentationRow[];
+}
+
+function isMissingTable(error: unknown) {
+  return Boolean(error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 404);
+}
+
+async function fallbackRequest(init?: RequestInit) {
+  return request(fallbackTable + (init?.method === 'GET' ? '?id=like.__document__:*&select=id,payload,updated_at&order=updated_at.desc&limit=10000' : ''), init);
 }
 
 const PUBLIC_COLUMNS = 'id,user_id,document_type,file_name,mime_type,size_bytes,status,expires_at,notes,request_reason,requested_by,uploaded_by,deleted_at,created_at,updated_at';
@@ -70,36 +82,65 @@ const PRIVATE_COLUMNS = `${PUBLIC_COLUMNS},content_base64`;
 
 export async function listDocuments(userId?: string) {
   const filter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : '';
-  return request(`${table}?select=${PUBLIC_COLUMNS}${filter}&deleted_at=is.null&order=updated_at.desc`) as Promise<DocumentationRow[]>;
+  try {
+    return await request(`${table}?select=${PUBLIC_COLUMNS}${filter}&deleted_at=is.null&order=updated_at.desc`) as DocumentationRow[];
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    const rows = await fallbackRequest() as Array<{ payload?: DocumentationRow & { _type?: string } }>;
+    return rows.map((row) => row.payload).filter((document): document is DocumentationRow => Boolean(document?._type === 'team_document' && !document.deleted_at && (!userId || document.user_id === userId))).map(({ content_base64: _content, ...document }) => document);
+  }
 }
 
 export async function getDocument(id: string) {
-  const rows = await request(`${table}?select=${PRIVATE_COLUMNS}&id=eq.${encodeURIComponent(id)}&limit=1`);
-  return rows[0] ?? null;
+  try {
+    const rows = await request(`${table}?select=${PRIVATE_COLUMNS}&id=eq.${encodeURIComponent(id)}&limit=1`);
+    return rows[0] ?? null;
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    const rows = await request(`${fallbackTable}?id=eq.__document__:${encodeURIComponent(id)}&select=payload&limit=1`) as Array<{ payload?: DocumentationRow & { _type?: string } }>;
+    return rows[0]?.payload?._type === 'team_document' ? rows[0].payload : null;
+  }
 }
 
 export async function saveDocument(document: Partial<DocumentationRow> & Pick<DocumentationRow, 'id' | 'user_id' | 'document_type'>) {
-  await request(table, {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(document),
-  });
+  try {
+    await request(table, {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(document),
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    await request(fallbackTable, {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ id: `__document__:${document.id}`, payload: { ...document, _type: 'team_document' }, deleted: false, updated_at: document.updated_at ?? new Date().toISOString() }),
+    });
+  }
   return document;
 }
 
 export async function updateDocument(id: string, fields: Partial<DocumentationRow>) {
-  await request(`${table}?id=eq.${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify(fields),
-  });
+  try {
+    await request(`${table}?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(fields),
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    const current = await getDocument(id);
+    if (!current) throw new Error('Documento não encontrado.');
+    await request(`${fallbackTable}?id=eq.__document__:${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ payload: { ...current, ...fields, _type: 'team_document' }, updated_at: new Date().toISOString() }),
+    });
+  }
 }
 
 export async function deleteDocument(id: string) {
-  await request(`${table}?id=eq.${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers: { Prefer: 'return=minimal' },
-  });
+  await updateDocument(id, { deleted_at: new Date().toISOString() });
 }
 
 export async function saveAudit(entry: {
@@ -112,19 +153,18 @@ export async function saveAudit(entry: {
   notes?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  await request(auditTable, {
-    method: 'POST',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({
-      id: crypto.randomUUID(),
-      ...entry,
-      metadata: entry.metadata ?? {},
-    }),
-  });
+  const audit = { id: crypto.randomUUID(), ...entry, metadata: entry.metadata ?? {} };
+  try {
+    await request(auditTable, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(audit) });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    await request(fallbackTable, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ id: `__document_audit__:${audit.id}`, payload: { ...audit, _type: 'team_document_audit' }, deleted: false, updated_at: new Date().toISOString() }) });
+  }
 }
 
 export async function listAudit(documentId: string) {
-  return request(`${auditTable}?select=id,document_id,user_id,actor_id,action,from_status,to_status,notes,metadata,created_at&document_id=eq.${encodeURIComponent(documentId)}&order=created_at.desc`) as unknown as Promise<Array<{
+  try {
+    return request(`${auditTable}?select=id,document_id,user_id,actor_id,action,from_status,to_status,notes,metadata,created_at&document_id=eq.${encodeURIComponent(documentId)}&order=created_at.desc`) as unknown as Promise<Array<{
     id: string;
     document_id: string;
     user_id: string;
@@ -135,5 +175,10 @@ export async function listAudit(documentId: string) {
     notes: string | null;
     metadata: Record<string, unknown>;
     created_at: string;
-  }>>;
+    }>>;
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    const rows = await request(`${fallbackTable}?id=like.__document_audit__:*&select=payload&order=updated_at.desc&limit=10000`) as Array<{ payload?: { _type?: string; document_id?: string } }>;
+    return rows.map((row) => row.payload).filter((audit): audit is NonNullable<typeof audit> => audit?._type === 'team_document_audit' && audit.document_id === documentId);
+  }
 }
