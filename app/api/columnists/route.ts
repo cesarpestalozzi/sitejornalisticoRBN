@@ -9,9 +9,12 @@ function slugify(value: string) {
 
 function publicUser(row: { id: string; payload: Record<string, unknown> }) {
   const user = row.payload;
+  const configuredName = String(user.publicName ?? '').trim();
+  const fallbackName = String(user.name ?? row.id).trim();
+  const configuredSlug = String(user.columnistSlug ?? '').trim();
   return {
     id: row.id,
-    name: String(user.publicName ?? user.name ?? ''),
+    name: configuredName || fallbackName,
     avatar: String(user.avatar ?? ''),
     bio: String(user.bio ?? ''),
     professionalInfo: String(user.professionalInfo ?? user.specialization ?? ''),
@@ -21,7 +24,7 @@ function publicUser(row: { id: string; payload: Record<string, unknown> }) {
     publicEmail: user.publicEmail && user.publicEmailAuthorized === true ? String(user.publicEmail) : '',
     website: String(user.website ?? ''),
     profileVisible: user.profileVisible !== false,
-    columnistSlug: String(user.columnistSlug ?? slugify(String(user.name ?? row.id))),
+    columnistSlug: configuredSlug || slugify(configuredName || fallbackName),
     socialLinks: Array.isArray(user.socialLinks) ? user.socialLinks : [],
   };
 }
