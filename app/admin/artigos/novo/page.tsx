@@ -893,11 +893,11 @@ export default function NewArticlePage() {
                   </div>
                   <div className="rounded-lg border border-red-100 bg-red-50/40 p-4">
                     <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={formData.showColumnist} onChange={(event) => setFormData((current) => ({ ...current, showColumnist: event.target.checked, columnistUserId: event.target.checked ? current.columnistUserId : '' }))} /> Exibir bloco do colunista ao final da matéria</label>
-                    <select className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2" value={formData.columnistUserId} onChange={(event) => setFormData((current) => ({ ...current, columnistUserId: event.target.value }))} disabled={!formData.showColumnist}>
+                    <select className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2" value={formData.columnistUserId} onChange={(event) => setFormData((current) => ({ ...current, columnistUserId: event.target.value, showColumnist: Boolean(event.target.value) }))}>
                       <option value="">Selecione um colunista</option>
                       {users.filter((user) => user.status === 'ativo' && user.isColumnist).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                     </select>
-                    <p className="mt-2 text-xs text-gray-500">Selecione um usuário já vinculado como colunista. Essa escolha será salva com a matéria e usará o ID real do usuário.</p>
+                    <p className="mt-2 text-xs text-gray-500">{users.some((user) => user.status === 'ativo' && user.isColumnist) ? 'Ao selecionar um colunista, o bloco será exibido automaticamente no final da matéria. A escolha será salva com o ID real do usuário.' : 'Nenhum colunista ativo cadastrado. Cadastre ou vincule um colunista em Administração → Colunistas.'}</p>
                   </div>
 
                   <div>
