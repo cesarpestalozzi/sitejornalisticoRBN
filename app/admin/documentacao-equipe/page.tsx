@@ -38,6 +38,21 @@ const statusClasses: Record<Status, string> = {
   rejected: 'bg-red-100 text-red-800',
   expired: 'bg-gray-200 text-gray-700',
 };
+const documentTypes = [
+  'RG/CNH',
+  'CPF',
+  'Certidão de nascimento',
+  'Comprovante de endereço',
+  'Título de eleitor',
+  'Conta bancária',
+  'Registro profissional',
+  'Contrato de trabalho',
+  'Termo de responsabilidade',
+  'Termo de autorização de uso de imagem',
+  'Diploma',
+  'Certificados',
+  'Outros documentos',
+] as const;
 
 function formatSize(size?: number | null) {
   if (!size) return 'Solicitado';
@@ -68,7 +83,7 @@ export default function TeamDocumentationPage() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'upload' | 'request'>('upload');
-  const [form, setForm] = useState({ userId: '', documentType: '', requestReason: '', notes: '', expiresAt: '', file: null as File | null });
+  const [form, setForm] = useState({ userId: '', documentType: '', selectedTypes: [] as string[], requestReason: '', notes: '', expiresAt: '', file: null as File | null });
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<AuditEntry[]>([]);
   const [historyDocument, setHistoryDocument] = useState<Document | null>(null);
@@ -111,26 +126,27 @@ export default function TeamDocumentationPage() {
 
   const openForm = (mode: 'upload' | 'request', userId = selectedUserId || currentUser?.id || '') => {
     setFormMode(mode);
-    setForm((current) => ({ ...current, userId, file: null }));
+    setForm((current) => ({ ...current, userId, documentType: '', selectedTypes: [], file: null }));
     setShowForm(true);
   };
 
   const submitForm = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.userId || !form.documentType || (formMode === 'upload' && !form.file)) return;
+    if (!form.userId || (formMode === 'upload' ? (!form.documentType || !form.file) : form.selectedTypes.length === 0)) return;
     setSaving(true);
     try {
       const body = new FormData();
       body.set('action', formMode);
       body.set('userId', form.userId);
-      body.set('documentType', form.documentType);
+      if (formMode === 'upload') body.set('documentType', form.documentType);
+      else body.set('documentTypes', JSON.stringify(form.selectedTypes));
       body.set('requestReason', form.requestReason);
       body.set('notes', form.notes);
       body.set('expiresAt', form.expiresAt);
       if (form.file) body.set('file', form.file);
       await api('/api/admin/documentacao-equipe', { method: 'POST', body });
       setShowForm(false);
-      setForm({ userId: '', documentType: '', requestReason: '', notes: '', expiresAt: '', file: null });
+      setForm({ userId: '', documentType: '', selectedTypes: [], requestReason: '', notes: '', expiresAt: '', file: null });
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível salvar o documento.');
@@ -231,7 +247,7 @@ export default function TeamDocumentationPage() {
           <p className="flex items-center gap-2 text-xs text-gray-500"><ShieldAlert className="h-4 w-4" /> Arquivos são entregues somente após autorização no servidor e não possuem URL pública.</p>
         </div>
       </main>
-      {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"><form onSubmit={submitForm} className="w-full max-w-xl rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between rounded-t-2xl bg-[#991B1B] px-6 py-4 text-white"><div><h2 className="font-bold">{formMode === 'upload' ? 'Enviar documento' : 'Solicitar novo documento'}</h2><p className="text-xs text-white/75">Campos e arquivos são validados no servidor.</p></div><button type="button" onClick={() => setShowForm(false)}><XCircle className="h-5 w-5" /></button></div><div className="space-y-4 p-6"><label className="block text-sm font-semibold text-gray-800">Usuário<select required value={form.userId} onChange={(event) => setForm((current) => ({ ...current, userId: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"><option value="">Selecionar usuário</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><label className="block text-sm font-semibold text-gray-800">Tipo do documento<input required value={form.documentType} onChange={(event) => setForm((current) => ({ ...current, documentType: event.target.value }))} placeholder="Ex.: Contrato, RG, comprovante" className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label>{formMode === 'upload' ? <label className="block text-sm font-semibold text-gray-800">Arquivo<input required type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx" onChange={(event) => setForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))} className="mt-1 block w-full rounded-lg border border-dashed border-gray-300 p-3 text-sm font-normal" /><span className="mt-1 block text-xs font-normal text-gray-500">PDF, imagem ou Word · máximo 10 MB</span></label> : <label className="block text-sm font-semibold text-gray-800">Motivo da solicitação<textarea required value={form.requestReason} onChange={(event) => setForm((current) => ({ ...current, requestReason: event.target.value }))} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label>}<label className="block text-sm font-semibold text-gray-800">Validade (opcional)<input type="date" value={form.expiresAt} onChange={(event) => setForm((current) => ({ ...current, expiresAt: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><label className="block text-sm font-semibold text-gray-800">Observações<textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancelar</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-[#991B1B] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Salvando...' : <><Plus className="h-4 w-4" /> Salvar</>}</button></div></div></form></div>}
+      {showForm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"><form onSubmit={submitForm} className="w-full max-w-xl rounded-2xl bg-white shadow-2xl"><div className="flex items-center justify-between rounded-t-2xl bg-[#991B1B] px-6 py-4 text-white"><div><h2 className="font-bold">{formMode === 'upload' ? 'Enviar documento' : 'Solicitar documentos'}</h2><p className="text-xs text-white/75">Selecione manualmente somente os documentos necessários.</p></div><button type="button" onClick={() => setShowForm(false)}><XCircle className="h-5 w-5" /></button></div><div className="space-y-4 p-6"><label className="block text-sm font-semibold text-gray-800">Usuário<select required value={form.userId} onChange={(event) => setForm((current) => ({ ...current, userId: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"><option value="">Selecionar usuário</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>{formMode === 'request' ? <fieldset><legend className="text-sm font-semibold text-gray-800">Documentos disponíveis</legend><div className="mt-2 grid gap-2 rounded-lg border border-gray-200 p-3 sm:grid-cols-2">{documentTypes.map((type) => <label key={type} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm font-normal hover:bg-gray-50"><input type="checkbox" checked={form.selectedTypes.includes(type)} onChange={(event) => setForm((current) => ({ ...current, selectedTypes: event.target.checked ? [...current.selectedTypes, type] : current.selectedTypes.filter((item) => item !== type) }))} />{type}</label>)}</div><p className="mt-1 text-xs font-normal text-gray-500">{form.selectedTypes.length} documento(s) selecionado(s)</p></fieldset> : <><label className="block text-sm font-semibold text-gray-800">Tipo do documento<select required value={form.documentType} onChange={(event) => setForm((current) => ({ ...current, documentType: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal"><option value="">Selecionar tipo</option>{documentTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label className="block text-sm font-semibold text-gray-800">Arquivo<input required type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx" onChange={(event) => setForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))} className="mt-1 block w-full rounded-lg border border-dashed border-gray-300 p-3 text-sm font-normal" /><span className="mt-1 block text-xs font-normal text-gray-500">PDF, imagem ou Word · máximo 10 MB</span></label></>}{formMode === 'request' && <label className="block text-sm font-semibold text-gray-800">Motivo da solicitação<textarea required value={form.requestReason} onChange={(event) => setForm((current) => ({ ...current, requestReason: event.target.value }))} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label>}<label className="block text-sm font-semibold text-gray-800">Validade (opcional)<input type="date" value={form.expiresAt} onChange={(event) => setForm((current) => ({ ...current, expiresAt: event.target.value }))} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><label className="block text-sm font-semibold text-gray-800">Observações<textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={3} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-normal" /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">Cancelar</button><button type="submit" disabled={saving || (formMode === 'request' && form.selectedTypes.length === 0)} className="inline-flex items-center gap-2 rounded-lg bg-[#991B1B] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Salvando...' : <><Plus className="h-4 w-4" /> {formMode === 'request' ? 'Solicitar documentos' : 'Salvar'}</>}</button></div></div></form></div>}
       {historyDocument && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setHistoryDocument(null)}><div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}><div className="flex items-center justify-between border-b border-gray-200 p-5"><div><h2 className="font-bold text-gray-900">Histórico de alterações</h2><p className="text-xs text-gray-500">{historyDocument.document_type}</p></div><button type="button" onClick={() => setHistoryDocument(null)}><XCircle className="h-5 w-5 text-gray-500" /></button></div><div className="max-h-[60vh] space-y-3 overflow-y-auto p-5">{history.length === 0 ? <p className="text-sm text-gray-500">Nenhum evento registrado.</p> : history.map((entry) => <div key={entry.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm"><div className="flex justify-between gap-3"><strong className="text-gray-800">{entry.action}</strong><time className="text-xs text-gray-500">{new Date(entry.created_at).toLocaleString('pt-BR')}</time></div><p className="mt-1 text-xs text-gray-500">Por {entry.actor_id}{entry.to_status ? ` · ${statusLabels[entry.to_status]}` : ''}</p>{entry.notes && <p className="mt-2 text-xs text-gray-700">{entry.notes}</p>}</div>)}</div></div></div>}
     </div>
   );

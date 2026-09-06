@@ -24,6 +24,21 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
+const DOCUMENT_TYPES = [
+  'RG/CNH',
+  'CPF',
+  'Certidão de nascimento',
+  'Comprovante de endereço',
+  'Título de eleitor',
+  'Conta bancária',
+  'Registro profissional',
+  'Contrato de trabalho',
+  'Termo de responsabilidade',
+  'Termo de autorização de uso de imagem',
+  'Diploma',
+  'Certificados',
+  'Outros documentos',
+] as const;
 
 function errorResponse(error: string, status = 400) {
   return NextResponse.json({ ok: false, error }, { status });
@@ -119,10 +134,21 @@ export async function POST(request: NextRequest) {
     const action = String(form.get('action') ?? (form.get('file') ? 'upload' : 'request')).trim();
     const targetUserId = String(form.get('userId') ?? '').trim();
     const documentType = String(form.get('documentType') ?? '').trim().slice(0, 120);
+    let documentTypes = documentType ? [documentType] : [];
+    const rawDocumentTypes = String(form.get('documentTypes') ?? '').trim();
+    if (rawDocumentTypes) {
+      try {
+        documentTypes = [...new Set((JSON.parse(rawDocumentTypes) as unknown[]).filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).map((item) => item.slice(0, 120)))];
+      } catch {
+        return errorResponse('A seleção de documentos é inválida.');
+      }
+    }
     const notes = String(form.get('notes') ?? '').trim().slice(0, 5000);
     const requestReason = String(form.get('requestReason') ?? '').trim().slice(0, 2000);
     const expiresAt = String(form.get('expiresAt') ?? '').trim() || null;
-    if (!targetUserId || !documentType) return errorResponse('userId e tipo do documento são obrigatórios.');
+    if (!targetUserId || documentTypes.length === 0) return errorResponse('Selecione pelo menos um documento.');
+    if (action === 'request' && documentTypes.some((item) => !DOCUMENT_TYPES.includes(item as typeof DOCUMENT_TYPES[number]))) return errorResponse('Tipo de documento inválido.');
+    if (action === 'upload' && documentTypes.length !== 1) return errorResponse('Envios devem conter apenas um tipo de documento.');
     if (!(await userExists(targetUserId))) return errorResponse('Usuário não encontrado.', 404);
     if (!(await authorizedTarget(user, targetUserId))) return errorResponse('Você não pode alterar documentos deste usuário.', 403);
     if (action === 'request' && !can(user, 'documentation:request')) return errorResponse('Sem permissão para solicitar documentos.', 403);
@@ -145,36 +171,40 @@ export async function POST(request: NextRequest) {
       return errorResponse('Selecione um arquivo para enviar.');
     }
 
-    const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const status: DocumentationStatus = 'pending';
-    await saveDocument({
-      id,
-      user_id: targetUserId,
-      document_type: documentType,
-      file_name: fileName,
-      mime_type: mimeType,
-      size_bytes: sizeBytes,
-      status,
-      expires_at: expiresAt,
-      notes: notes || null,
-      request_reason: requestReason || null,
-      content_base64: contentBase64,
-      requested_by: user.id,
-      uploaded_by: contentBase64 ? user.id : null,
-      created_at: now,
-      updated_at: now,
-    });
-    await saveAudit({
-      document_id: id,
-      user_id: targetUserId,
-      actor_id: user.id,
-      action: contentBase64 ? 'upload' : 'request',
-      to_status: status,
-      notes: notes || requestReason || null,
-      metadata: { documentType, fileName },
-    });
-    return NextResponse.json({ ok: true, id, status }, { status: 201 });
+    const ids: string[] = [];
+    for (const selectedType of documentTypes) {
+      const id = crypto.randomUUID();
+      await saveDocument({
+        id,
+        user_id: targetUserId,
+        document_type: selectedType,
+        file_name: fileName,
+        mime_type: mimeType,
+        size_bytes: sizeBytes,
+        status,
+        expires_at: expiresAt,
+        notes: notes || null,
+        request_reason: requestReason || null,
+        content_base64: contentBase64,
+        requested_by: user.id,
+        uploaded_by: contentBase64 ? user.id : null,
+        created_at: now,
+        updated_at: now,
+      });
+      await saveAudit({
+        document_id: id,
+        user_id: targetUserId,
+        actor_id: user.id,
+        action: contentBase64 ? 'upload' : 'request',
+        to_status: status,
+        notes: notes || requestReason || null,
+        metadata: { documentType: selectedType, fileName },
+      });
+      ids.push(id);
+    }
+    return NextResponse.json({ ok: true, ids, status }, { status: 201 });
   } catch (error) {
     return errorResponse(error instanceof Error ? error.message : 'Não foi possível salvar o documento.', 502);
   }
