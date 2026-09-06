@@ -131,6 +131,7 @@ export default function NewArticlePage() {
     excerpt: '',
     content: '',
     author: defaultAuthor,
+    authorUserIds: currentUser?.id ? [currentUser.id] : [],
     location: 'São Paulo',
     featured: false,
   });
@@ -222,6 +223,11 @@ export default function NewArticlePage() {
   }, [formData.excerpt, formData.subtitle, formData.title, mediaState.images, radarDraft, seoDescription, wordCount]);
   const pendingChecklistItems = editorialChecklist.filter((item) => !item.ok);
   const effectiveAuthor = formData.author || defaultAuthor;
+  const selectedAuthorIds = formData.authorUserIds ?? [];
+  const selectedAuthors = users.filter((user) => selectedAuthorIds.includes(user.id));
+  const effectiveAuthorNames = selectedAuthors.length > 0
+    ? selectedAuthors.map((user) => user.name).join(' e ')
+    : effectiveAuthor;
 
   useEffect(() => {
     const source = searchParams.get('source');
@@ -694,7 +700,8 @@ export default function NewArticlePage() {
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
         content: formData.content,
-        author: effectiveAuthor,
+        author: effectiveAuthorNames,
+        authorUserIds: selectedAuthorIds,
         image: mediaState.primaryImage,
         images: mediaState.images,
         videos: mediaState.videos,
@@ -862,25 +869,22 @@ export default function NewArticlePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-gray-900">Autor</label>
-                      <select
-                        name="author"
-                        value={effectiveAuthor}
-                        onChange={handleFieldChange}
-                        disabled={!canViewAllArticles(currentUser)}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
-                      >
-                        {canViewAllArticles(currentUser) ? (
-                          users.filter((user) => user.status === 'ativo').map((user) => (
-                            <option key={user.id} value={user.name}>{user.name}</option>
-                          ))
-                        ) : (
-                          <option value={currentUser.name}>{currentUser.name}</option>
-                        )}
-                        {canViewAllArticles(currentUser) && (!users.some((user) => user.status === 'ativo') || !users.some((user) => user.name === effectiveAuthor)) && (
-                          <option value={effectiveAuthor}>{effectiveAuthor}</option>
-                        )}
-                      </select>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">Autores</label>
+                      <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-gray-300 p-3">
+                        {(canViewAllArticles(currentUser) ? users : users.filter((user) => user.id === currentUser.id))
+                          .filter((user) => user.status === 'ativo')
+                          .map((user) => (
+                            <label key={user.id} className="flex items-center gap-2 text-sm">
+                              <input type="checkbox" checked={selectedAuthorIds.includes(user.id)} onChange={(event) => {
+                                const ids = event.target.checked ? [...selectedAuthorIds, user.id] : selectedAuthorIds.filter((id) => id !== user.id);
+                                const names = users.filter((candidate) => ids.includes(candidate.id)).map((candidate) => candidate.name);
+                                setFormData((current) => ({ ...current, authorUserIds: ids, author: names.join(' e ') || current.author }));
+                              }} disabled={!canViewAllArticles(currentUser) && user.id !== currentUser.id} />
+                              <span>{user.name}</span>
+                            </label>
+                          ))}
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">A autoria é vinculada aos IDs dos usuários; o nome é apenas apresentação.</p>
                     </div>
                   </div>
 

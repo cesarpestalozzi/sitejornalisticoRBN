@@ -116,6 +116,7 @@ export default function EditArticlePage() {
 
   const article = useMemo(() => articles.find((currentArticle) => currentArticle.id === params?.id), [articles, params?.id]);
   const formData = article ? drafts[article.id] ?? article : null;
+  const selectedAuthorIds = formData?.authorUserIds ?? [];
   const categoryOptions = useMemo(() => {
     const options = [...availableCategories];
     if (formData?.category && !options.some((category) => category.slug === formData.category)) {
@@ -304,7 +305,8 @@ export default function EditArticlePage() {
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
         content: formData.content,
-        author: formData.author,
+        author: users.filter((user) => selectedAuthorIds.includes(user.id)).map((user) => user.name).join(' e ') || formData.author,
+        authorUserIds: selectedAuthorIds,
         image: mediaState.primaryImage,
         images: mediaState.images,
         videos: mediaState.videos,
@@ -648,25 +650,21 @@ export default function EditArticlePage() {
                       </select>
                     </div>
                     <div>
-                      <label className="mb-2 block text-sm font-semibold text-gray-900">Autor</label>
-                      <select
-                        name="author"
-                        value={formData.author}
-                        onChange={handleFieldChange}
-                        disabled={!canViewAllArticles(currentUser)}
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
-                      >
-                        {canViewAllArticles(currentUser) ? (
-                          users.filter((user) => user.status === 'ativo').map((user) => (
-                            <option key={user.id} value={user.name}>{user.name}</option>
-                          ))
-                        ) : (
-                          <option value={currentUser.name}>{currentUser.name}</option>
-                        )}
-                        {canViewAllArticles(currentUser) && (!users.some((user) => user.status === 'ativo') || !users.some((user) => user.name === formData.author)) && (
-                          <option value={formData.author}>{formData.author}</option>
-                        )}
-                      </select>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">Autores</label>
+                      <div className="max-h-36 space-y-2 overflow-y-auto rounded-lg border border-gray-300 p-3">
+                        {(canViewAllArticles(currentUser) ? users : users.filter((user) => user.id === currentUser.id))
+                          .filter((user) => user.status === 'ativo')
+                          .map((user) => (
+                            <label key={user.id} className="flex items-center gap-2 text-sm">
+                              <input type="checkbox" checked={selectedAuthorIds.includes(user.id)} onChange={(event) => {
+                                const ids = event.target.checked ? [...selectedAuthorIds, user.id] : selectedAuthorIds.filter((id) => id !== user.id);
+                                const names = users.filter((candidate) => ids.includes(candidate.id)).map((candidate) => candidate.name);
+                                setDrafts((current) => ({ ...current, [formData.id]: { ...formData, authorUserIds: ids, author: names.join(' e ') || formData.author } }));
+                              }} disabled={!canViewAllArticles(currentUser) && user.id !== currentUser.id} />
+                              <span>{user.name}</span>
+                            </label>
+                          ))}
+                      </div>
                     </div>
                   </div>
                   <div>

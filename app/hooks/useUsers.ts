@@ -35,6 +35,10 @@ export function normalizePhone(value?: string | null) {
   return digits;
 }
 
+export function normalizePersonName(value: unknown) {
+  return typeof value === 'string' ? value.trim().replace(/^por\s+/i, '') : '';
+}
+
 export function formatCpf(value?: string | null) {
   const digits = normalizeCpf(value ?? '');
   if (digits.length !== 11) {
@@ -197,14 +201,14 @@ function getMockUsers(): User[] {
 }
 
 function normalizeUserRecord(user: Partial<User> | null | undefined): User {
-  const fallbackName = user?.name?.trim() || 'Usuário';
+  const fallbackName = normalizePersonName(user?.name) || 'Usuário';
   const fallbackCpf = normalizeCpf(user?.cpf ?? '');
   const fallbackLogin = (user?.login || buildUserLogin(fallbackCpf) || ADMIN_LOGIN).trim().toUpperCase();
   const createdAt = user?.createdAt || new Date().toISOString();
 
   return {
     id: String(user?.id ?? `user-${Date.now()}-${Math.random().toString(16).slice(2)}`),
-    name: typeof user?.name === 'string' ? user.name.trim() : '',
+    name: fallbackName,
     email: typeof user?.email === 'string' ? user.email.trim() : ADMIN_EMAIL,
     phone: normalizePhone(user?.phone),
     cpf: fallbackCpf,
@@ -358,7 +362,7 @@ async function readRemoteUsers() {
   return rows
     .filter((row) => {
       const role = String(row.payload?.role ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
-      return row && row.payload && ['admin', 'administrador', 'administrador principal', 'editor-chefe', 'editor chefe', 'editor', 'jornalista', 'colaborador', 'estagiario'].includes(role) && String(row.payload.status ?? 'ativo').toLowerCase() !== 'inativo';
+      return row && row.payload && ['admin', 'administrador', 'administrador principal', 'editor-chefe', 'editor chefe', 'editor', 'jornalista', 'colaborador', 'estagiario'].includes(role);
     })
     .map((row) => normalizeUserRecord({ ...row.payload, id: row.id }));
 }
@@ -424,9 +428,7 @@ export function useUsers() {
         if (!isActive) return;
 
         if (remoteUsers) {
-          const localUsers = readLocalUsers();
-          const mergedUsers = mergeUsers(localUsers, remoteUsers);
-          setUsers(mergedUsers);
+          setUsers(ensureOfficialAdminUser(remoteUsers).map(normalizeUserRecord));
           setIsLoaded(true);
           return;
         }

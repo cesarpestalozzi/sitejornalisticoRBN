@@ -38,6 +38,7 @@ export interface Article {
   subtitle: string;
   category: string;
   author: string;
+  authorUserIds?: string[];
   content: string;
   excerpt: string;
   image?: string;

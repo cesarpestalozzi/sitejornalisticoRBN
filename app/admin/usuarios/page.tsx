@@ -386,10 +386,13 @@ export default function UsersPage() {
   }, [searchTerm, users]);
 
   const userArticlesCountMap = useMemo(() => {
-    const normalizeName = (value?: string) => (value ?? '').trim().toLowerCase();
+    const normalizeName = (value?: string) => (value ?? '').trim().replace(/^por\s+/i, '').toLowerCase();
     const map = new Map<string, number>();
 
     articles.forEach((article) => {
+      (article.authorUserIds ?? []).forEach((userId) => {
+        map.set(`id:${userId}`, (map.get(`id:${userId}`) ?? 0) + 1);
+      });
       const key = normalizeName(article.author);
       if (!key) {
         return;
@@ -401,7 +404,11 @@ export default function UsersPage() {
   }, [articles]);
 
   const getUserArticlesCount = (user: User) => {
-    const key = user.name.trim().toLowerCase();
+    const byId = userArticlesCountMap.get(`id:${user.id}`);
+    if (typeof byId === 'number') {
+      return byId;
+    }
+    const key = user.name.trim().replace(/^por\s+/i, '').toLowerCase();
     return userArticlesCountMap.get(key) ?? 0;
   };
 
