@@ -122,13 +122,20 @@ export function getRoleLabel(role: AdminRole) {
 }
 
 function normalizeRole(value: unknown): AdminRole {
-  return value === 'admin' ||
-    value === 'editor-chefe' ||
-    value === 'editor' ||
-    value === 'jornalista' ||
-    value === 'colaborador' ||
-    value === 'estagiario'
-    ? value
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'administrador principal' || normalized === 'administrador' || normalized === 'administrator') {
+    return 'admin';
+  }
+  if (normalized === 'editor chefe' || normalized === 'editor-chefe' || normalized === 'editor chief') {
+    return 'editor-chefe';
+  }
+
+  return normalized === 'admin' ||
+    normalized === 'editor' ||
+    normalized === 'jornalista' ||
+    normalized === 'colaborador' ||
+    normalized === 'estagiario'
+    ? normalized
     : 'jornalista';
 }
 
@@ -323,7 +330,8 @@ export function isOwnArticle(user: AdminSessionUser | null, author: string) {
 }
 
 export function canViewAllArticles(user: AdminSessionUser | null) {
-  return hasPermission(user, 'articles:view:all');
+  return Boolean(user && (user.role === 'admin' || user.role === 'editor-chefe' || user.roleLevel <= 2)) ||
+    hasPermission(user, 'articles:view:all');
 }
 
 export function canViewOwnArticles(user: AdminSessionUser | null) {
