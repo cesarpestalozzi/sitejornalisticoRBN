@@ -76,11 +76,11 @@ function toNewsCard(article: HomeArticle): NewsCard {
   };
 }
 
-export default function HomeClient({ initialArticles }: { initialArticles: HomeArticle[] }) {
+export default function HomeClient({ initialArticles, initialColumnists }: { initialArticles: HomeArticle[]; initialColumnists?: HomeColumnist[] }) {
   const [articles, setArticles] = useState<HomeArticle[]>(initialArticles);
   const latestArticlesRef = useRef<HomeArticle[]>(initialArticles);
   const [isLoaded, setIsLoaded] = useState(true);
-  const [columnists, setColumnists] = useState<HomeColumnist[]>([]);
+  const [columnists, setColumnists] = useState<HomeColumnist[]>(initialColumnists ?? []);
   const { settings: contextSettings } = useSettingsContext();
   const settings = contextSettings ?? defaultSettings;
   const showAdsOnHomepage = settings.content.showAdsOnHomepage;

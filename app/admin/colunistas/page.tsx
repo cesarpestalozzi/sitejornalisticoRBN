@@ -97,6 +97,22 @@ export default function ColumnistsPage() {
     }
   };
 
+  const handlePhotoUpload = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMessage('Selecione um arquivo de imagem.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('A foto deve ter no máximo 5 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm((current) => ({ ...current, avatar: String(reader.result ?? '') }));
+    reader.onerror = () => setMessage('Não foi possível ler a foto selecionada.');
+    reader.readAsDataURL(file);
+  };
+
   if (!isLoaded) return <div className="p-8">Carregando usuários...</div>;
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -127,7 +143,10 @@ export default function ColumnistsPage() {
                   </div>
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
                     <label className="text-sm font-semibold">Nome público<input className="mt-1 w-full rounded border p-2" placeholder={selected.name} value={form.publicName} onChange={(e) => setForm({ ...form, publicName: e.target.value })} /></label>
-                    <label className="text-sm font-semibold">Foto do perfil (URL)<input className="mt-1 w-full rounded border p-2" value={form.avatar} onChange={(e) => setForm({ ...form, avatar: e.target.value })} /></label>
+                    <label className="text-sm font-semibold">Foto do perfil
+                      <input className="mt-1 w-full rounded border p-2" type="file" accept="image/*" onChange={(e) => handlePhotoUpload(e.target.files?.[0])} />
+                      <input className="mt-2 w-full rounded border p-2 font-normal" placeholder="Ou cole a URL da foto" value={form.avatar.startsWith('data:') ? '' : form.avatar} onChange={(e) => setForm({ ...form, avatar: e.target.value })} />
+                    </label>
                     <label className="text-sm font-semibold">Slug público<input className="mt-1 w-full rounded border p-2" value={form.columnistSlug} onChange={(e) => setForm({ ...form, columnistSlug: e.target.value })} /></label>
                     <label className="text-sm font-semibold">Cargo ou função<input className="mt-1 w-full rounded border p-2" value={form.publicRole} onChange={(e) => setForm({ ...form, publicRole: e.target.value })} /></label>
                     <label className="text-sm font-semibold">Especialidade<input className="mt-1 w-full rounded border p-2" value={form.expertise} onChange={(e) => setForm({ ...form, expertise: e.target.value })} /></label>

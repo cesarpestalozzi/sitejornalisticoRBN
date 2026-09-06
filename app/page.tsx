@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import HomeClientOptimized from './components/HomeClientOptimized';
 import { hasArticleStoreConfig, listStoredArticles } from './api/_lib/articleStore';
+import { listStoredUsers } from './api/_lib/userStore';
 
 interface HomeArticle {
   id: string;
@@ -16,6 +17,14 @@ interface HomeArticle {
   status?: string;
   updatedAt: string;
   views: number;
+}
+
+interface HomeColumnist {
+  id: string;
+  name: string;
+  avatar: string;
+  bio: string;
+  columnistSlug: string;
 }
 
 function isPublished(status: unknown) {
@@ -100,8 +109,23 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
   }
 }
 
-export default async function Home() {
-  const articles = await getHomepageArticles();
+async function getHomepageColumnists(): Promise<HomeColumnist[]> {
+  try {
+    const users = await listStoredUsers();
+    return users
+      .filter((row) => String(row.payload.status ?? 'ativo').trim().toLowerCase() === 'ativo' && row.payload.isColumnist === true && row.payload.profileVisible !== false)
+      .map((row) => {
+        const name = String(row.payload.publicName ?? row.payload.name ?? row.id).trim();
+        const slug = String(row.payload.columnistSlug ?? '').trim() || name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        return { id: row.id, name, avatar: String(row.payload.avatar ?? ''), bio: String(row.payload.bio ?? ''), columnistSlug: slug };
+      });
+  } catch {
+    return [];
+  }
+}
 
-  return <HomeClientOptimized initialArticles={articles} />;
+export default async function Home() {
+  const [articles, columnists] = await Promise.all([getHomepageArticles(), getHomepageColumnists()]);
+
+  return <HomeClientOptimized initialArticles={articles} initialColumnists={columnists} />;
 }
