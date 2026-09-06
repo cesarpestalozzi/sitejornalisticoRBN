@@ -1129,10 +1129,6 @@ export default function UsersPage() {
                   <textarea value={formData.bio} onChange={(event) => setFormData((current) => ({ ...current, bio: event.target.value }))} rows={4} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#991B1B] focus:outline-none" />
                   {errors.bio && <p className="mt-2 text-xs text-[#991B1B]">{errors.bio}</p>}
                 </div>
-                <div className="rounded-lg border border-red-100 bg-red-50/40 p-4">
-                  <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(formData.isColumnist)} onChange={(event) => setFormData((current) => ({ ...current, isColumnist: event.target.checked }))} /> Este usuário também é colunista público</label>
-                  {formData.isColumnist && <div className="mt-3 grid gap-3 md:grid-cols-2"><label className="text-sm font-semibold">Slug do perfil<input className="mt-1 w-full rounded border p-2" value={formData.columnistSlug ?? ''} onChange={(event) => setFormData((current) => ({ ...current, columnistSlug: event.target.value }))} /></label><label className="text-sm font-semibold">Informações profissionais<textarea className="mt-1 w-full rounded border p-2" rows={2} value={formData.professionalInfo ?? ''} onChange={(event) => setFormData((current) => ({ ...current, professionalInfo: event.target.value }))} /></label></div>}
-                </div>
               </section>
 
               <div className="flex flex-wrap justify-end gap-3 border-t border-gray-200 pt-6">
