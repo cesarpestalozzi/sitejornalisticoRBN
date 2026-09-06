@@ -47,8 +47,28 @@ export function hasMessagingStoreConfig() {
 
 async function requestTable(path: string, init?: RequestInit) {
   const response = await fetch(`${baseUrl}/rest/v1/${path}`, { ...init, headers: { ...headers(), ...(init?.headers ?? {}) }, cache: 'no-store' });
-  if (!response.ok) throw new Error(`Supabase recusou a operação de mensagens (${response.status}).`);
+  if (!response.ok) {
+    const error = new Error(`Supabase recusou a operação de mensagens (${response.status}).`) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
   return response.status === 204 ? [] : ((await response.json()) as Row[]);
+}
+
+function isMissingTable(error: unknown) {
+  return Boolean(error && typeof error === 'object' && 'status' in error && (error as { status?: number }).status === 404);
+}
+
+async function fallbackRows(prefix: string) {
+  return requestTable(`pz_news_articles?id=like.${encodeURIComponent(prefix)}*&select=id,payload,created_at,updated_at&order=updated_at.desc&limit=10000`);
+}
+
+async function fallbackUpsert(id: string, payload: Record<string, unknown>, updatedAt: string) {
+  await requestTable('pz_news_articles', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ id, payload: { ...payload, _type: payload._type }, deleted: false, updated_at: updatedAt }),
+  });
 }
 
 function conversationFromRow(row: Row): Conversation {
@@ -64,16 +84,27 @@ function conversationFromRow(row: Row): Conversation {
 }
 
 export async function listConversations() {
-  const rows = await requestTable('rbn_message_conversations?select=id,payload,created_at&order=created_at.desc');
+  let rows: Row[];
+  try {
+    rows = await requestTable('rbn_message_conversations?select=id,payload,created_at&order=created_at.desc');
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    rows = await fallbackRows('__message_conversation:');
+  }
   return rows.map(conversationFromRow);
 }
 
 export async function saveConversation(conversation: Conversation) {
-  await requestTable('rbn_message_conversations', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ id: conversation.id, payload: conversation, updated_at: conversation.lastActivityAt }),
-  });
+  try {
+    await requestTable('rbn_message_conversations', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ id: conversation.id, payload: conversation, updated_at: conversation.lastActivityAt }),
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    await fallbackUpsert(`__message_conversation:${conversation.id}`, { ...conversation, _type: 'message_conversation' }, conversation.lastActivityAt);
+  }
   return conversation;
 }
 
@@ -90,21 +121,38 @@ function messageFromRow(row: Row): Message {
 }
 
 export async function listMessages(conversationId: string) {
-  const rows = await requestTable(`rbn_messages?conversation_id=eq.${encodeURIComponent(conversationId)}&select=id,conversation_id,payload,created_at&order=created_at.asc`);
+  let rows: Row[];
+  try {
+    rows = await requestTable(`rbn_messages?conversation_id=eq.${encodeURIComponent(conversationId)}&select=id,conversation_id,payload,created_at&order=created_at.asc`);
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    rows = (await fallbackRows('__message:')).filter((row) => row.payload?._type === 'message' && String(row.payload.conversationId) === conversationId);
+  }
   return rows.map(messageFromRow);
 }
 
 export async function saveMessage(message: Message) {
-  await requestTable('rbn_messages', {
-    method: 'POST',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ id: message.id, conversation_id: message.conversationId, payload: message, created_at: message.createdAt }),
-  });
+  try {
+    await requestTable('rbn_messages', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ id: message.id, conversation_id: message.conversationId, payload: message, created_at: message.createdAt }),
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    await fallbackUpsert(`__message:${message.id}`, { ...message, _type: 'message' }, message.createdAt);
+  }
   return message;
 }
 
 export async function listNotifications(userId: string) {
-  const rows = await requestTable(`rbn_message_notifications?user_id=eq.${encodeURIComponent(userId)}&select=id,user_id,conversation_id,message_id,payload,created_at,read_at&order=created_at.desc`);
+  let rows: Row[];
+  try {
+    rows = await requestTable(`rbn_message_notifications?user_id=eq.${encodeURIComponent(userId)}&select=id,user_id,conversation_id,message_id,payload,created_at,read_at&order=created_at.desc`);
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    rows = (await fallbackRows('__message_notification:')).filter((row) => String(row.payload?.userId) === userId);
+  }
   return rows.map((row) => ({
     id: row.id,
     userId: String(row.user_id ?? ''),
@@ -116,18 +164,34 @@ export async function listNotifications(userId: string) {
 }
 
 export async function saveNotification(notification: Notification) {
-  await requestTable('rbn_message_notifications', {
-    method: 'POST',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ id: notification.id, user_id: notification.userId, conversation_id: notification.conversationId, message_id: notification.messageId, payload: notification, created_at: notification.createdAt }),
-  });
+  try {
+    await requestTable('rbn_message_notifications', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ id: notification.id, user_id: notification.userId, conversation_id: notification.conversationId, message_id: notification.messageId, payload: notification, created_at: notification.createdAt }),
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    await fallbackUpsert(`__message_notification:${notification.id}`, { ...notification, _type: 'message_notification' }, notification.createdAt);
+  }
 }
 
 export async function markNotificationsRead(userId: string, conversationId?: string) {
   const filter = conversationId ? `&conversation_id=eq.${encodeURIComponent(conversationId)}` : '';
-  await requestTable(`rbn_message_notifications?user_id=eq.${encodeURIComponent(userId)}&read_at=is.null${filter}`, {
-    method: 'PATCH',
-    headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({ read_at: new Date().toISOString() }),
-  });
+  try {
+    await requestTable(`rbn_message_notifications?user_id=eq.${encodeURIComponent(userId)}&read_at=is.null${filter}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ read_at: new Date().toISOString() }),
+    });
+  } catch (error) {
+    if (!isMissingTable(error)) throw error;
+    const now = new Date().toISOString();
+    const rows = (await fallbackRows('__message_notification:')).filter((row) => String(row.payload?.userId) === userId && !row.payload?.readAt && (!conversationId || String(row.payload?.conversationId) === conversationId));
+    await Promise.all(rows.map((row) => requestTable(`pz_news_articles?id=eq.${encodeURIComponent(row.id)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ payload: { ...row.payload, readAt: now, _type: 'message_notification' }, updated_at: now }),
+    })));
+  }
 }
