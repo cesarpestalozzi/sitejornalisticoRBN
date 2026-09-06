@@ -670,11 +670,12 @@ export default function EditArticlePage() {
                     </div>
                   </div>
                   <div className="rounded-lg border border-red-100 bg-red-50/40 p-4">
-                    <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(formData.showColumnist)} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, showColumnist: event.target.checked } }))} /> Exibir bloco do colunista ao final da matéria</label>
+                    <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(formData.showColumnist)} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, showColumnist: event.target.checked, columnistUserId: event.target.checked ? formData.columnistUserId : '' } }))} /> Exibir bloco do colunista ao final da matéria</label>
                     <select className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2" value={formData.columnistUserId ?? ''} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, columnistUserId: event.target.value } }))} disabled={!formData.showColumnist}>
                       <option value="">Selecione um colunista</option>
                       {users.filter((user) => user.status === 'ativo' && user.isColumnist).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
                     </select>
+                    <p className="mt-2 text-xs text-gray-500">A seleção é persistida com a matéria pelo ID do usuário colunista.</p>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Resumo</label>
