@@ -97,6 +97,13 @@ export interface User {
   passwordChangeRequired?: boolean;
   onboardingStatus?: UserOnboardingStatus;
   isColumnist?: boolean;
+  publicName?: string;
+  profileVisible?: boolean;
+  publicEmail?: string;
+  publicEmailAuthorized?: boolean;
+  website?: string;
+  expertise?: string;
+  publicRole?: string;
   columnistSlug?: string;
   professionalInfo?: string;
   socialLinks?: Array<{ label: string; url: string }>;

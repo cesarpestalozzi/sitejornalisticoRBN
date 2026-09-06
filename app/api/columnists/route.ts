@@ -11,10 +11,16 @@ function publicUser(row: { id: string; payload: Record<string, unknown> }) {
   const user = row.payload;
   return {
     id: row.id,
-    name: String(user.name ?? ''),
+    name: String(user.publicName ?? user.name ?? ''),
     avatar: String(user.avatar ?? ''),
     bio: String(user.bio ?? ''),
     professionalInfo: String(user.professionalInfo ?? user.specialization ?? ''),
+    publicRole: String(user.publicRole ?? ''),
+    expertise: String(user.expertise ?? user.specialization ?? ''),
+    location: String(user.location ?? ''),
+    publicEmail: user.publicEmail && user.publicEmailAuthorized === true ? String(user.publicEmail) : '',
+    website: String(user.website ?? ''),
+    profileVisible: user.profileVisible !== false,
     columnistSlug: String(user.columnistSlug ?? slugify(String(user.name ?? row.id))),
     socialLinks: Array.isArray(user.socialLinks) ? user.socialLinks : [],
   };
@@ -25,7 +31,7 @@ export async function GET(request: NextRequest) {
     const query = new URL(request.url).searchParams;
     const requested = (query.get('id') || query.get('slug') || '').trim().toLowerCase();
     const users = (await listStoredUsers())
-      .filter((row) => row.payload.status === 'ativo' && row.payload.isColumnist === true)
+      .filter((row) => String(row.payload.status ?? 'ativo').trim().toLowerCase() === 'ativo' && row.payload.isColumnist === true && row.payload.profileVisible !== false)
       .map(publicUser);
     const result = requested
       ? users.filter((user) => user.id.toLowerCase() === requested || user.columnistSlug.toLowerCase() === requested)
