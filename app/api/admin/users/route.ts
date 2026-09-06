@@ -98,16 +98,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: false, error: sameCpf ? 'CPF já cadastrado.' : 'Login já está em uso.' }, { status: 409 });
       }
       await saveStoredUser(id, { ...body.payload, name: nextName, cpf: nextCpf, login: nextLogin });
-      if (previousName && nextName && previousName !== nextName) {
+      if (nextName && (previousName !== nextName || body.payload.isColumnist === true)) {
         const articles = await listStoredArticles();
         await Promise.all(articles.map(async (row) => {
           const payload = row.payload;
           const ids = Array.isArray(payload.authorUserIds) ? payload.authorUserIds.map(String) : [];
           const matchesStableId = ids.includes(id);
-          const matchesLegacyName = typeof payload.author === 'string' && payload.author.split(/\s+e\s+/i).map((value) => value.trim()).includes(previousName);
+          const authorNames = typeof payload.author === 'string'
+            ? payload.author.split(/\s+e\s+/i).map((value) => normalizePersonName(value))
+            : [];
+          const matchesLegacyName = authorNames.includes(previousName) || (body.payload.isColumnist === true && authorNames.includes(nextName));
           if (!matchesStableId && !matchesLegacyName) return;
-          const nextAuthors = matchesStableId
-            ? String(payload.author ?? '').replace(previousName, nextName)
+          const nextAuthors = matchesStableId || authorNames.includes(nextName)
+            ? String(payload.author ?? '')
             : String(payload.author ?? '').replace(previousName, nextName);
           await saveStoredArticle({ ...payload, author: nextAuthors, authorUserIds: ids.includes(id) ? ids : [...ids, id] }, row.deleted);
         }));
