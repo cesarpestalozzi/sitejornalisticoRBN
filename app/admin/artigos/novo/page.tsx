@@ -132,6 +132,8 @@ export default function NewArticlePage() {
     content: '',
     author: defaultAuthor,
     authorUserIds: currentUser?.id ? [currentUser.id] : [],
+    columnistUserId: '',
+    showColumnist: false,
     location: 'São Paulo',
     featured: false,
   });
@@ -702,6 +704,8 @@ export default function NewArticlePage() {
         content: formData.content,
         author: effectiveAuthorNames,
         authorUserIds: selectedAuthorIds,
+        columnistUserId: formData.columnistUserId || undefined,
+        showColumnist: formData.showColumnist,
         image: mediaState.primaryImage,
         images: mediaState.images,
         videos: mediaState.videos,
@@ -886,6 +890,13 @@ export default function NewArticlePage() {
                       </div>
                       <p className="mt-1 text-xs text-gray-500">A autoria é vinculada aos IDs dos usuários; o nome é apenas apresentação.</p>
                     </div>
+                  </div>
+                  <div className="rounded-lg border border-red-100 bg-red-50/40 p-4">
+                    <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={formData.showColumnist} onChange={(event) => setFormData((current) => ({ ...current, showColumnist: event.target.checked }))} /> Exibir bloco do colunista ao final da matéria</label>
+                    <select className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2" value={formData.columnistUserId} onChange={(event) => setFormData((current) => ({ ...current, columnistUserId: event.target.value }))} disabled={!formData.showColumnist}>
+                      <option value="">Selecione um colunista</option>
+                      {users.filter((user) => user.status === 'ativo' && user.isColumnist).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                    </select>
                   </div>
 
                   <div>

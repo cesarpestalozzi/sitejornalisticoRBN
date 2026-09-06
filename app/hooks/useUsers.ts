@@ -96,6 +96,10 @@ export interface User {
   updatedAt?: string;
   passwordChangeRequired?: boolean;
   onboardingStatus?: UserOnboardingStatus;
+  isColumnist?: boolean;
+  columnistSlug?: string;
+  professionalInfo?: string;
+  socialLinks?: Array<{ label: string; url: string }>;
 }
 
 const USERS_KEY = 'pz_news_users';

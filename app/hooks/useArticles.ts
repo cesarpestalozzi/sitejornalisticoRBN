@@ -39,6 +39,8 @@ export interface Article {
   category: string;
   author: string;
   authorUserIds?: string[];
+  columnistUserId?: string;
+  showColumnist?: boolean;
   content: string;
   excerpt: string;
   image?: string;

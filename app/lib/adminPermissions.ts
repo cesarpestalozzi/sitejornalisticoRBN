@@ -307,6 +307,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return true;
   }
 
+  if (pathname.startsWith('/admin/colunistas')) {
+    return hasPermission(user, 'settings:manage');
+  }
+
   if (pathname.startsWith('/admin/seguranca')) {
     return true; // Todo usuário logado pode gerenciar sua própria segurança
   }

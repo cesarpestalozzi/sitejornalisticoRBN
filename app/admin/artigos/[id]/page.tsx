@@ -307,6 +307,8 @@ export default function EditArticlePage() {
         content: formData.content,
         author: users.filter((user) => selectedAuthorIds.includes(user.id)).map((user) => user.name).join(' e ') || formData.author,
         authorUserIds: selectedAuthorIds,
+        columnistUserId: formData.columnistUserId || undefined,
+        showColumnist: Boolean(formData.showColumnist),
         image: mediaState.primaryImage,
         images: mediaState.images,
         videos: mediaState.videos,
@@ -666,6 +668,13 @@ export default function EditArticlePage() {
                           ))}
                       </div>
                     </div>
+                  </div>
+                  <div className="rounded-lg border border-red-100 bg-red-50/40 p-4">
+                    <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(formData.showColumnist)} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, showColumnist: event.target.checked } }))} /> Exibir bloco do colunista ao final da matéria</label>
+                    <select className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2" value={formData.columnistUserId ?? ''} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, columnistUserId: event.target.value } }))} disabled={!formData.showColumnist}>
+                      <option value="">Selecione um colunista</option>
+                      {users.filter((user) => user.status === 'ativo' && user.isColumnist).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Resumo</label>

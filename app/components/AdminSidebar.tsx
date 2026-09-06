@@ -23,6 +23,7 @@ import {
   Newspaper,
   Radio,
   Activity,
+  PencilLine,
 } from 'lucide-react';
 import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
@@ -36,6 +37,7 @@ const menuItems = [
   { label: 'Comentários', href: '/admin/comentarios', icon: MessageCircle },
   { label: 'Gerador de Card', href: '/admin/gerador-card', icon: ImageUp },
   { label: 'Usuários', href: '/admin/usuarios', icon: Users },
+  { label: 'Colunistas', href: '/admin/colunistas', icon: PencilLine },
   { label: 'Segurança', href: '/admin/seguranca', icon: Shield },
   { label: 'Publicidades', href: '/admin/publicidades', icon: Megaphone },
   { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },

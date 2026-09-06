@@ -49,6 +49,15 @@ type ArticleComment = {
   replies: ArticleReply[];
 };
 
+type Columnist = {
+  id: string;
+  name: string;
+  avatar: string;
+  bio: string;
+  professionalInfo: string;
+  columnistSlug: string;
+};
+
 function normalizeComment(comment: any): ArticleComment | null {
   if (!comment || typeof comment !== 'object') {
     return null;
@@ -193,6 +202,7 @@ export default function ArticlePageClient() {
   const [replyText, setReplyText] = useState('');
   const [replyError, setReplyError] = useState('');
   const [shareFeedback, setShareFeedback] = useState('');
+  const [columnist, setColumnist] = useState<Columnist | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -243,6 +253,17 @@ export default function ArticlePageClient() {
       isActive = false;
     };
   }, [params?.id]);
+
+  useEffect(() => {
+    if (!articleRecord?.showColumnist || !articleRecord?.columnistUserId) {
+      setColumnist(null);
+      return;
+    }
+    fetch(`/api/columnists?id=${encodeURIComponent(articleRecord.columnistUserId)}`, { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data: Columnist[]) => setColumnist(data[0] ?? null))
+      .catch(() => setColumnist(null));
+  }, [articleRecord?.columnistUserId, articleRecord?.showColumnist]);
 
   useEffect(() => {
     if (!params?.id) {
@@ -722,6 +743,23 @@ export default function ArticlePageClient() {
                 <p className="leading-relaxed text-gray-700">{fallbackFeaturedArticle.content}</p>
               )}
             </div>
+
+            {columnist && (
+              <section className="mb-12 rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#991B1B]">Colunista</p>
+                <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <Link href={`/colunistas/${encodeURIComponent(columnist.columnistSlug || columnist.id)}`}>
+                    <img src={columnist.avatar || '/logo-oficial.png'} alt={columnist.name} className="h-20 w-20 rounded-full object-cover" />
+                  </Link>
+                  <div>
+                    <Link href={`/colunistas/${encodeURIComponent(columnist.columnistSlug || columnist.id)}`} className="text-xl font-bold text-gray-900 hover:text-[#991B1B]">{columnist.name}</Link>
+                    {columnist.professionalInfo && <p className="mt-1 text-sm font-medium text-gray-600">{columnist.professionalInfo}</p>}
+                    {columnist.bio && <p className="mt-2 text-sm leading-relaxed text-gray-600">{columnist.bio}</p>}
+                    <Link href={`/colunistas/${encodeURIComponent(columnist.columnistSlug || columnist.id)}`} className="mt-3 inline-block text-sm font-semibold text-[#991B1B] hover:underline">Ver perfil e todas as matérias</Link>
+                  </div>
+                </div>
+              </section>
+            )}
 
             <div className="mt-12 border-t border-gray-200 pt-8">
               <h3 className="mb-6 text-2xl font-bold text-gray-900">Notícias relacionadas</h3>
