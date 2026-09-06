@@ -39,6 +39,7 @@ const menuItems = [
   { label: 'Mensagens', href: '/admin/mensagens', icon: MessageCircle },
   { label: 'Gerador de Card', href: '/admin/gerador-card', icon: ImageUp },
   { label: 'Usuários', href: '/admin/usuarios', icon: Users },
+  { label: 'Monitoramento de Usuários', href: '/admin/monitoramento-usuarios', icon: Activity },
   { label: 'Recursos Humanos', href: '/admin/recursos-humanos', icon: ClipboardCheck },
   { label: 'Colunistas', href: '/admin/colunistas', icon: PencilLine },
   { label: 'Segurança', href: '/admin/seguranca', icon: Shield },

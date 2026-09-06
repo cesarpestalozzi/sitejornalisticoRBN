@@ -3,6 +3,7 @@ import { hasUserStoreConfig } from '@/app/api/_lib/userStore';
 export type Conversation = {
   id: string;
   participantIds: string[];
+  hiddenFor?: string[];
   createdBy: string;
   createdAt: string;
   lastActivityAt: string;
@@ -83,6 +84,7 @@ function conversationFromRow(row: Row): Conversation {
   return {
     id: row.id,
     participantIds: Array.isArray(payload.participantIds) ? payload.participantIds.map(String) : [],
+    hiddenFor: Array.isArray(payload.hiddenFor) ? payload.hiddenFor.map(String) : [],
     createdBy: String(payload.createdBy ?? ''),
     createdAt: String(payload.createdAt ?? row.created_at ?? new Date().toISOString()),
     lastActivityAt: String(payload.lastActivityAt ?? row.created_at ?? new Date().toISOString()),

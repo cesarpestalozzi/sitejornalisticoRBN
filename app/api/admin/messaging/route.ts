@@ -26,7 +26,9 @@ function jsonError(message: string, status = 400) {
 }
 
 function visibleConversation(conversation: Conversation, userId: string) {
-  return conversation.participantIds.includes(userId) && conversation.participantIds.length === 2;
+  const isParticipant = conversation.participantIds.includes(userId) && conversation.participantIds.length === 2;
+  const isHidden = Array.isArray(conversation.hiddenFor) && conversation.hiddenFor.includes(userId);
+  return isParticipant && !isHidden;
 }
 
 function publicDirectory(rows: Array<{ id: string; payload: Record<string, unknown> }>, currentId: string) {
@@ -67,7 +69,21 @@ export async function GET(request: NextRequest) {
       const conversationId = request.nextUrl.searchParams.get('conversationId') ?? '';
       const conversation = conversations.find((item) => item.id === conversationId);
       if (!conversation) return jsonError('Conversa não encontrada.', 404);
-      return NextResponse.json({ ok: true, conversation, messages: await listMessages(conversationId) });
+      await markNotificationsRead(user!.id, conversationId);
+      const messages = await listMessages(conversationId);
+      const recipientId = conversation.participantIds.find((id) => id !== user!.id);
+      let recipientUnreadMessageIds = new Set<string>();
+      if (recipientId) {
+        const recipientNotifications = await listNotifications(recipientId);
+        recipientUnreadMessageIds = new Set(
+          recipientNotifications.filter((n) => n.conversationId === conversationId && !n.readAt).map((n) => n.messageId)
+        );
+      }
+      const messagesWithReadStatus = messages.map((msg) => ({
+        ...msg,
+        isRead: msg.senderId === user!.id ? !recipientUnreadMessageIds.has(msg.id) : true,
+      }));
+      return NextResponse.json({ ok: true, conversation, messages: messagesWithReadStatus });
     }
     const notifications = await listNotifications(user!.id);
     const unreadByConversation = notifications.filter((item) => !item.readAt).reduce<Record<string, number>>((counts, item) => {
@@ -108,19 +124,26 @@ export async function POST(request: NextRequest) {
         createdAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
       };
-      if (!existing) await saveConversation(conversation);
+      if (existing) {
+        const hiddenFor = Array.isArray(existing.hiddenFor) ? existing.hiddenFor.filter((id) => id !== user!.id) : [];
+        await saveConversation({ ...existing, hiddenFor });
+      } else {
+        await saveConversation(conversation);
+      }
       return NextResponse.json({ ok: true, conversation });
     }
     if (action === 'message') {
       const conversationId = String(body.conversationId ?? '').trim();
       const text = String(body.body ?? '').trim();
       const conversation = (await listConversations()).find((item) => item.id === conversationId);
-      if (!conversation || !visibleConversation(conversation, user!.id)) return jsonError('Conversa não encontrada.', 404);
+      if (!conversation || !conversation.participantIds.includes(user!.id)) return jsonError('Conversa não encontrada.', 404);
       if (!text || text.length > 5000) return jsonError('A mensagem deve ter entre 1 e 5000 caracteres.');
       const now = new Date().toISOString();
       const message = { id: randomUUID(), conversationId, senderId: user!.id, body: text, createdAt: now };
       await saveMessage(message);
-      await saveConversation({ ...conversation, lastActivityAt: now, lastMessagePreview: text.slice(0, 140) });
+
+      // Unhide conversation for both participants when a new message is sent
+      await saveConversation({ ...conversation, hiddenFor: [], lastActivityAt: now, lastMessagePreview: text.slice(0, 140) });
       const recipientId = conversation.participantIds.find((id) => id !== user!.id);
       if (recipientId) await saveNotification({ id: randomUUID(), userId: recipientId, conversationId, messageId: message.id, createdAt: now });
       await updateStoredUserActivity(user!.id, { lastSeenAt: now, isOnline: true });
@@ -129,6 +152,31 @@ export async function POST(request: NextRequest) {
     return jsonError('Ação de mensagens inválida.');
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : 'Falha ao salvar mensagem.', 502);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!canUseMessaging(user, 'send')) return jsonError('Sessão ou permissão de mensagens inválida.', 401);
+  if (!hasMessagingStoreConfig()) return proxyAdminRequest(request, '/api/admin/messaging');
+
+  const conversationId = request.nextUrl.searchParams.get('conversationId') || (await readBody(request)).conversationId;
+  if (!conversationId) return jsonError('ID da conversa é obrigatório.');
+
+  try {
+    const conversations = await listConversations();
+    const conversation = conversations.find((item) => item.id === conversationId);
+    if (!conversation || !conversation.participantIds.includes(user!.id)) {
+      return jsonError('Conversa não encontrada.', 404);
+    }
+
+    const currentHidden = Array.isArray(conversation.hiddenFor) ? conversation.hiddenFor : [];
+    const hiddenFor = Array.from(new Set([...currentHidden, user!.id]));
+    await saveConversation({ ...conversation, hiddenFor });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return jsonError(error instanceof Error ? error.message : 'Falha ao excluir conversa.', 502);
   }
 }
 

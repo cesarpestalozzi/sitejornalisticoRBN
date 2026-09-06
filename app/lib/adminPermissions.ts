@@ -341,7 +341,7 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return hasPermission(user, 'articles:trash:manage');
   }
 
-  if (pathname.startsWith('/admin/usuarios')) {
+  if (pathname.startsWith('/admin/usuarios') || pathname.startsWith('/admin/monitoramento-usuarios')) {
     return hasPermission(user, 'users:manage');
   }
 
