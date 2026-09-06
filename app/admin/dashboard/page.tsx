@@ -8,6 +8,7 @@ import { useAdvertisements } from '@/app/hooks/useAdvertisements';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useUsers } from '@/app/hooks/useUsers';
 import { canManageSettings, useCurrentAdminUser } from '@/app/lib/adminPermissions';
+import { formatArticleAuthor } from '@/app/lib/articleAuthor';
 
 export default function AdminDashboard() {
   const [period, setPeriod] = useState('month');
@@ -134,7 +135,7 @@ export default function AdminDashboard() {
                   <div key={article.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6">
                     <div>
                       <p className="font-semibold text-gray-900">{article.title}</p>
-                      <p className="mt-1 text-sm text-gray-600">Por {article.author} em <span className="font-medium capitalize text-[#991B1B]">{article.category}</span></p>
+                      <p className="mt-1 text-sm text-gray-600">{formatArticleAuthor(article.author)} em <span className="font-medium capitalize text-[#991B1B]">{article.category}</span></p>
                     </div>
                     <div className="text-right text-sm text-gray-500">
                       <p className="font-bold text-gray-900">{article.views.toLocaleString()}</p>

@@ -7,6 +7,7 @@ import Sidebar from '@/app/components/Sidebar';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { readManagedCategories } from '@/app/lib/managedCategories';
 import { formatDate } from '@/app/utils/dateUtils';
+import { formatArticleAuthor } from '@/app/lib/articleAuthor';
 
 interface CategoryArticle {
   id: string;
@@ -141,7 +142,7 @@ export default function CategoryPage() {
                     <h2 className="mt-3 text-2xl font-bold text-gray-900 transition group-hover:text-[#991B1B]">{featuredArticle.title}</h2>
                     <p className="mt-2 text-gray-600">{featuredArticle.excerpt || stripHtml(featuredArticle.content).slice(0, 180)}</p>
                     <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                      <span>{featuredArticle.author}</span>
+                      <span>{formatArticleAuthor(featuredArticle.author)}</span>
                       <span>{formatDate(new Date(featuredArticle.updatedAt || featuredArticle.createdAt))}</span>
                     </div>
                   </div>
@@ -161,7 +162,7 @@ export default function CategoryPage() {
                           <h4 className="line-clamp-2 text-lg font-bold text-gray-900 transition group-hover:text-[#991B1B]">{article.title}</h4>
                           <p className="mt-2 line-clamp-2 text-sm text-gray-600">{article.excerpt || stripHtml(article.content).slice(0, 140)}</p>
                           <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                            <span>{article.author}</span>
+                            <span>{formatArticleAuthor(article.author)}</span>
                             <span>{estimateReadingTimeMinutes(article.content)} min</span>
                           </div>
                         </div>

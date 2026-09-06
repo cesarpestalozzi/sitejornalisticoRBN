@@ -11,6 +11,7 @@ import { useArticles } from '@/app/hooks/useArticles';
 import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
 import { readCurrentRbnUser, type RbnAccount } from '@/app/lib/rbnAuth';
 import { formatDate } from '@/app/utils/dateUtils';
+import { formatArticleAuthor } from '@/app/lib/articleAuthor';
 
 type ArticleReply = {
   id: string;
@@ -624,7 +625,7 @@ export default function ArticlePageClient() {
 
             <div className="flex flex-col gap-4 border-y border-gray-200 py-6 md:flex-row md:items-center md:justify-between md:gap-6">
               <div>
-                <p className="font-semibold text-gray-900">{article ? article.author : fallbackFeaturedArticle.author}</p>
+                <p className="font-semibold text-gray-900">{formatArticleAuthor(article ? article.author : fallbackFeaturedArticle.author)}</p>
                 <div className="text-sm text-gray-500">
                   <p>
                     Publicado em {formatArticleMeta(publicationDate)}

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { NewsCard } from '@/app/types';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 import { formatDate, timeAgo } from '@/app/utils/dateUtils';
+import { formatArticleAuthor } from '@/app/lib/articleAuthor';
 
 interface NewsCardProps {
   article: NewsCard;
@@ -40,7 +41,7 @@ export default function NewsCardComponent({ article }: NewsCardProps) {
 
           <div className="space-y-2 border-t border-gray-200 pt-3">
             <div className="flex items-center justify-between gap-2 text-[11px] text-gray-500 sm:text-xs">
-              <span className="font-medium">{article.author}</span>
+              <span className="font-medium">{formatArticleAuthor(article.author)}</span>
               <span>{article.readingTime} min</span>
             </div>
 

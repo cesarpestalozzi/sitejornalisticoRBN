@@ -7,6 +7,7 @@ import { Newspaper } from 'lucide-react';
 import { useArticles } from '@/app/hooks/useArticles';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 import { formatDate } from '@/app/utils/dateUtils';
+import { formatArticleAuthor } from '@/app/lib/articleAuthor';
 
 function SearchMagnifierIcon({ className = '' }: { className?: string }) {
   return (
@@ -117,7 +118,7 @@ function SearchPageContent() {
                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-600">{article.excerpt || stripHtml(article.content)}</p>
                     <div className="mt-4 flex items-center gap-2 text-sm text-gray-500">
                       <Newspaper className="h-4 w-4" />
-                      {article.author}
+                      {formatArticleAuthor(article.author)}
                     </div>
                   </div>
                 </Link>

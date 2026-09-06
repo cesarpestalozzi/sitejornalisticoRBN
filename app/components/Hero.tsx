@@ -7,6 +7,7 @@ import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categor
 import { formatDate } from '@/app/utils/dateUtils';
 import { useSettingsContext } from '@/app/contexts/SettingsContext';
 import { defaultSettings } from '@/app/lib/settings';
+import { formatArticleAuthor } from '@/app/lib/articleAuthor';
 
 interface HeroProps {
   article: Article | null;
@@ -106,7 +107,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
                <div className="flex items-center gap-3">
                  {article.authorImage && <img src={article.authorImage} alt={article.author} className="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10" />}
                  <div>
-                   <p className="text-sm font-semibold text-gray-900 sm:text-base">{article.author}</p>
+                   <p className="text-sm font-semibold text-gray-900 sm:text-base">{formatArticleAuthor(article.author)}</p>
                    <p className="text-[11px] text-gray-500 sm:text-xs">{article.readingTime} min de leitura</p>
                  </div>
                </div>
