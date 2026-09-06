@@ -44,7 +44,8 @@ export async function listStoredArticles(id?: string): Promise<ArticleRow[]> {
   if (id) params.set('id', `eq.${id}`);
   const response = await fetch(`${tableUrl}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
-  return (await response.json()) as ArticleRow[];
+  const rows = (await response.json()) as ArticleRow[];
+  return rows.filter((row) => !row.id.startsWith('__analytics__:') && !row.id.startsWith('__comment__:'));
 }
 
 export async function saveStoredArticle(article: Record<string, unknown>, deleted: boolean) {
