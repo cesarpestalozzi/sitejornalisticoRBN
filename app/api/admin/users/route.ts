@@ -4,6 +4,13 @@ import { hasUserStoreConfig, listStoredUsers, saveStoredUser } from '@/app/api/_
 export const dynamic = 'force-dynamic';
 
 const pythonApiBase = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const ADMIN_ROLES = new Set(['admin', 'administrador', 'administrador principal', 'editor-chefe', 'editor chefe', 'editor', 'jornalista', 'colaborador', 'estagiario']);
+
+function normalizeRole(value: unknown) {
+  return typeof value === 'string'
+    ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ')
+    : '';
+}
 
 async function proxyToPython(request: NextRequest, path: string) {
   const incomingUrl = new URL(request.url);
@@ -37,7 +44,13 @@ async function proxyToPython(request: NextRequest, path: string) {
 
 export async function GET(request: NextRequest) {
   if (hasUserStoreConfig()) {
-    try { return NextResponse.json({ ok: true, rows: await listStoredUsers(), source: 'supabase' }); }
+    try {
+      const rows = (await listStoredUsers()).filter((row) => {
+        const role = normalizeRole(row.payload.role);
+        return ADMIN_ROLES.has(role);
+      });
+      return NextResponse.json({ ok: true, rows, source: 'supabase' });
+    }
     catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Falha ao consultar usuários.' }, { status: 502 }); }
   }
   if (process.env.VERCEL === '1') return NextResponse.json({ ok: false, error: 'Armazenamento de usuários não configurado.' }, { status: 503 });

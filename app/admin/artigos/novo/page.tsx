@@ -169,6 +169,7 @@ export default function NewArticlePage() {
     status: 'rascunho' | 'agendado' | 'publicado';
     articleId: string;
   } | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [notifyByEmail, setNotifyByEmail] = useState(true);
   const [audienceRecipients, setAudienceRecipients] = useState<AudienceRecipient[]>([]);
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
@@ -649,6 +650,9 @@ export default function NewArticlePage() {
     publishStatus: 'rascunho' | 'agendado' | 'publicado',
     options?: { reviewRequested?: boolean }
   ) => {
+    if (isPublishing) {
+      return;
+    }
     if (!currentUser || !canCreateArticle(currentUser)) {
       window.alert('Sem permissão para criar matérias.');
       return;
@@ -681,6 +685,7 @@ export default function NewArticlePage() {
       return;
     }
 
+    setIsPublishing(true);
     let createdArticleId = '';
     try {
       const createdArticle = addArticle({
@@ -704,6 +709,7 @@ export default function NewArticlePage() {
       createdArticleId = createdArticle.id;
       await persistArticle(createdArticle);
     } catch (error) {
+      setIsPublishing(false);
       window.alert(error instanceof Error ? error.message : 'Sem permissão para publicar esta matéria.');
       return;
     }
@@ -760,6 +766,7 @@ export default function NewArticlePage() {
       status: publishStatus,
       articleId: createdArticleId,
     });
+    setIsPublishing(false);
   };
 
   if (!isLoaded || !currentUser) {
@@ -1413,9 +1420,9 @@ export default function NewArticlePage() {
                 <p className="mt-1 text-sm text-gray-500">Confira a prévia da matéria ao lado antes de publicar.</p>
                 <div className="mt-4 space-y-3">
                 {canPublishArticle(currentUser, effectiveAuthor) ? (
-                  <button type="button" onClick={() => handlePublish('publicado')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#2a2a2a]">
+                  <button type="button" disabled={isPublishing} onClick={() => handlePublish('publicado')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#111111] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-60">
                     <Send className="h-4 w-4" />
-                    Publicar no RBN
+                    {isPublishing ? 'Publicando...' : 'Publicar no RBN'}
                   </button>
                 ) : null}
                 <button type="button" onClick={() => handlePublish('rascunho')} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">

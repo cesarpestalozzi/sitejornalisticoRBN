@@ -12,6 +12,14 @@ type AudienceUser = {
   status?: string;
 };
 
+const ADMIN_ROLES = new Set(['admin', 'administrador', 'administrador principal', 'editor-chefe', 'editor chefe', 'editor', 'jornalista', 'colaborador', 'estagiario']);
+
+function normalizeRole(value: unknown) {
+  return typeof value === 'string'
+    ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ')
+    : '';
+}
+
 function getDisplayName(email: string, metadata: Record<string, unknown> | null) {
   const rawName = typeof metadata?.name === 'string'
     ? metadata.name
@@ -46,6 +54,10 @@ export async function GET() {
   }
 
   const users: AudienceUser[] = authUsers
+    .filter((row) => {
+      const role = normalizeRole(row.user_metadata?.role);
+      return !ADMIN_ROLES.has(role);
+    })
     .map((row) => {
       return {
         id: row.id,
