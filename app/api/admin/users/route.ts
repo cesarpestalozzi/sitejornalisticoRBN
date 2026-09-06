@@ -21,6 +21,20 @@ function normalizeCpf(value: unknown) {
   return typeof value === 'string' ? value.replace(/\D/g, '') : '';
 }
 
+function isValidCpf(value: string) {
+  if (value.length !== 11 || /^(\d)\1{10}$/.test(value)) return false;
+  let sum = 0;
+  for (let index = 0; index < 9; index += 1) sum += Number(value[index]) * (10 - index);
+  let digit = (sum * 10) % 11;
+  if (digit === 10) digit = 0;
+  if (digit !== Number(value[9])) return false;
+  sum = 0;
+  for (let index = 0; index < 10; index += 1) sum += Number(value[index]) * (11 - index);
+  digit = (sum * 10) % 11;
+  if (digit === 10) digit = 0;
+  return digit === Number(value[10]);
+}
+
 async function proxyToPython(request: NextRequest, path: string) {
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL(path, `${pythonApiBase}/`);
@@ -80,8 +94,8 @@ export async function POST(request: NextRequest) {
       const previousName = normalizePersonName(previous?.payload.name);
       const nextName = normalizePersonName(body.payload.name) || previousName;
       const nextCpf = normalizeCpf(body.payload.cpf);
-      if (!nextCpf || nextCpf.length !== 11) {
-        return NextResponse.json({ ok: false, error: 'O CPF deve conter 11 dígitos.' }, { status: 400 });
+      if (!isValidCpf(nextCpf)) {
+        return NextResponse.json({ ok: false, error: 'Informe um CPF válido com 11 dígitos.' }, { status: 400 });
       }
       const nextLogin = String(body.payload.login || '').trim().toUpperCase();
       if (!/^RBN\d{11}$/.test(nextLogin)) {

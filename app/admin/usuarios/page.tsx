@@ -86,6 +86,12 @@ const initialFormData = {
   isColumnist: false,
   columnistSlug: '',
   professionalInfo: '',
+  professionalRole: '',
+  professionalArea: '',
+  employmentType: '',
+  professionalStartDate: '',
+  professionalStatus: 'ativo',
+  internalNotes: '',
   socialLinks: [] as User['socialLinks'],
 };
 
@@ -459,6 +465,12 @@ export default function UsersPage() {
       isColumnist: user.isColumnist ?? false,
       columnistSlug: user.columnistSlug ?? '',
       professionalInfo: user.professionalInfo ?? '',
+      professionalRole: user.professionalRole ?? '',
+      professionalArea: user.professionalArea ?? '',
+      employmentType: user.employmentType ?? '',
+      professionalStartDate: user.professionalStartDate ?? '',
+      professionalStatus: user.professionalStatus ?? 'ativo',
+      internalNotes: user.internalNotes ?? '',
       socialLinks: user.socialLinks ?? [],
     });
     setPasswordInput('');
@@ -1103,6 +1115,33 @@ export default function UsersPage() {
                     <input type="text" value={formData.specialization ?? ''} onChange={(event) => setFormData((current) => ({ ...current, specialization: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                   </div>
                   <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Cargo ou função profissional</label>
+                    <select value={formData.professionalRole ?? ''} onChange={(event) => setFormData((current) => ({ ...current, professionalRole: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
+                      <option value="">Selecione</option>
+                      <option>Jornalista</option><option>Colunista</option><option>Editor</option><option>Fotógrafo</option><option>Estagiário</option><option>Correspondente</option><option>Colaborador</option><option>Administrador</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Área de atuação</label>
+                    <input type="text" value={formData.professionalArea ?? ''} onChange={(event) => setFormData((current) => ({ ...current, professionalArea: event.target.value }))} placeholder="Política, cultura, esportes..." className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Tipo de vínculo</label>
+                    <select value={formData.employmentType ?? ''} onChange={(event) => setFormData((current) => ({ ...current, employmentType: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
+                      <option value="">Selecione</option><option>Equipe fixa</option><option>Freelancer</option><option>Correspondente</option><option>Estágio</option><option>Colaborador</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Data de entrada</label>
+                    <input type="date" value={formData.professionalStartDate ?? ''} onChange={(event) => setFormData((current) => ({ ...current, professionalStartDate: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Status profissional</label>
+                    <select value={formData.professionalStatus ?? 'ativo'} onChange={(event) => setFormData((current) => ({ ...current, professionalStatus: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
+                      <option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="afastado">Afastado</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Localidade</label>
                     <select value={formData.location ?? ''} onChange={(event) => setFormData((current) => ({ ...current, location: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">
                       <option value="">Selecione um estado</option>
@@ -1128,6 +1167,10 @@ export default function UsersPage() {
                   <label className="mb-2 block text-sm font-semibold text-gray-900">Biografia</label>
                   <textarea value={formData.bio} onChange={(event) => setFormData((current) => ({ ...current, bio: event.target.value }))} rows={4} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#991B1B] focus:outline-none" />
                   {errors.bio && <p className="mt-2 text-xs text-[#991B1B]">{errors.bio}</p>}
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-900">Observações internas</label>
+                  <textarea value={formData.internalNotes ?? ''} onChange={(event) => setFormData((current) => ({ ...current, internalNotes: event.target.value }))} rows={3} placeholder="Informações administrativas não exibidas no site público." className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                 </div>
               </section>
 

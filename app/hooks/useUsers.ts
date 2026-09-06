@@ -106,6 +106,13 @@ export interface User {
   publicRole?: string;
   columnistSlug?: string;
   professionalInfo?: string;
+  professionalRole?: string;
+  professionalArea?: string;
+  employmentType?: string;
+  professionalStartDate?: string;
+  professionalStatus?: string;
+  internalNotes?: string;
+  changeHistory?: Array<{ id: string; action: string; changedAt: string; changedBy: string }>;
   socialLinks?: Array<{ label: string; url: string }>;
 }
 
@@ -247,6 +254,24 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
         ? Number(user.articlesCount)
         : 0,
     specialization: typeof user?.specialization === 'string' ? user.specialization : '',
+    isColumnist: Boolean(user?.isColumnist),
+    publicName: typeof user?.publicName === 'string' ? user.publicName : '',
+    profileVisible: user?.profileVisible !== false,
+    publicEmail: typeof user?.publicEmail === 'string' ? user.publicEmail : '',
+    publicEmailAuthorized: Boolean(user?.publicEmailAuthorized),
+    website: typeof user?.website === 'string' ? user.website : '',
+    expertise: typeof user?.expertise === 'string' ? user.expertise : '',
+    publicRole: typeof user?.publicRole === 'string' ? user.publicRole : '',
+    columnistSlug: typeof user?.columnistSlug === 'string' ? user.columnistSlug : '',
+    professionalInfo: typeof user?.professionalInfo === 'string' ? user.professionalInfo : '',
+    professionalRole: typeof user?.professionalRole === 'string' ? user.professionalRole : '',
+    professionalArea: typeof user?.professionalArea === 'string' ? user.professionalArea : '',
+    employmentType: typeof user?.employmentType === 'string' ? user.employmentType : '',
+    professionalStartDate: typeof user?.professionalStartDate === 'string' ? user.professionalStartDate : '',
+    professionalStatus: typeof user?.professionalStatus === 'string' ? user.professionalStatus : '',
+    internalNotes: typeof user?.internalNotes === 'string' ? user.internalNotes : '',
+    changeHistory: Array.isArray(user?.changeHistory) ? user.changeHistory : [],
+    socialLinks: Array.isArray(user?.socialLinks) ? user.socialLinks : [],
     location: typeof user?.location === 'string' ? user.location : '',
     linked: typeof user?.linked === 'string' ? user.linked.trim() : '',
     teams: typeof user?.teams === 'string' ? user.teams.trim() : '',
@@ -602,6 +627,15 @@ export function useUsers() {
               ? 'password-changed'
               : user.onboardingStatus),
           updatedAt: new Date().toISOString(),
+          changeHistory: [
+            ...(user.changeHistory ?? []),
+            {
+              id: `change-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+              action: 'Cadastro atualizado',
+              changedAt: new Date().toISOString(),
+              changedBy: currentUser?.name ?? 'Administrador',
+            },
+          ].slice(-50),
         };
 
         return nextUser;

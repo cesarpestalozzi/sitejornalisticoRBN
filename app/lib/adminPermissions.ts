@@ -91,6 +91,8 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'headlines:manage',
     'categories:manage',
     'comments:manage',
+    'users:manage',
+    'settings:manage',
   ],
   editor: [
     'dashboard:view',
@@ -304,7 +306,7 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
   }
 
   if (pathname.startsWith('/admin/usuarios')) {
-    return true;
+    return hasPermission(user, 'users:manage');
   }
 
   if (pathname.startsWith('/admin/colunistas')) {
