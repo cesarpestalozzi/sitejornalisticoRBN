@@ -64,9 +64,11 @@ async function userExists(userId: string) {
 }
 
 function publicUser(row: { id: string; payload: Record<string, unknown> }) {
+  const nameCandidate = String(row.payload.name ?? row.payload.publicName ?? '').trim();
+  const name = nameCandidate || String(row.payload.email ?? '').split('@')[0] || 'Usuário';
   return {
-    id: row.id,
-    name: String(row.payload.name ?? 'Usuário'),
+    id: String(row.id),
+    name,
     email: String(row.payload.email ?? ''),
     role: String(row.payload.role ?? ''),
     status: String(row.payload.status ?? 'ativo'),
@@ -110,11 +112,12 @@ export async function GET(request: NextRequest) {
       result[document.status] = (result[document.status] ?? 0) + 1;
       return result;
     }, {});
-    const visibleUsers = [...uniqueUsers.values()].filter((item) => canManage(user) || item.id === user.id);
+    const canSeeAll = canManage(user) || can(user, 'documentation:request') || can(user, 'documentation:view') || can(user, 'documentation:upload');
+    const visibleUsers = [...uniqueUsers.values()].filter((item) => canSeeAll || item.id === user.id);
     return NextResponse.json({
       ok: true,
       documents,
-      users: targetUserId ? visibleUsers.filter((item) => item.id === targetUserId) : visibleUsers,
+      users: visibleUsers,
       counts,
       statusCounts,
     });
