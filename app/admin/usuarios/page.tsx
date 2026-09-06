@@ -66,6 +66,9 @@ const brazilianStates = [
 
 const initialFormData = {
   name: '',
+  birthDate: '',
+  address: '',
+  publicName: '',
   email: '',
   phone: '',
   cpf: '',
@@ -445,6 +448,9 @@ export default function UsersPage() {
     setEditingId(user.id);
     setFormData({
       name: user.name,
+      birthDate: user.birthDate ?? '',
+      address: user.address ?? '',
+      publicName: user.publicName ?? '',
       email: user.email,
       phone: user.phone ?? '',
       cpf: user.cpf,
@@ -1044,9 +1050,22 @@ export default function UsersPage() {
                       {errors.email && <p className="mt-2 text-xs text-[#991B1B]">{errors.email}</p>}
                     </div>
                     <div>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">Data de nascimento</label>
+                      <input type="date" value={formData.birthDate} onChange={(event) => setFormData((current) => ({ ...current, birthDate: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">Idade</label>
+                      <input type="text" readOnly value={formData.birthDate ? `${Math.max(0, new Date().getFullYear() - new Date(formData.birthDate).getFullYear() - (new Date() < new Date(new Date().getFullYear(), new Date(formData.birthDate).getMonth(), new Date(formData.birthDate).getDate()) ? 1 : 0))} anos` : 'Não informada'} className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-gray-600" />
+                    </div>
+                    <div>
                       <label className="mb-2 block text-sm font-semibold text-gray-900">CPF</label>
                       <input type="text" value={formData.cpf} onChange={(event) => setFormData((current) => ({ ...current, cpf: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
                       {errors.cpf && <p className="mt-2 text-xs text-[#991B1B]">{errors.cpf}</p>}
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="mb-2 block text-sm font-semibold text-gray-900">Endereço</label>
+                      <input type="text" value={formData.address} onChange={(event) => setFormData((current) => ({ ...current, address: event.target.value }))} placeholder="Endereço para uso administrativo" className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                      <p className="mt-1 text-xs text-gray-500">Dado administrativo; não é exibido no portal público.</p>
                     </div>
                     <div>
                       <label className="mb-2 block text-sm font-semibold text-gray-900">Login</label>
@@ -1106,6 +1125,11 @@ export default function UsersPage() {
                   <p className="text-sm text-gray-500">Estrutura de cargos, permissões e detalhes profissionais.</p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Nome de apresentação</label>
+                    <input type="text" value={formData.publicName ?? ''} onChange={(event) => setFormData((current) => ({ ...current, publicName: event.target.value }))} placeholder={formData.name || 'Como deseja ser apresentado no portal'} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                    <p className="mt-1 text-xs text-gray-500">Opcional. Quando preenchido, será usado em perfis, créditos e áreas públicas. O nome completo permanece administrativo.</p>
+                  </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Perfil</label>
                     <select value={formData.role} onChange={(event) => setFormData((current) => ({ ...current, role: event.target.value as UserRole, roleLevel: event.target.value === 'admin' ? 1 : event.target.value === 'editor-chefe' ? 2 : event.target.value === 'editor' ? 3 : event.target.value === 'jornalista' ? 4 : event.target.value === 'colaborador' ? 5 : 6 }))} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none">

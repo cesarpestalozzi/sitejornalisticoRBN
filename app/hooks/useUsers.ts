@@ -69,6 +69,8 @@ export function buildUserLogin(cpf?: string | null) {
 export interface User {
   id: string;
   name: string;
+  birthDate?: string;
+  address?: string;
   email: string;
   phone?: string;
   cpf: string;
@@ -117,6 +119,10 @@ export interface User {
   internalNotes?: string;
   changeHistory?: Array<{ id: string; action: string; changedAt: string; changedBy: string }>;
   socialLinks?: Array<{ label: string; url: string }>;
+}
+
+export function getPublicUserName(user: Pick<User, 'name' | 'publicName'>) {
+  return user.publicName?.trim() || user.name;
 }
 
 const USERS_KEY = 'pz_news_users';
@@ -238,6 +244,8 @@ function normalizeUserRecord(user: Partial<User> | null | undefined): User {
   return {
     id: String(user?.id ?? `user-${Date.now()}-${Math.random().toString(16).slice(2)}`),
     name: fallbackName,
+    birthDate: typeof user?.birthDate === 'string' ? user.birthDate : '',
+    address: typeof user?.address === 'string' ? user.address : '',
     email: typeof user?.email === 'string' ? user.email.trim() : ADMIN_EMAIL,
     phone: normalizePhone(user?.phone),
     cpf: fallbackCpf,

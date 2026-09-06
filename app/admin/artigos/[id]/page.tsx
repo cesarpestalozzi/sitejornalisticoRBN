@@ -10,7 +10,7 @@ import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
 import { useArticles, type Article } from '@/app/hooks/useArticles';
 import { useToast, ToastContainer } from '@/app/components/Toast';
-import { useUsers } from '@/app/hooks/useUsers';
+import { getPublicUserName, useUsers } from '@/app/hooks/useUsers';
 import type { PestalozziChatMessage, PestalozziVersion } from '@/app/lib/pestalozzi';
 import { defaultManagedCategories, readManagedCategories, type ManagedCategory } from '@/app/lib/managedCategories';
 import {
@@ -660,10 +660,10 @@ export default function EditArticlePage() {
                             <label key={user.id} className="flex items-center gap-2 text-sm">
                               <input type="checkbox" checked={selectedAuthorIds.includes(user.id)} onChange={(event) => {
                                 const ids = event.target.checked ? [...selectedAuthorIds, user.id] : selectedAuthorIds.filter((id) => id !== user.id);
-                                const names = users.filter((candidate) => ids.includes(candidate.id)).map((candidate) => candidate.name);
+                                const names = users.filter((candidate) => ids.includes(candidate.id)).map(getPublicUserName);
                                 setDrafts((current) => ({ ...current, [formData.id]: { ...formData, authorUserIds: ids, author: names.join(' e ') || formData.author } }));
                               }} disabled={!canViewAllArticles(currentUser) && user.id !== currentUser.id} />
-                              <span>{user.name}</span>
+                              <span>{getPublicUserName(user)} <span className="text-xs text-gray-500">({user.name})</span></span>
                             </label>
                           ))}
                       </div>
@@ -673,7 +673,7 @@ export default function EditArticlePage() {
                     <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(formData.showColumnist)} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, showColumnist: event.target.checked, columnistUserId: event.target.checked ? formData.columnistUserId : '' } }))} /> Exibir bloco do colunista ao final da matéria</label>
                     <select className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2" value={formData.columnistUserId ?? ''} onChange={(event) => setDrafts((current) => ({ ...current, [formData.id]: { ...formData, columnistUserId: event.target.value } }))} disabled={!formData.showColumnist}>
                       <option value="">Selecione um colunista</option>
-                      {users.filter((user) => user.status === 'ativo' && user.isColumnist).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                      {users.filter((user) => user.status === 'ativo' && user.isColumnist).map((user) => <option key={user.id} value={user.id}>{getPublicUserName(user)}</option>)}
                     </select>
                     <p className="mt-2 text-xs text-gray-500">A seleção é persistida com a matéria pelo ID do usuário colunista.</p>
                   </div>
