@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDirectory, hasDocumentationPinAccess, resolveAdminUser } from '@/app/api/_lib/adminServerAuth';
 import {
+  deleteDocument,
   getDocument,
   hasDocumentationStoreConfig,
   listAudit,
@@ -54,13 +55,99 @@ function canManage(user: Awaited<ReturnType<typeof resolveAdminUser>>) {
 
 async function authorizedTarget(user: Awaited<ReturnType<typeof resolveAdminUser>>, targetId: string) {
   if (!user || !targetId) return false;
-  if (canManage(user)) return true;
+  if (canManage(user) || user.role === 'admin') return true;
   return user.id === targetId;
 }
 
 async function userExists(userId: string) {
   const directory = await getAdminDirectory();
   return directory.some((row) => String(row.id) === userId && String(row.payload.status ?? 'ativo').toLowerCase() !== 'removido');
+}
+
+async function findUserById(userId: string) {
+  const directory = await getAdminDirectory();
+  const row = directory.find((item) => String(item.id) === userId);
+  if (!row) return null;
+  const name = String(row.payload.name ?? row.payload.publicName ?? row.payload.email ?? 'Colaborador').trim();
+  const email = String(row.payload.email ?? '').trim();
+  return { id: String(row.id), name, email };
+}
+
+function escapeHtml(val: string) {
+  return val
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function sendDocumentationEmail({
+  toEmail,
+  toName,
+  subject,
+  title,
+  messageLines,
+  actionUrl = 'https://www.rbnbrasil.com.br/admin/recursos-humanos',
+}: {
+  toEmail: string;
+  toName: string;
+  subject: string;
+  title: string;
+  messageLines: string[];
+  actionUrl?: string;
+}) {
+  if (!toEmail || !toEmail.includes('@')) return;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM || 'RBN Recursos Humanos <noreply@rbnbrasil.com.br>';
+
+  if (!apiKey) {
+    console.log(`[RBN RH Email Skipped - No RESEND_API_KEY] To: ${toEmail} | Subject: ${subject}`);
+    return;
+  }
+
+  const linesHtml = messageLines
+    .map((line) => `<p style="margin: 0 0 12px; font-size: 15px; line-height: 1.6; color: #374151;">${escapeHtml(line)}</p>`)
+    .join('');
+
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; background: #f4f4f6; padding: 32px 16px; color: #111827;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <div style="border-bottom: 2px solid #991b1b; padding-bottom: 16px; margin-bottom: 24px;">
+          <p style="margin: 0 0 4px; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #991b1b; font-weight: 800;">RBN — RECURSOS HUMANOS</p>
+          <h1 style="margin: 0; font-size: 22px; color: #111827; font-weight: 700;">${escapeHtml(title)}</h1>
+        </div>
+        <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.6; color: #111827;">Olá, <strong>${escapeHtml(toName)}</strong>!</p>
+        ${linesHtml}
+        <div style="margin: 28px 0 16px;">
+          <a href="${escapeHtml(actionUrl)}" style="display: inline-block; background: #991b1b; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px;">
+            Acessar Central de RH
+          </a>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0 16px;" />
+        <p style="margin: 0; font-size: 13px; color: #6b7280;">Este e-mail é enviado automaticamente pelo Portal RBN — Central Protegida de Recursos Humanos.</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [toEmail],
+        subject,
+        html,
+      }),
+    });
+  } catch (err) {
+    console.error('Erro ao enviar e-mail de documentação:', err);
+  }
 }
 
 function publicUser(row: { id: string; payload: Record<string, unknown> }) {
@@ -95,7 +182,7 @@ export async function GET(request: NextRequest) {
     if (targetUserId && !(await authorizedTarget(user, targetUserId))) return errorResponse('Você não pode consultar os documentos deste usuário.', 403);
 
     const [documents, directory] = await Promise.all([
-      listDocuments(targetUserId || (canManage(user) ? undefined : user.id)),
+      listDocuments(targetUserId || (canManage(user) || user.role === 'admin' ? undefined : user.id)),
       getAdminDirectory(),
     ]);
     const uniqueUsers = new Map<string, ReturnType<typeof publicUser>>();
@@ -112,7 +199,7 @@ export async function GET(request: NextRequest) {
       result[document.status] = (result[document.status] ?? 0) + 1;
       return result;
     }, {});
-    const canSeeAll = canManage(user) || can(user, 'documentation:request') || can(user, 'documentation:view') || can(user, 'documentation:upload');
+    const canSeeAll = canManage(user) || user.role === 'admin' || can(user, 'documentation:request') || can(user, 'documentation:view') || can(user, 'documentation:upload');
     const visibleUsers = [...uniqueUsers.values()].filter((item) => canSeeAll || item.id === user.id);
     return NextResponse.json({
       ok: true,
@@ -209,13 +296,8 @@ export async function POST(request: NextRequest) {
       });
       ids.push(id);
     }
-    const statusLabelsMap: Record<string, string> = {
-      pending: 'Pendente',
-      review: 'Em revisão',
-      approved: 'Aprovado',
-      rejected: 'Rejeitado',
-      expired: 'Expirado',
-    };
+
+    const targetUser = await findUserById(targetUserId);
 
     if (action === 'request') {
       await sendSystemNotification(
@@ -223,12 +305,42 @@ export async function POST(request: NextRequest) {
         targetUserId,
         `📄 *Solicitação de Documento(s)*:\n\nOs seguintes documentos foram solicitados para você na central de Recursos Humanos:\n• ${documentTypes.join('\n• ')}${requestReason ? `\n\n*Motivo:* ${requestReason}` : ''}`
       );
-    } else if (action === 'upload' && user.id !== targetUserId) {
-      await sendSystemNotification(
-        user.id,
-        targetUserId,
-        `📄 *Documento Recebido*: Foi adicionado o documento *${documentTypes[0]}* (${fileName ?? 'arquivo'}) ao seu perfil por ${user.name}.`
-      );
+
+      if (targetUser?.email) {
+        void sendDocumentationEmail({
+          toEmail: targetUser.email,
+          toName: targetUser.name,
+          subject: `[RBN RH] Solicitação de documento(s): ${documentTypes.join(', ')}`,
+          title: 'Solicitação de Documentação Profissional',
+          messageLines: [
+            `Foram solicitados os seguintes documentos para o seu perfil no Portal RBN:`,
+            `• ${documentTypes.join(', ')}`,
+            ...(requestReason ? [`Motivo informado: ${requestReason}`] : []),
+            `Por favor, acesse a central de Recursos Humanos para anexar os arquivos solicitados.`,
+          ],
+        });
+      }
+    } else if (action === 'upload') {
+      if (user.id !== targetUserId) {
+        await sendSystemNotification(
+          user.id,
+          targetUserId,
+          `📄 *Documento Recebido*: Foi adicionado o documento *${documentTypes[0]}* (${fileName ?? 'arquivo'}) ao seu perfil por ${user.name}.`
+        );
+      }
+
+      if (targetUser?.email) {
+        void sendDocumentationEmail({
+          toEmail: targetUser.email,
+          toName: targetUser.name,
+          subject: `[RBN RH] Documento registrado: ${documentTypes[0]}`,
+          title: 'Confirmação de Recebimento de Documento',
+          messageLines: [
+            `O documento "${documentTypes[0]}" (${fileName ?? 'arquivo'}) foi cadastrado com sucesso no seu perfil de Recursos Humanos por ${user.name}.`,
+            `O arquivo foi recebido e está em fase de verificação e revisão pela equipe de gestão.`,
+          ],
+        });
+      }
     }
 
     return NextResponse.json({ ok: true, ids, status }, { status: 201 });
@@ -275,16 +387,31 @@ export async function PATCH(request: NextRequest) {
         pending: 'Pendente',
         review: 'Em revisão',
         approved: 'Aprovado',
-        rejected: 'Rejeitado',
+        rejected: 'Rejeitado / Recusado',
         expired: 'Expirado',
       };
       const statusLabel = statusLabelsMap[nextStatus] ?? nextStatus;
       const statusEmoji = nextStatus === 'approved' ? '✅' : nextStatus === 'rejected' ? '❌' : 'ℹ️';
+      
       await sendSystemNotification(
         user.id,
         document.user_id,
         `${statusEmoji} *Atualização de Documento*: O seu documento *${document.document_type}* foi alterado para *${statusLabel}* por ${user.name}.${nextNotes ? `\n\n*Observação:* ${nextNotes}` : ''}`
       );
+
+      const docUser = await findUserById(document.user_id);
+      if (docUser?.email) {
+        void sendDocumentationEmail({
+          toEmail: docUser.email,
+          toName: docUser.name,
+          subject: `[RBN RH] Status do documento (${document.document_type}): ${statusLabel}`,
+          title: 'Atualização de Status de Documento',
+          messageLines: [
+            `O seu documento "${document.document_type}" teve o status de revisão alterado para "${statusLabel}" por ${user.name}.`,
+            ...(nextNotes ? [`Observações informadas: ${nextNotes}`] : []),
+          ],
+        });
+      }
     }
 
     return NextResponse.json({ ok: true });
@@ -295,7 +422,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const user = await resolveAdminUser(request);
-  if (!user || !can(user, 'documentation:delete')) return errorResponse('Sem permissão para excluir documentos.', 403);
+  if (!user) return errorResponse('Sessão inválida.', 401);
   if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Desbloqueie Recursos Humanos com o PIN.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
   try {
@@ -303,8 +430,15 @@ export async function DELETE(request: NextRequest) {
     if (!id) return errorResponse('id é obrigatório.');
     const document = await getDocument(id);
     if (!document || document.deleted_at) return errorResponse('Documento não encontrado.', 404);
-    if (!(await authorizedTarget(user, document.user_id))) return errorResponse('Você não pode excluir este documento.', 403);
-    await updateDocument(id, { deleted_at: new Date().toISOString(), content_base64: null, file_name: null, mime_type: null, size_bytes: null });
+    
+    const isOwnerOrAuthor = user.id === document.user_id || user.id === document.requested_by || user.id === document.uploaded_by;
+    const canDeleteDoc = user.role === 'admin' || can(user, 'documentation:delete') || can(user, 'documentation:manage') || can(user, 'users:manage') || isOwnerOrAuthor;
+
+    if (!canDeleteDoc) {
+      return errorResponse('Você não possui permissão para excluir este documento.', 403);
+    }
+
+    await deleteDocument(id);
     await saveAudit({
       document_id: id,
       user_id: document.user_id,

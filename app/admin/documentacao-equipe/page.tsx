@@ -14,6 +14,7 @@ import {
   FileCheck,
   FileText,
   FileX,
+  Mail,
   Plus,
   RefreshCw,
   Search,
@@ -46,7 +47,7 @@ const statusLabels: Record<Status, string> = {
   pending: 'Pendente',
   review: 'Em revisão',
   approved: 'Aprovado',
-  rejected: 'Rejeitado',
+  rejected: 'Rejeitado / Recusado',
   expired: 'Expirado',
 };
 
@@ -277,8 +278,8 @@ export default function TeamDocumentationPage() {
 
       const text =
         formMode === 'upload'
-          ? 'O documento foi registrado com sucesso e a notificação foi enviada ao destinatário.'
-          : 'A solicitação foi registrada com sucesso e os colaboradores foram notificados no sistema.';
+          ? 'O documento foi cadastrado com sucesso! Notificação interna e e-mail enviados ao colaborador.'
+          : 'Solicitação de documentos registrada com sucesso! Notificação interna e e-mail enviados ao colaborador.';
 
       setSuccessMessage(text);
       await load();
@@ -299,7 +300,7 @@ export default function TeamDocumentationPage() {
         body: JSON.stringify({ id: document.id, status, notes: customNote ?? document.notes ?? '' }),
       });
       const label = statusLabels[status] ?? status;
-      setSuccessMessage(`Status do documento "${document.document_type}" atualizado para "${label}" com sucesso! Notificação enviada.`);
+      setSuccessMessage(`Status do documento "${document.document_type}" atualizado para "${label}"! Notificação interna e e-mail enviados.`);
       if (viewingDocument?.id === document.id) {
         setViewingDocument((prev) => (prev ? { ...prev, status, notes: customNote ?? prev.notes } : null));
       }
@@ -311,7 +312,7 @@ export default function TeamDocumentationPage() {
 
   const handleReviewDecision = (document: Document, status: Status) => {
     if (status === 'rejected') {
-      const reason = window.prompt('Motivo da recusa / rejeição (será enviado ao colaborador):', document.notes ?? '');
+      const reason = window.prompt('Motivo da recusa / rejeição (será enviado por e-mail e notificação):', document.notes ?? '');
       if (reason !== null) {
         void updateDocument(document, status, reason);
       }
@@ -354,15 +355,25 @@ export default function TeamDocumentationPage() {
   };
 
   const remove = async (document: Document) => {
-    if (!window.confirm(`Excluir "${document.document_type}"? Esta ação não pode ser desfeita.`)) return;
+    if (!window.confirm(`Tem certeza que deseja excluir permanentemente "${document.document_type}"? Esta ação removerá o registro.`)) return;
+    setError('');
+    setSuccessMessage('');
     try {
+      setDocuments((prev) => prev.filter((d) => d.id !== document.id));
       await api(`/api/admin/documentacao-equipe?id=${encodeURIComponent(document.id)}`, { method: 'DELETE' });
-      setSuccessMessage(`Documento "${document.document_type}" excluído com sucesso.`);
+      setSuccessMessage(`Documento "${document.document_type}" foi excluído com sucesso do sistema.`);
       if (viewingDocument?.id === document.id) setViewingDocument(null);
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Não foi possível excluir o documento.');
+      await load();
     }
+  };
+
+  const userCanDeleteDocument = (doc: Document) => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || canDelete) return true;
+    return currentUser.id === doc.user_id;
   };
 
   if (!currentUser || !hasPermission(currentUser, 'documentation:view')) return null;
@@ -406,7 +417,7 @@ export default function TeamDocumentationPage() {
                   <p className="text-sm font-semibold uppercase tracking-wide text-[#991B1B]">Gestão Interna de RH</p>
                   <h1 className="mt-1 text-3xl font-bold text-gray-900">Documentação da Equipe</h1>
                   <p className="mt-2 max-w-2xl text-sm text-gray-600">
-                    Central corporativa protegida para receber, revisar, aprovar e acompanhar documentos profissionais sem expor arquivos publicamente.
+                    Central corporativa protegida para receber, revisar, aprovar, notificar por e-mail e acompanhar documentos profissionais.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -525,7 +536,7 @@ export default function TeamDocumentationPage() {
                       !selectedUserId ? 'bg-red-50 font-semibold text-[#991B1B]' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span>Todos os usuários</span>
+                    <span>Todos os usuários reais</span>
                     <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-bold text-gray-600">
                       {documents.length}
                     </span>
@@ -595,6 +606,7 @@ export default function TeamDocumentationPage() {
                     <div className="divide-y divide-gray-100">
                       {visibleDocuments.map((document) => {
                         const owner = userById.get(document.user_id);
+                        const canDeleteThis = userCanDeleteDocument(document);
                         return (
                           <article key={document.id} className="p-5 transition hover:bg-gray-50/60">
                             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -610,7 +622,7 @@ export default function TeamDocumentationPage() {
                                   </span>
                                 </div>
                                 <p className="mt-1 text-sm text-gray-600">
-                                  <strong className="text-gray-800">{owner?.name ?? 'Usuário'}</strong> ·{' '}
+                                  <strong className="text-gray-800">{owner?.name ?? 'Usuário'}</strong> ({owner?.email ?? ''}) ·{' '}
                                   {document.file_name ?? 'Solicitação de documento'} · {formatSize(document.size_bytes)}
                                 </p>
                                 {document.request_reason && (
@@ -651,14 +663,15 @@ export default function TeamDocumentationPage() {
                                 >
                                   Histórico
                                 </button>
-                                {canDelete && (
+                                {canDeleteThis && (
                                   <button
                                     type="button"
                                     onClick={() => void remove(document)}
-                                    className="rounded-lg border border-red-200 bg-white p-2 text-red-600 transition hover:bg-red-50"
+                                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 shadow-sm transition hover:bg-red-50 hover:border-red-300"
                                     aria-label="Excluir documento"
+                                    title="Excluir documento permanentemente"
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Trash2 className="h-4 w-4 text-red-600" /> Excluir
                                   </button>
                                 )}
                               </div>
@@ -710,7 +723,7 @@ export default function TeamDocumentationPage() {
 
               <p className="flex items-center gap-2 text-xs text-gray-500">
                 <ShieldAlert className="h-4 w-4 text-[#991B1B]" />
-                Arquivos são mantidos sob custódia criptografada e entregues somente após autorização no servidor com token temporário.
+                Arquivos são mantidos sob custódia criptografada e entregues somente após autorização no servidor. Notificações por e-mail ativas.
               </p>
             </>
           )}
@@ -737,7 +750,7 @@ export default function TeamDocumentationPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-300 mt-0.5">
-                  Pertencente a: <strong>{userById.get(viewingDocument.user_id)?.name ?? 'Colaborador'}</strong> · {viewingDocument.file_name} ({formatSize(viewingDocument.size_bytes)})
+                  Pertencente a: <strong>{userById.get(viewingDocument.user_id)?.name ?? 'Colaborador'}</strong> ({userById.get(viewingDocument.user_id)?.email ?? ''}) · {viewingDocument.file_name} ({formatSize(viewingDocument.size_bytes)})
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -748,6 +761,15 @@ export default function TeamDocumentationPage() {
                 >
                   <Download className="h-4 w-4" /> Baixar
                 </button>
+                {userCanDeleteDocument(viewingDocument) && (
+                  <button
+                    type="button"
+                    onClick={() => void remove(viewingDocument)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-red-600/80 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" /> Excluir
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setViewingDocument(null)}
@@ -838,7 +860,7 @@ export default function TeamDocumentationPage() {
                 </h2>
                 <p className="text-xs text-white/80">
                   {formMode === 'upload'
-                    ? 'Selecione o usuário e anexe o arquivo para envio oficial.'
+                    ? 'Selecione o colaborador real e anexe o arquivo.'
                     : 'Marque apenas os documentos necessários para a solicitação.'}
                 </p>
               </div>
@@ -849,17 +871,17 @@ export default function TeamDocumentationPage() {
 
             <div className="space-y-4 p-6">
               <label className="block text-sm font-semibold text-gray-800">
-                Colaborador / Usuário
+                Colaborador / Usuário Real
                 <select
                   required
                   value={form.userId}
                   onChange={(event) => setForm((current) => ({ ...current, userId: event.target.value }))}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-normal focus:border-[#991B1B] focus:outline-none"
                 >
-                  <option value="">Selecionar usuário ({realUsers.length} cadastrados)</option>
+                  <option value="">Selecionar colaborador ({realUsers.length} cadastrados)</option>
                   {realUsers.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {user.name || user.email || 'Usuário'} ({user.role || 'membro'})
+                      {user.name || user.email || 'Usuário'} ({user.role || 'membro'}) — {user.email}
                     </option>
                   ))}
                 </select>
@@ -979,29 +1001,35 @@ export default function TeamDocumentationPage() {
                 />
               </label>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving || (formMode === 'request' && form.selectedTypes.length === 0)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#991B1B] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7F1D1D] disabled:opacity-50"
-                >
-                  {saving ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" /> Salvando...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-4 w-4" /> {formMode === 'request' ? 'Enviar solicitações' : 'Enviar documento'}
-                    </>
-                  )}
-                </button>
+              <div className="flex items-center justify-between pt-2">
+                <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
+                  <Mail className="h-4 w-4 text-emerald-600" />
+                  Notificação automática por e-mail ativa
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving || (formMode === 'request' && form.selectedTypes.length === 0)}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#991B1B] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7F1D1D] disabled:opacity-50"
+                  >
+                    {saving ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" /> Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" /> {formMode === 'request' ? 'Enviar solicitações' : 'Enviar documento'}
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </form>

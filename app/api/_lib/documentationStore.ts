@@ -146,7 +146,22 @@ export async function updateDocument(id: string, fields: Partial<DocumentationRo
 }
 
 export async function deleteDocument(id: string) {
-  await updateDocument(id, { deleted_at: new Date().toISOString() });
+  const now = new Date().toISOString();
+  try {
+    await updateDocument(id, {
+      deleted_at: now,
+      content_base64: null,
+      file_name: null,
+      mime_type: null,
+      size_bytes: null,
+    });
+  } catch {
+    try {
+      await request(`${table}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch {
+      await request(`${fallbackTable}?id=eq.__document__:${encodeURIComponent(id)}`, { method: 'DELETE' });
+    }
+  }
 }
 
 export async function saveAudit(entry: {
