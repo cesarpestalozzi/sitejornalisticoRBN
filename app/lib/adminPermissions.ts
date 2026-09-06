@@ -122,7 +122,12 @@ export function getRoleLabel(role: AdminRole) {
 }
 
 function normalizeRole(value: unknown): AdminRole {
-  const normalized = String(value ?? '').trim().toLowerCase();
+  const normalized = String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
   if (normalized === 'administrador principal' || normalized === 'administrador' || normalized === 'administrator') {
     return 'admin';
   }

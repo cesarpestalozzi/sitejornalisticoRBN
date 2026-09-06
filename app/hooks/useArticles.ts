@@ -107,7 +107,12 @@ async function normalizeRemoteRows(rows: SupabaseArticleRow[]) {
       return;
     }
 
-    const normalized = normalizeArticle(row.payload);
+    const normalized = normalizeArticle({
+      ...row.payload,
+      id: String(row.payload.id || row.id),
+      createdAt: row.payload.createdAt || row.updated_at || new Date().toISOString(),
+      updatedAt: row.payload.updatedAt || row.updated_at || new Date().toISOString(),
+    });
     if (isLegacyMockArticle(normalized)) {
       return;
     }
