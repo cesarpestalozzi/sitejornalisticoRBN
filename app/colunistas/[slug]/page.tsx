@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useArticles } from '@/app/hooks/useArticles';
+import { formatDate } from '@/app/utils/dateUtils';
 
 type Columnist = { id: string; name: string; avatar: string; bio: string; professionalInfo: string; publicRole: string; expertise: string; location: string; publicEmail: string; website: string; columnistSlug: string; socialLinks: Array<{ label: string; url: string }> };
 
@@ -22,7 +23,7 @@ export default function ColumnistProfilePage() {
   const { articles } = useArticles();
   const [columnist, setColumnist] = useState<Columnist | null>(null);
   useEffect(() => { fetch(`/api/columnists?slug=${encodeURIComponent(params.slug)}`, { cache: 'no-store' }).then((response) => response.json()).then((data: Columnist[]) => setColumnist(data[0] ?? null)).catch(() => setColumnist(null)); }, [params.slug]);
-  const authored = columnist ? articles.filter((article) => article.status === 'publicado' && (article.authorUserIds ?? []).includes(columnist.id)) : [];
+  const authored = columnist ? articles.filter((article) => article.status === 'publicado' && ((article.authorUserIds ?? []).includes(columnist.id) || article.columnistUserId === columnist.id)) : [];
   if (!columnist) return <main className="mx-auto max-w-5xl p-8"><p>Colunista não encontrado.</p></main>;
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:py-12">
@@ -50,9 +51,24 @@ export default function ColumnistProfilePage() {
           </div>
         </div>
       </section>
-      <h2 className="mt-10 text-2xl font-bold text-gray-900">Matérias de {columnist.name}</h2>
-      <div className="mt-5 grid gap-4 md:grid-cols-2">
-        {authored.map((article) => <Link key={article.id} href={`/artigo/${article.id}`} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm hover:border-[#E11A1A]"><h3 className="font-bold text-gray-900">{article.title}</h3><p className="mt-2 text-sm text-gray-600">{article.excerpt}</p></Link>)}
+      <h2 className="mt-10 text-2xl font-bold text-gray-900">Últimas do colunista</h2>
+      <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {authored.map((article) => {
+          const image = article.image || article.images?.find((item) => item.isPrimary)?.url || article.images?.[0]?.url || '/logo-oficial.png';
+          const date = article.publishedAt || article.updatedAt || article.createdAt;
+          return (
+            <Link key={article.id} href={`/artigo/${article.id}`} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#E11A1A] hover:shadow-md">
+              <div className="aspect-[16/10] overflow-hidden bg-gray-100">
+                <img src={image} alt={article.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+              </div>
+              <div className="p-4">
+                <p className="text-xs text-gray-500">{formatDate(new Date(date))}</p>
+                <h3 className="mt-2 line-clamp-3 font-bold leading-snug text-gray-900 group-hover:text-[#E11A1A]">{article.title}</h3>
+                {article.excerpt && <p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-600">{article.excerpt}</p>}
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </main>
   );
