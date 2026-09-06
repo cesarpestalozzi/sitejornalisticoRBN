@@ -209,6 +209,28 @@ export async function POST(request: NextRequest) {
       });
       ids.push(id);
     }
+    const statusLabelsMap: Record<string, string> = {
+      pending: 'Pendente',
+      review: 'Em revisão',
+      approved: 'Aprovado',
+      rejected: 'Rejeitado',
+      expired: 'Expirado',
+    };
+
+    if (action === 'request') {
+      await sendSystemNotification(
+        user.id,
+        targetUserId,
+        `📄 *Solicitação de Documento(s)*:\n\nOs seguintes documentos foram solicitados para você na central de Recursos Humanos:\n• ${documentTypes.join('\n• ')}${requestReason ? `\n\n*Motivo:* ${requestReason}` : ''}`
+      );
+    } else if (action === 'upload' && user.id !== targetUserId) {
+      await sendSystemNotification(
+        user.id,
+        targetUserId,
+        `📄 *Documento Recebido*: Foi adicionado o documento *${documentTypes[0]}* (${fileName ?? 'arquivo'}) ao seu perfil por ${user.name}.`
+      );
+    }
+
     return NextResponse.json({ ok: true, ids, status }, { status: 201 });
   } catch (error) {
     return errorResponse(error instanceof Error ? error.message : 'Não foi possível salvar o documento.', 502);
@@ -247,6 +269,24 @@ export async function PATCH(request: NextRequest) {
       to_status: nextStatus ?? document.status,
       notes: nextNotes ?? document.notes,
     });
+
+    if (nextStatus) {
+      const statusLabelsMap: Record<string, string> = {
+        pending: 'Pendente',
+        review: 'Em revisão',
+        approved: 'Aprovado',
+        rejected: 'Rejeitado',
+        expired: 'Expirado',
+      };
+      const statusLabel = statusLabelsMap[nextStatus] ?? nextStatus;
+      const statusEmoji = nextStatus === 'approved' ? '✅' : nextStatus === 'rejected' ? '❌' : 'ℹ️';
+      await sendSystemNotification(
+        user.id,
+        document.user_id,
+        `${statusEmoji} *Atualização de Documento*: O seu documento *${document.document_type}* foi alterado para *${statusLabel}* por ${user.name}.${nextNotes ? `\n\n*Observação:* ${nextNotes}` : ''}`
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error instanceof Error ? error.message : 'Não foi possível atualizar o documento.', 502);
@@ -276,5 +316,48 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     return errorResponse(error instanceof Error ? error.message : 'Não foi possível excluir o documento.', 502);
+  }
+}
+
+async function sendSystemNotification(senderId: string, recipientId: string, text: string) {
+  if (!senderId || !recipientId || senderId === recipientId) return;
+  try {
+    const { listConversations, saveConversation, saveMessage, saveNotification } = await import('@/app/api/_lib/messagingStore');
+    const conversations = await listConversations();
+    let conversation = conversations.find(
+      (c) => !c.isGroup && c.participantIds.includes(senderId) && c.participantIds.includes(recipientId)
+    );
+    const now = new Date().toISOString();
+    if (!conversation) {
+      conversation = {
+        id: crypto.randomUUID(),
+        participantIds: [senderId, recipientId],
+        createdBy: senderId,
+        createdAt: now,
+        lastActivityAt: now,
+        lastMessagePreview: text,
+      };
+      await saveConversation(conversation);
+    } else {
+      conversation = { ...conversation, lastActivityAt: now, lastMessagePreview: text };
+      await saveConversation(conversation);
+    }
+    const messageId = crypto.randomUUID();
+    await saveMessage({
+      id: messageId,
+      conversationId: conversation.id,
+      senderId,
+      body: text,
+      createdAt: now,
+    });
+    await saveNotification({
+      id: crypto.randomUUID(),
+      userId: recipientId,
+      conversationId: conversation.id,
+      messageId,
+      createdAt: now,
+    });
+  } catch (err) {
+    console.error('Falha ao enviar notificação de documento:', err);
   }
 }

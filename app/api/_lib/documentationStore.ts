@@ -66,7 +66,13 @@ async function request(url: string, init?: RequestInit) {
   }
 
   if (response.status === 204) return [];
-  return (await response.json()) as DocumentationRow[];
+  const text = await response.text().catch(() => '');
+  if (!text.trim()) return [];
+  try {
+    return JSON.parse(text) as DocumentationRow[];
+  } catch {
+    return [];
+  }
 }
 
 function isMissingTable(error: unknown) {
