@@ -24,6 +24,7 @@ import {
   Radio,
   Activity,
   PencilLine,
+  ClipboardCheck,
 } from 'lucide-react';
 import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
@@ -38,6 +39,7 @@ const menuItems = [
   { label: 'Mensagens', href: '/admin/mensagens', icon: MessageCircle },
   { label: 'Gerador de Card', href: '/admin/gerador-card', icon: ImageUp },
   { label: 'Usuários', href: '/admin/usuarios', icon: Users },
+  { label: 'Documentação da equipe', href: '/admin/documentacao-equipe', icon: ClipboardCheck },
   { label: 'Colunistas', href: '/admin/colunistas', icon: PencilLine },
   { label: 'Segurança', href: '/admin/seguranca', icon: Shield },
   { label: 'Publicidades', href: '/admin/publicidades', icon: Megaphone },

@@ -24,6 +24,12 @@ export type AdminPermission =
   | 'users:manage'
   | 'messages:view'
   | 'messages:send'
+  | 'documentation:view'
+  | 'documentation:upload'
+  | 'documentation:review'
+  | 'documentation:delete'
+  | 'documentation:request'
+  | 'documentation:manage'
   | 'settings:manage';
 
 export interface AdminSessionUser {
@@ -83,6 +89,12 @@ const ALL_PERMISSIONS: AdminPermission[] = [
   'settings:manage',
   'messages:view',
   'messages:send',
+  'documentation:view',
+  'documentation:upload',
+  'documentation:review',
+  'documentation:delete',
+  'documentation:request',
+  'documentation:manage',
 ];
 
 const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
@@ -101,6 +113,12 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'users:manage',
     'messages:view',
     'messages:send',
+    'documentation:view',
+    'documentation:upload',
+    'documentation:review',
+    'documentation:delete',
+    'documentation:request',
+    'documentation:manage',
     'settings:manage',
   ],
   editor: [
@@ -116,10 +134,14 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'comments:manage',
     'messages:view',
     'messages:send',
+    'documentation:view',
+    'documentation:upload',
+    'documentation:review',
+    'documentation:request',
   ],
-  jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send'],
-  colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send'],
-  estagiario: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own', 'messages:view', 'messages:send'],
+  jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload', 'documentation:request'],
+  colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload', 'documentation:request'],
+  estagiario: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload', 'documentation:request'],
 };
 
 export function getDefaultPermissionsForRole(role: AdminRole): AdminPermission[] {
@@ -325,6 +347,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
 
   if (pathname.startsWith('/admin/mensagens')) {
     return hasPermission(user, 'messages:view');
+  }
+
+  if (pathname.startsWith('/admin/documentacao-equipe')) {
+    return hasPermission(user, 'documentation:view');
   }
 
   if (pathname.startsWith('/admin/colunistas')) {

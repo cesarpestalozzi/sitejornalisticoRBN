@@ -136,3 +136,44 @@ CREATE TABLE IF NOT EXISTS public.rbn_auth_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_rbn_auth_sessions_user
   ON public.rbn_auth_sessions (user_id);
+
+CREATE TABLE IF NOT EXISTS public.pz_news_team_documents (
+  id text PRIMARY KEY,
+  user_id text NOT NULL,
+  document_type text NOT NULL,
+  file_name text,
+  mime_type text,
+  size_bytes bigint,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'review', 'approved', 'rejected', 'expired')),
+  expires_at date,
+  notes text,
+  request_reason text,
+  content_base64 text,
+  requested_by text,
+  uploaded_by text,
+  deleted_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pz_news_team_documents_user ON public.pz_news_team_documents (user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pz_news_team_documents_status ON public.pz_news_team_documents (status, updated_at DESC);
+ALTER TABLE public.pz_news_team_documents ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS public.pz_news_team_document_audit (
+  id text PRIMARY KEY,
+  document_id text NOT NULL REFERENCES public.pz_news_team_documents(id) ON DELETE CASCADE,
+  user_id text NOT NULL,
+  actor_id text NOT NULL,
+  action text NOT NULL,
+  from_status text,
+  to_status text,
+  notes text,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pz_news_team_document_audit_document ON public.pz_news_team_document_audit (document_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_set_updated_at_team_documents ON public.pz_news_team_documents;
+CREATE TRIGGER trg_set_updated_at_team_documents
+BEFORE UPDATE ON public.pz_news_team_documents
+FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

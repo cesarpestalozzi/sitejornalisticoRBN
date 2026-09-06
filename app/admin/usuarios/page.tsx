@@ -1,12 +1,13 @@
 'use client';
 
-import { KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound, Linkedin, MessageSquare, Phone } from 'lucide-react';
+import { FileText, KeyRound, Mail, MapPin, PencilLine, Plus, Search, ShieldCheck, ToggleLeft, Trash2, UserRound, Linkedin, MessageSquare, Phone } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { ToastContainer, useToast } from '@/app/components/Toast';
 import { useArticles } from '@/app/hooks/useArticles';
 import { generateTemporaryPassword, useUsers, type User, type UserRole } from '@/app/hooks/useUsers';
-import { useCurrentAdminUser } from '@/app/lib/adminPermissions';
+import { hasPermission, useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
 const MAX_PASSWORD_LENGTH = 8;
 
@@ -982,6 +983,12 @@ export default function UsersPage() {
                         Remover
                       </button>
                     </div>
+                  )}
+                  {currentUser && hasPermission(currentUser, 'documentation:view') && (
+                    <Link href={`/admin/documentacao-equipe?userId=${encodeURIComponent(user.id)}`} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#991B1B] px-4 py-2 text-sm font-semibold text-[#991B1B] transition hover:bg-[#991B1B]/5">
+                      <FileText className="h-4 w-4" />
+                      Documentação da equipe
+                    </Link>
                   )}
                 </div>
               </article>

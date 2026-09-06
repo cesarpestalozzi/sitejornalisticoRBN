@@ -12,6 +12,15 @@ export type ServerAdminUser = {
 type DirectoryRow = { id: string; payload: Record<string, unknown> };
 
 const DEFAULT_MESSAGING_PERMISSIONS = ['messages:view', 'messages:send'];
+const DEFAULT_DOCUMENTATION_PERMISSIONS = ['documentation:view', 'documentation:upload', 'documentation:request'];
+const ADMIN_DOCUMENTATION_PERMISSIONS = [
+  'documentation:view',
+  'documentation:upload',
+  'documentation:review',
+  'documentation:delete',
+  'documentation:request',
+  'documentation:manage',
+];
 const ROLE_ALIASES: Record<string, string> = {
   administrador: 'admin',
   'administrador principal': 'admin',
@@ -34,8 +43,15 @@ function permissionsFor(payload: Record<string, unknown>, role: string) {
   const storedPermissions = Array.isArray(payload.permissions) ? payload.permissions : null;
   const hasStoredPermissions = storedPermissions !== null;
   const permissions = storedPermissions ? storedPermissions.filter((item): item is string => typeof item === 'string') : [];
-  if (role === 'admin') return [...new Set([...permissions, 'messages:view', 'messages:send'])];
-  return hasStoredPermissions ? [...new Set(permissions)] : [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS])];
+  if (role === 'admin') return [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...ADMIN_DOCUMENTATION_PERMISSIONS])];
+  const roleDocumentation = role === 'editor-chefe'
+    ? [...DEFAULT_DOCUMENTATION_PERMISSIONS, 'documentation:review', 'documentation:delete', 'documentation:manage']
+    : role === 'editor'
+      ? [...DEFAULT_DOCUMENTATION_PERMISSIONS, 'documentation:review']
+      : DEFAULT_DOCUMENTATION_PERMISSIONS;
+  return hasStoredPermissions
+    ? [...new Set([...permissions, ...roleDocumentation])]
+    : [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...roleDocumentation])];
 }
 
 export async function getAdminDirectory(): Promise<DirectoryRow[]> {
