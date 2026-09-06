@@ -609,7 +609,8 @@ export default function ArticlePageClient() {
 
   if (isLoadingArticle) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="min-h-screen bg-white">
+        <div className="mx-auto max-w-7xl bg-white px-4 py-8">
         <div className="animate-pulse space-y-6">
           <div className="h-4 w-24 rounded bg-gray-200" />
           <div className="h-10 w-3/4 rounded bg-gray-200" />
@@ -619,13 +620,14 @@ export default function ArticlePageClient() {
           <div className="h-4 w-full rounded bg-gray-200" />
           <div className="h-4 w-3/4 rounded bg-gray-200" />
         </div>
+        </div>
       </div>
     );
   }
 
   if (!article) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+      <div className="min-h-screen bg-white px-4 py-16 text-center">
         <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-[#991B1B]">Notícia não encontrada</p>
         <h1 className="mb-4 text-3xl font-bold text-gray-900">Essa matéria não está disponível no momento.</h1>
         <p className="mb-8 text-gray-600">A notícia pode ter sido removida, estar em revisão ou ainda não foi publicada para o público.</p>
@@ -638,7 +640,7 @@ export default function ArticlePageClient() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="min-h-screen bg-white px-4 py-8">
       <Link href="/" className="mb-6 inline-flex items-center gap-2 font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]">
         <ArrowLeft className="h-4 w-4" />
         Voltar
