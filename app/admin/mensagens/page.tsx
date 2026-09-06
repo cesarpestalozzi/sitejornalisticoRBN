@@ -1469,93 +1469,37 @@ export default function AdminMessagesPage() {
         </div>
       )}
 
-      {/* Video Conference Modal */}
+      {/* Video Conference Modal (WebRTC) */}
       {showVideoCallModal && (
         <div className="fixed inset-0 z-50 flex flex-col bg-gray-950 p-4 text-white">
           <header className="flex items-center justify-between border-b border-gray-800 pb-3">
-            <div>
-              <h3 className="font-bold text-base">{conversationTitle} — Videoconferência</h3>
-              <p className="text-xs text-emerald-400">
-                Ao vivo • 00:{callDuration < 10 ? `0${callDuration}` : callDuration}
-              </p>
+            <div className="flex items-center gap-3">
+              <span className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
+              <div>
+                <h3 className="font-bold text-base">{conversationTitle} — Videoconferência (WebRTC)</h3>
+                <p className="text-xs text-emerald-400">
+                  Transmissão ao vivo via RBN Meet (0% de custo de banda)
+                </p>
+              </div>
             </div>
             <button
               type="button"
               onClick={() => setShowVideoCallModal(false)}
-              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700"
+              className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 shadow-md"
             >
               Encerrar Reunião
             </button>
           </header>
 
-          {/* Video Grid */}
-          <div className="flex-1 my-4 grid gap-4 md:grid-cols-2">
-            <div className="relative flex items-center justify-center rounded-2xl bg-gray-900 overflow-hidden border border-gray-800">
-              <div className="text-center">
-                <div className="mx-auto flex h-20 w-24 items-center justify-center rounded-2xl bg-[#991B1B] text-2xl font-bold">
-                  RBN
-                </div>
-                <p className="mt-3 text-sm font-semibold">Câmera Principal (Você)</p>
-              </div>
-              {isHandRaised && (
-                <span className="absolute top-4 left-4 rounded-full bg-amber-500 p-2 text-black font-bold">
-                  ✋ Mão Levantada
-                </span>
-              )}
-            </div>
-
-            <div className="relative flex items-center justify-center rounded-2xl bg-gray-900 overflow-hidden border border-gray-800">
-              <div className="text-center">
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-800 text-xl font-bold">
-                  {(conversationTitle || 'U').slice(0, 1).toUpperCase()}
-                </div>
-                <p className="mt-3 text-sm font-semibold">{conversationTitle}</p>
-              </div>
-            </div>
+          {/* WebRTC Video Room */}
+          <div className="flex-1 my-3 rounded-2xl overflow-hidden bg-black border border-gray-800 shadow-2xl">
+            <iframe
+              src={`https://meet.jit.si/RBN_Call_${selectedId || 'General'}#userInfo.displayName="${encodeURIComponent(currentUser?.name || 'Membro RBN')}"`}
+              className="w-full h-full border-0"
+              allow="camera; microphone; display-capture; autoplay; clipboard-write"
+              title="Videoconferência RBN WebRTC"
+            />
           </div>
-
-          {/* Bottom Bar Controls */}
-          <footer className="flex items-center justify-center gap-4 border-t border-gray-800 pt-3">
-            <button
-              type="button"
-              onClick={() => setIsMuted((m) => !m)}
-              className={`rounded-2xl p-3 font-semibold transition ${
-                isMuted ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsVideoOn((v) => !v)}
-              className={`rounded-2xl p-3 font-semibold transition ${
-                !isVideoOn ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              {!isVideoOn ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsScreenSharing((s) => !s)}
-              className={`rounded-2xl p-3 font-semibold transition ${
-                isScreenSharing ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              <Monitor className="h-5 w-5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsHandRaised((h) => !h)}
-              className={`rounded-2xl p-3 font-semibold transition ${
-                isHandRaised ? 'bg-amber-500 text-black' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-            >
-              <Hand className="h-5 w-5" />
-            </button>
-          </footer>
         </div>
       )}
 
