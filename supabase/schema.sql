@@ -29,7 +29,6 @@ create table if not exists public.pz_news_settings (
   updated_at timestamptz not null default now()
 );
 alter table public.pz_news_settings enable row level security;
-create policy "settings_service_role_access" on public.pz_news_settings for all using (true) with check (true);
 create index if not exists idx_pz_news_settings_updated_at on public.pz_news_settings (updated_at desc);
 alter table public.pz_news_users enable row level security;
 create policy "admin_users_service_role_access" on public.pz_news_users for all using (true) with check (true);
