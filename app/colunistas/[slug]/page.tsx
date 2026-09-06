@@ -29,7 +29,7 @@ export default function ColumnistProfilePage() {
       <section className="rounded-xl border border-gray-200 bg-[#f7f7f7] p-5 shadow-sm sm:p-8 md:flex md:items-center md:gap-8">
         <div className="mx-auto shrink-0 md:mx-0">
           {columnist.avatar ? (
-            <img src={columnist.avatar} alt={columnist.name} className="h-32 w-32 rounded-full object-cover grayscale sm:h-36 sm:w-36" />
+            <img src={columnist.avatar} alt={columnist.name} className="h-32 w-32 rounded-full object-cover sm:h-36 sm:w-36" />
           ) : (
             <div className="flex h-32 w-32 items-center justify-center rounded-full bg-[#E11A1A] text-3xl font-bold text-white sm:h-36 sm:w-36">
               {initials(columnist.name)}
