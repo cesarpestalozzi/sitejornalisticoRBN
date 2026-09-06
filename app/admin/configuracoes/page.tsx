@@ -16,7 +16,7 @@ const fontOptions = [
 ];
 
 export default function SettingsPage() {
-  const { getSettings, saveSettings, updateSetting, resetToDefaults } = useSettings();
+  const { getSettings, loadSettings, saveSettings, updateSetting, resetToDefaults } = useSettings();
   const { toasts, addToast, removeToast } = useToast();
   const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
   const [activeTab, setActiveTab] = useState<string>('basic');
@@ -24,8 +24,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setSettings(getSettings());
-    setLoading(false);
+    loadSettings().then(setSettings).catch(() => setSettings(getSettings())).finally(() => setLoading(false));
   }, []);
 
   const handleInputChange = (section: keyof SiteSettings, field: string, value: any) => {
@@ -39,7 +38,7 @@ export default function SettingsPage() {
     setErrors([]);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const validation = validateSettings(settings);
     
     if (!validation.valid) {
@@ -49,7 +48,7 @@ export default function SettingsPage() {
     }
 
     try {
-      saveSettings(settings);
+      await saveSettings(settings);
       addToast('Configurações salvas com sucesso!', 'success', 3000);
     } catch (error) {
       addToast('Erro ao salvar configurações', 'error', 5000);
@@ -57,10 +56,10 @@ export default function SettingsPage() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (confirm('Restaurar todas as configurações padrão? Esta ação não pode ser desfeita.')) {
       try {
-        resetToDefaults();
+        await saveSettings(defaultSettings);
         setSettings(defaultSettings);
         addToast('Configurações restauradas com sucesso!', 'success', 3000);
       } catch (error) {

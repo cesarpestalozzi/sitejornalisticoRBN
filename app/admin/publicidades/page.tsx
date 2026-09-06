@@ -158,7 +158,7 @@ export default function AdvertisementsPage() {
     addToast('Publicidade removida.', 'success', 2500);
   };
 
-  const handleCommercialSave = () => {
+  const handleCommercialSave = async () => {
     const settings = getSettings();
     const nextSettings = {
       ...settings,
@@ -168,11 +168,15 @@ export default function AdvertisementsPage() {
       },
     };
 
-    saveSettings(nextSettings);
-    addToast('Dados de contato comercial salvos.', 'success', 2500);
+    try {
+      await saveSettings(nextSettings);
+      addToast('Dados de contato comercial salvos.', 'success', 2500);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Erro ao salvar dados comerciais.', 'error', 5000);
+    }
   };
 
-  const handleToggleHomepageAds = () => {
+  const handleToggleHomepageAds = async () => {
     const nextValue = !showAdsOnHomepage;
     const settings = getSettings();
     const nextSettings = {
@@ -183,9 +187,13 @@ export default function AdvertisementsPage() {
       },
     };
 
-    saveSettings(nextSettings);
-    setShowAdsOnHomepage(nextValue);
-    addToast(nextValue ? 'Publicidade ativada na página inicial.' : 'Publicidade removida da página inicial.', 'success', 2500);
+    try {
+      await saveSettings(nextSettings);
+      setShowAdsOnHomepage(nextValue);
+      addToast(nextValue ? 'Publicidade ativada na página inicial.' : 'Publicidade removida da página inicial.', 'success', 2500);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Erro ao salvar configuração de publicidade.', 'error', 5000);
+    }
   };
 
   const handleResetMetrics = () => {

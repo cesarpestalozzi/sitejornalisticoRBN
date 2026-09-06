@@ -320,12 +320,28 @@ export function useSettings() {
     }
   }, []);
 
-  const saveSettings = useCallback((settings: SiteSettings) => {
-    if (typeof window === 'undefined') return;
+  const loadSettings = useCallback(async (): Promise<SiteSettings> => {
+    const response = await fetch('/api/admin/settings', { cache: 'no-store' });
+    if (!response.ok) return getSettings();
+    const data = await response.json() as { settings?: Partial<SiteSettings> | null };
+    const loaded = mergeSettings(defaultSettings, data.settings);
+    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+    return loaded;
+  }, [getSettings]);
+
+  const saveSettings = useCallback(async (settings: SiteSettings) => {
     if (!canManageSettings) {
       throw new Error('Acesso negado para alterar configurações.');
     }
-    
+    const response = await fetch('/api/admin/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({})) as { ok?: boolean; error?: string };
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Falha ao persistir configurações.');
+    if (typeof window === 'undefined') return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     window.dispatchEvent(new CustomEvent('settingsChanged', { detail: settings }));
   }, [canManageSettings]);
@@ -344,7 +360,7 @@ export function useSettings() {
           ...updates,
         },
       };
-      saveSettings(updated);
+      void saveSettings(updated);
       return updated;
     },
     [canManageSettings, getSettings, saveSettings]
@@ -355,17 +371,18 @@ export function useSettings() {
       throw new Error('Acesso negado para alterar configurações.');
     }
 
-    saveSettings(defaultSettings);
+    void saveSettings(defaultSettings);
   }, [canManageSettings, saveSettings]);
 
   return useMemo(
     () => ({
       getSettings,
+      loadSettings,
       saveSettings,
       updateSetting,
       resetToDefaults,
     }),
-    [getSettings, saveSettings, updateSetting, resetToDefaults]
+    [getSettings, loadSettings, saveSettings, updateSetting, resetToDefaults]
   );
 }
 

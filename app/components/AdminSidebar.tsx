@@ -22,6 +22,7 @@ import {
   X,
   Newspaper,
   Radio,
+  Activity,
 } from 'lucide-react';
 import { canAccessAdminRoute, useCurrentAdminUser } from '@/app/lib/adminPermissions';
 
@@ -41,6 +42,7 @@ const menuItems = [
   { label: 'Radar de Notícias', href: '/admin/radar-noticias', icon: Radio },
   { label: 'Lixo', href: '/admin/lixo', icon: Trash2 },
   { label: 'Configurações', href: '/admin/configuracoes', icon: Settings },
+  { label: 'Diagnóstico', href: '/admin/diagnostico', icon: Activity },
 ];
 
 export default function AdminSidebar() {

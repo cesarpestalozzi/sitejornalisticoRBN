@@ -91,7 +91,7 @@ export default function AdminPodcastsPage() {
     });
   };
 
-  const handleToggleHomepage = () => {
+  const handleToggleHomepage = async () => {
     const settings = getSettings();
     const next = !settings.content.showPodcastsOnHomepage;
     const updated = {
@@ -101,8 +101,12 @@ export default function AdminPodcastsPage() {
         showPodcastsOnHomepage: next,
       },
     };
-    saveSettings(updated);
-    setShowOnHomepage(next);
+    try {
+      await saveSettings(updated);
+      setShowOnHomepage(next);
+    } catch (error) {
+      console.error('Erro ao salvar configuração de podcasts:', error);
+    }
   };
 
   const toggleStatus = (id: string, status: 'rascunho' | 'publicado') => {

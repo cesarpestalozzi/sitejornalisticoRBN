@@ -6,7 +6,7 @@ import { SiteSettings, useSettings } from '@/app/lib/settings';
 interface SettingsContextType {
   settings: SiteSettings | null;
   loading: boolean;
-  updateSettings: (settings: SiteSettings) => void;
+  updateSettings: (settings: SiteSettings) => Promise<void>;
   applyColorSettings: () => void;
   applyFontSettings: () => void;
 }
@@ -16,20 +16,21 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const { getSettings, saveSettings } = useSettings();
+  const { getSettings, loadSettings, saveSettings } = useSettings();
 
   // Load settings on mount
   useEffect(() => {
-    try {
-      const loaded = getSettings();
-      setSettings(loaded);
-      applySettings(loaded);
-    } catch (error) {
-      console.error('Erro ao carregar settings:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    let active = true;
+    loadSettings()
+      .then((loaded) => {
+        if (!active) return;
+        setSettings(loaded);
+        applySettings(loaded);
+      })
+      .catch((error) => console.error('Erro ao carregar settings:', error))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [loadSettings]);
 
   // Listen for settings changes
   useEffect(() => {
@@ -82,9 +83,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateSettings = (newSettings: SiteSettings) => {
+  const updateSettings = async (newSettings: SiteSettings) => {
     setSettings(newSettings);
-    saveSettings(newSettings);
+    await saveSettings(newSettings);
     applySettings(newSettings);
   };
 
