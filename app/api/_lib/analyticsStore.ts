@@ -38,7 +38,27 @@ export async function saveAnalyticsEvent(event: AnalyticsEvent) {
     cache: 'no-store',
   });
   if (response.ok) return;
-  if (response.status !== 404) throw new Error(`Supabase recusou o evento de métrica (${response.status}).`);
+
+  // Older production schemas may not have optional analytics columns yet.
+  // Retry with the stable core columns before using the article-store fallback.
+  if (response.status === 400) {
+    const compatibilityResponse = await fetch(table, {
+      method: 'POST',
+      headers: headers({ Prefer: 'resolution=ignore-duplicates,return=minimal' }),
+      body: JSON.stringify({
+        id: event.id,
+        event_type: event.event_type,
+        article_id: event.article_id ?? null,
+        category: event.category ?? null,
+        occurred_at: event.occurred_at,
+      }),
+      cache: 'no-store',
+    });
+    if (compatibilityResponse.ok) return;
+  }
+  if (response.status !== 404 && response.status !== 400) {
+    throw new Error(`Supabase recusou o evento de métrica (${response.status}).`);
+  }
   const fallback = await fetch(fallbackTable, {
     method: 'POST',
     headers: headers({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
@@ -65,7 +85,12 @@ export async function listAnalyticsEvents(from?: string, to?: string) {
     });
     if (from) params.set('occurred_at', `gte.${from}`);
     if (to) params.append('occurred_at', `lte.${to}`);
-    const response = await fetch(`${table}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
+    let response = await fetch(`${table}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
+    if (response.status === 400) {
+      const compatibleParams = new URLSearchParams(params);
+      compatibleParams.set('select', 'id,event_type,article_id,category,occurred_at');
+      response = await fetch(`${table}?${compatibleParams.toString()}`, { headers: headers(), cache: 'no-store' });
+    }
     if (response.status === 404) {
       const fallbackResponse = await fetch(`${fallbackTable}?id=like.__analytics__:*&select=payload&order=updated_at.asc&limit=10000`, { headers: headers(), cache: 'no-store' });
       if (!fallbackResponse.ok) throw new Error(`Supabase recusou a consulta de métricas (${fallbackResponse.status}).`);
