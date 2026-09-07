@@ -427,26 +427,7 @@ function makeNearBlackTransparent(image: HTMLImageElement) {
   }
 
   context.putImageData(imageData, 0, 0);
-  let minX = canvas.width;
-  let minY = canvas.height;
-  let maxX = -1;
-  let maxY = -1;
-  for (let index = 3; index < data.length; index += 4) {
-    if (data[index] === 0) continue;
-    const pixel = (index - 3) / 4;
-    const x = pixel % canvas.width;
-    const y = Math.floor(pixel / canvas.width);
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x);
-    maxY = Math.max(maxY, y);
-  }
-  if (maxX < minX || maxY < minY) return canvas;
-  const trimmed = document.createElement('canvas');
-  trimmed.width = maxX - minX + 1;
-  trimmed.height = maxY - minY + 1;
-  trimmed.getContext('2d')?.drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
-  return trimmed;
+  return canvas;
 }
 
 function drawTemplate(
