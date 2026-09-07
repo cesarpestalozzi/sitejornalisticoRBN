@@ -1,7 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { hasArticleStoreConfig, listStoredArticles, saveStoredArticle } from '../../_lib/articleStore';
+import { hasArticleStoreConfig, listStoredArticles } from '../../_lib/articleStore';
 import { isPublishedArticle } from '@/app/lib/articleStatus';
-import { isScheduledArticleDue, promoteScheduledArticle } from '@/app/lib/articlePublishing';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -30,15 +29,8 @@ function resolveArticleImage(id: string, payload: Record<string, unknown>) {
 export async function GET(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
-      const rows = await listStoredArticles();
-      const dueRows = rows.filter((row) => !row.deleted && isScheduledArticleDue(row.payload));
-      await Promise.all(
-        dueRows.map((row) => saveStoredArticle(promoteScheduledArticle({ ...row.payload, id: row.id }), false))
-      );
+      const rows = await listStoredArticles(undefined, { publishedOnly: true });
       const articles = rows
-        .map((row) => dueRows.find((dueRow) => dueRow.id === row.id)
-          ? { ...row, payload: promoteScheduledArticle({ ...row.payload, id: row.id }) }
-          : row)
         .filter((row) => !row.deleted && isPublishedArticle(row.payload.status))
         .map((row) => ({
           ...row.payload,

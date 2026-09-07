@@ -201,12 +201,6 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
       }
     };
 
-    void syncHomepageArticles();
-    const eventSource = new EventSource('/api/homepage/events');
-    const onArticleChanged = () => {
-      void syncHomepageArticles();
-    };
-    eventSource.addEventListener('article.changed', onArticleChanged);
     const intervalId = window.setInterval(() => {
       if (isWindowActive()) {
         void syncHomepageArticles();
@@ -223,26 +217,9 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
     return () => {
       isActive = false;
       inFlightRef.current = false;
-      eventSource.removeEventListener('article.changed', onArticleChanged);
-      eventSource.close();
       window.clearInterval(intervalId);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/api/columnists', { cache: 'no-store' })
-      .then((response) => response.ok ? response.json() as Promise<HomeColumnist[]> : [])
-      .then((data) => {
-        if (active && Array.isArray(data)) setColumnists(data);
-      })
-      .catch(() => {
-        if (active) setColumnists([]);
-      });
-    return () => {
-      active = false;
     };
   }, []);
 
@@ -313,7 +290,7 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {columnists.map((columnist) => (
                 <a key={columnist.id} href={`/colunistas/${columnist.columnistSlug || columnist.id}`} className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                  <img src={columnist.avatar || '/logo-oficial.png'} alt={columnist.name} className="h-16 w-16 shrink-0 rounded-full object-cover" />
+                  <img loading="lazy" src={columnist.avatar || '/logo-oficial.png'} alt={columnist.name} className="h-16 w-16 shrink-0 rounded-full object-cover" />
                   <span className="min-w-0">
                     <strong className="block truncate text-base text-[#1264B0]">{columnist.name}</strong>
                     <span className="mt-1 line-clamp-2 text-sm text-gray-600">{columnist.bio || 'Veja o perfil e as matérias deste colunista.'}</span>

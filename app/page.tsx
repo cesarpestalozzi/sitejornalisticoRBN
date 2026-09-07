@@ -2,9 +2,8 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import HomeClientOptimized from './components/HomeClientOptimized';
-import { hasArticleStoreConfig, listStoredArticles, saveStoredArticle } from './api/_lib/articleStore';
+import { hasArticleStoreConfig, listStoredArticles } from './api/_lib/articleStore';
 import { listStoredUsers } from './api/_lib/userStore';
-import { isScheduledArticleDue, promoteScheduledArticle } from './lib/articlePublishing';
 
 interface HomeArticle {
   id: string;
@@ -66,15 +65,8 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
 
   try {
     if (hasArticleStoreConfig()) {
-      const rows = await listStoredArticles();
-      const dueRows = rows.filter((row) => !row.deleted && isScheduledArticleDue(row.payload));
-      await Promise.all(
-        dueRows.map((row) => saveStoredArticle(promoteScheduledArticle({ ...row.payload, id: row.id }), false))
-      );
+      const rows = await listStoredArticles(undefined, { publishedOnly: true });
       return rows
-        .map((row) => dueRows.find((dueRow) => dueRow.id === row.id)
-          ? { ...row, payload: promoteScheduledArticle({ ...row.payload, id: row.id }) }
-          : row)
         .filter((row) => !row.deleted && isPublished(row.payload.status))
         .map((row) => ({
           id: row.id,

@@ -38,10 +38,11 @@ function headers() {
   };
 }
 
-export async function listStoredArticles(id?: string): Promise<ArticleRow[]> {
+export async function listStoredArticles(id?: string, options?: { publishedOnly?: boolean }): Promise<ArticleRow[]> {
   if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
   const params = new URLSearchParams({ select: 'id,payload,deleted,updated_at', order: 'updated_at.desc', limit: '10000' });
   if (id) params.set('id', `eq.${id}`);
+  if (options?.publishedOnly) params.set('payload->>status', 'eq.publicado');
   const response = await fetch(`${tableUrl}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
   const rows = (await response.json()) as ArticleRow[];

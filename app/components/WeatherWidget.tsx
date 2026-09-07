@@ -270,7 +270,7 @@ export default function WeatherWidget() {
   useEffect(() => {
     const interval = window.setInterval(() => {
       setCurrentTime(new Date());
-    }, 1000);
+    }, 60 * 1000);
 
     return () => window.clearInterval(interval);
   }, []);
