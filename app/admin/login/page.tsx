@@ -105,7 +105,18 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    const user = resolveUserByIdentifier(identifier);
+    let user = resolveUserByIdentifier(identifier);
+    if (!user) {
+      const response = await fetch('/api/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.user) {
+        user = data.user;
+      }
+    }
 
     if (!user || !matchesPassword(user.passwordHash, password)) {
       setError('Identificacao ou senha invalidos. Use o login RBN + CPF e a senha cadastrada.');

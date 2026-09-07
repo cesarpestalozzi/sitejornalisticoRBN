@@ -26,7 +26,7 @@ export default function ChangeInitialPasswordPage() {
     }
   }, [currentUser, isLoaded, router]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!currentUser) {
       return;
     }
@@ -43,6 +43,13 @@ export default function ChangeInitialPasswordPage() {
 
     setLoading(true);
     try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível atualizar a senha.');
       updateCurrentUserPassword(hashPassword(newPassword));
 
       localStorage.setItem(
