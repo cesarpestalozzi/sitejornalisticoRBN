@@ -441,6 +441,9 @@ function drawTemplate(
   logoImage: HTMLImageElement | null,
   template: CardTemplate,
   logoPosition: LogoPosition,
+  logoSize: number,
+  logoOffsetX: number,
+  logoOffsetY: number,
   headerTheme: HeaderTheme,
   footerGradient: FooterGradient,
   imageScale: number,
@@ -495,8 +498,8 @@ function drawTemplate(
     const preparedLogo = makeNearBlackTransparent(logoImage);
     const sourceWidth = 'naturalWidth' in preparedLogo ? preparedLogo.naturalWidth : preparedLogo.width;
     const sourceHeight = 'naturalHeight' in preparedLogo ? preparedLogo.naturalHeight : preparedLogo.height;
-    const maxLogoWidth = 360;
-    const maxLogoHeight = 130;
+    const maxLogoWidth = 360 * (logoSize / 100);
+    const maxLogoHeight = 130 * (logoSize / 100);
     const logoRatio = sourceWidth / sourceHeight;
     let logoWidth = maxLogoWidth;
     let logoHeight = logoWidth / logoRatio;
@@ -506,14 +509,16 @@ function drawTemplate(
       logoWidth = logoHeight * logoRatio;
     }
 
-    const logoX =
+    const baseLogoX =
       logoPosition === 'left'
         ? 44
         : logoPosition === 'center'
           ? (CANVAS_WIDTH - logoWidth) / 2
           : CANVAS_WIDTH - logoWidth - 44;
+    const logoX = Math.max(12, Math.min(CANVAS_WIDTH - logoWidth - 12, baseLogoX + logoOffsetX));
 
-    context.drawImage(preparedLogo, logoX, 38, logoWidth, logoHeight);
+    const logoY = Math.max(12, 38 + logoOffsetY);
+    context.drawImage(preparedLogo, logoX, logoY, logoWidth, logoHeight);
   }
 
   context.save();
@@ -556,6 +561,10 @@ function drawColumnTemplate(
   logoImage: HTMLImageElement | null,
   columnistName: string,
   columnistAvatar: CanvasImageSource | null,
+  logoPosition: LogoPosition,
+  logoSize: number,
+  logoOffsetX: number,
+  logoOffsetY: number,
   imageScale: number,
   imageOffsetX: number,
   imageOffsetY: number
@@ -565,18 +574,31 @@ function drawColumnTemplate(
   if (logoImage) {
     const preparedLogo = makeNearBlackTransparent(logoImage);
     const logoRatio = preparedLogo.width / preparedLogo.height;
-    const logoWidth = 286;
-    const logoHeight = logoWidth / logoRatio;
-    context.drawImage(preparedLogo, 58, 52, logoWidth, logoHeight);
+    let logoWidth = Math.min(190 * (logoSize / 100), 230);
+    let logoHeight = logoWidth / logoRatio;
+    if (logoHeight > 104) {
+      logoHeight = 104;
+      logoWidth = logoHeight * logoRatio;
+    }
+    const baseLogoX =
+      logoPosition === 'left'
+        ? 58
+        : logoPosition === 'center'
+          ? (CANVAS_WIDTH - logoWidth) / 2
+          : CANVAS_WIDTH - logoWidth - 58;
+    const logoX = Math.max(12, Math.min(CANVAS_WIDTH - logoWidth - 12, baseLogoX + logoOffsetX));
+    const logoY = Math.max(12, 28 + logoOffsetY);
+    context.drawImage(preparedLogo, logoX, logoY, logoWidth, logoHeight);
   }
+  const categoryY = 178;
   context.fillStyle = CARD_ACCENT_RED;
   context.font = '800 26px Arial, sans-serif';
-  context.fillText('COLUNAS', 58, 178);
+  context.fillText('COLUNAS', 58, categoryY);
   context.fillStyle = '#9CA3AF';
-  context.fillRect(58, 197, 120, 4);
+  context.fillRect(58, categoryY + 19, 120, 4);
   context.fillStyle = '#242424';
   context.font = '700 34px Georgia, Times New Roman, serif';
-  context.fillText(columnistName || 'Colunista RBN', 58, 232);
+  context.fillText(columnistName || 'Colunista RBN', 58, categoryY + 54);
   const avatarX = CANVAS_WIDTH - 218;
   const avatarY = 58;
   context.save();
@@ -596,7 +618,7 @@ function drawColumnTemplate(
   context.beginPath();
   context.arc(avatarX + 82, avatarY + 82, 82, 0, Math.PI * 2);
   context.stroke();
-  drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 270, CANVAS_WIDTH, 710, imageScale, imageOffsetX, imageOffsetY);
+  drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 300, CANVAS_WIDTH, 680, imageScale, imageOffsetX, imageOffsetY);
   context.fillStyle = '#F8F7F3';
   context.fillRect(0, 980, CANVAS_WIDTH, 370);
   const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, 'Georgia, Times New Roman, serif', 'italic');
@@ -614,6 +636,9 @@ function drawMemorialTemplate(
   heroMediaHeight: number,
   logoImage: HTMLImageElement | null,
   logoPosition: LogoPosition,
+  logoSize: number,
+  logoOffsetX: number,
+  logoOffsetY: number,
   fullName: string,
   profession: string,
   birthDate: string,
@@ -659,8 +684,8 @@ function drawMemorialTemplate(
     const preparedLogo = makeNearBlackTransparent(logoImage);
     const sourceWidth = 'naturalWidth' in preparedLogo ? preparedLogo.naturalWidth : preparedLogo.width;
     const sourceHeight = 'naturalHeight' in preparedLogo ? preparedLogo.naturalHeight : preparedLogo.height;
-    const maxLogoWidth = 400;
-    const maxLogoHeight = 138;
+    const maxLogoWidth = 400 * (logoSize / 100);
+    const maxLogoHeight = 138 * (logoSize / 100);
     const logoRatio = sourceWidth / sourceHeight;
     let logoWidth = maxLogoWidth;
     let logoHeight = logoWidth / logoRatio;
@@ -670,13 +695,15 @@ function drawMemorialTemplate(
       logoWidth = logoHeight * logoRatio;
     }
 
-    const logoX =
+    const baseLogoX =
       logoPosition === 'left'
         ? 44
         : logoPosition === 'center'
           ? (CANVAS_WIDTH - logoWidth) / 2
           : CANVAS_WIDTH - logoWidth - 44;
-    context.drawImage(preparedLogo, logoX, 76, logoWidth, logoHeight);
+    const logoX = Math.max(12, Math.min(CANVAS_WIDTH - logoWidth - 12, baseLogoX + logoOffsetX));
+    const logoY = Math.max(12, 76 + logoOffsetY);
+    context.drawImage(preparedLogo, logoX, logoY, logoWidth, logoHeight);
   }
 
   context.textAlign = 'center';
@@ -722,6 +749,9 @@ export default function GeradorCardPage() {
   const [titleFont, setTitleFont] = useState<TitleFont>('arial');
   const [titleFontStyle, setTitleFontStyle] = useState<TitleFontStyle>('bold');
   const [logoPosition, setLogoPosition] = useState<LogoPosition>('right');
+  const [logoSize, setLogoSize] = useState(100);
+  const [logoOffsetX, setLogoOffsetX] = useState(0);
+  const [logoOffsetY, setLogoOffsetY] = useState(0);
   const [introAnimation, setIntroAnimation] = useState<IntroAnimation>('fade-up');
   const [headerTheme, setHeaderTheme] = useState<HeaderTheme>('black');
   const [footerGradient, setFooterGradient] = useState<FooterGradient>('dark');
@@ -1141,6 +1171,9 @@ export default function GeradorCardPage() {
           heroMediaHeight,
           logoImage,
           logoPosition,
+          logoSize,
+          logoOffsetX,
+          logoOffsetY,
           memorialFullName,
           memorialProfession,
           memorialBirthDate,
@@ -1164,6 +1197,10 @@ export default function GeradorCardPage() {
           logoImage,
           selectedColumnist ? (selectedColumnist.publicName || selectedColumnist.name) : '',
           columnistAvatar,
+          logoPosition,
+          logoSize,
+          logoOffsetX,
+          logoOffsetY,
           imageScale,
           imageOffsetX,
           imageOffsetY
@@ -1182,6 +1219,9 @@ export default function GeradorCardPage() {
         logoImage,
         selectedTemplate,
         logoPosition,
+        logoSize,
+        logoOffsetX,
+        logoOffsetY,
         headerTheme,
         footerGradient,
         imageScale,
@@ -1213,6 +1253,9 @@ export default function GeradorCardPage() {
       introAnimation,
       isCategoryBackgroundTransparent,
       logoPosition,
+      logoSize,
+      logoOffsetX,
+      logoOffsetY,
       memorialBirthDate,
       memorialDeathDate,
       memorialFullName,
@@ -1796,6 +1839,72 @@ export default function GeradorCardPage() {
                     <option value="right">Direita</option>
                   </select>
                   <p className="text-xs text-gray-500">A logo do RBN fica sobre a imagem e voce escolhe se ela aparece do lado esquerdo, no meio ou do lado direito.</p>
+                </div>
+
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Ajuste fino da logo</p>
+                    <p className="text-xs text-gray-500">Esses controles valem para Notícia, Card de Coluna e Luto.</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="space-y-2 text-sm font-semibold text-gray-800">
+                      <span className="flex items-center justify-between">
+                        <span>Tamanho</span>
+                        <span className="font-normal text-gray-500">{logoSize}%</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="40"
+                        max="140"
+                        step="1"
+                        value={logoSize}
+                        onChange={(event) => setLogoSize(Number(event.target.value))}
+                        className="w-full accent-[#991B1B]"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-semibold text-gray-800">
+                      <span className="flex items-center justify-between">
+                        <span>Horizontal</span>
+                        <span className="font-normal text-gray-500">{logoOffsetX}px</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="-120"
+                        max="120"
+                        step="1"
+                        value={logoOffsetX}
+                        onChange={(event) => setLogoOffsetX(Number(event.target.value))}
+                        className="w-full accent-[#991B1B]"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm font-semibold text-gray-800">
+                      <span className="flex items-center justify-between">
+                        <span>Vertical</span>
+                        <span className="font-normal text-gray-500">{logoOffsetY}px</span>
+                      </span>
+                      <input
+                        type="range"
+                        min="-80"
+                        max="180"
+                        step="1"
+                        value={logoOffsetY}
+                        onChange={(event) => setLogoOffsetY(Number(event.target.value))}
+                        className="w-full accent-[#991B1B]"
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoSize(100);
+                      setLogoOffsetX(0);
+                      setLogoOffsetY(0);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-[#991B1B] hover:text-[#991B1B]"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Restaurar logo
+                  </button>
                 </div>
 
                 <div className="space-y-2">

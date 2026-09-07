@@ -4,6 +4,32 @@ import { AdminRole, ROLE_LEVELS, getCurrentAdminUser, getDefaultPermissionsForRo
 export type UserRole = AdminRole;
 export type UserStatus = 'ativo' | 'inativo' | 'removido';
 export type UserOnboardingStatus = 'invite-sent' | 'first-access-pending' | 'password-changed' | 'active';
+export type ColumnistCanvasElement = {
+  id: string;
+  label: string;
+  kind: 'logo' | 'text' | 'image';
+  content: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  opacity: number;
+  color: string;
+  fontSize?: number;
+  fontWeight?: string;
+  fontFamily?: string;
+  hidden?: boolean;
+  locked?: boolean;
+  circular?: boolean;
+  borderWidth?: number;
+  shadow?: boolean;
+};
+
+export type ColumnistCanvasLayout = {
+  elements: ColumnistCanvasElement[];
+  background: string;
+};
 
 function normalizeUserStatus(value: unknown): UserStatus {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -119,6 +145,7 @@ export interface User {
   internalNotes?: string;
   changeHistory?: Array<{ id: string; action: string; changedAt: string; changedBy: string }>;
   socialLinks?: Array<{ label: string; url: string }>;
+  columnistCanvas?: ColumnistCanvasLayout;
 }
 
 export function getPublicUserName(user: Pick<User, 'name' | 'publicName'>) {
