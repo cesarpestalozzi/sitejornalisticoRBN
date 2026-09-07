@@ -32,6 +32,13 @@ function isPublished(status: unknown) {
   return normalized === 'publicado' || normalized === 'published' || normalized === 'publish' || normalized === 'online';
 }
 
+function publicColumnistSlug(name: string, configuredSlug: unknown) {
+  const slug = String(configuredSlug ?? '').trim();
+  return slug && !/^\d+$/.test(slug)
+    ? slug
+    : name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 function resolveArticleImage(articleId: string, payload: Record<string, unknown>) {
   const images = Array.isArray(payload.images) ? payload.images : [];
   const primaryImage = images.find(
@@ -116,7 +123,7 @@ async function getHomepageColumnists(): Promise<HomeColumnist[]> {
       .filter((row) => String(row.payload.status ?? 'ativo').trim().toLowerCase() === 'ativo' && row.payload.isColumnist === true && row.payload.profileVisible !== false)
       .map((row) => {
         const name = String(row.payload.publicName ?? row.payload.name ?? row.id).trim();
-        const slug = String(row.payload.columnistSlug ?? '').trim() || name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const slug = publicColumnistSlug(name, row.payload.columnistSlug);
         return { id: row.id, name, avatar: String(row.payload.avatar ?? ''), bio: String(row.payload.bio ?? ''), columnistSlug: slug };
       });
   } catch {

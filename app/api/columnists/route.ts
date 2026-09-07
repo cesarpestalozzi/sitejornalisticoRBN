@@ -25,7 +25,7 @@ function publicUser(row: { id: string; payload: Record<string, unknown> }) {
     publicEmail: user.publicEmail && user.publicEmailAuthorized === true ? String(user.publicEmail) : '',
     website: String(user.website ?? ''),
     profileVisible: user.profileVisible !== false,
-    columnistSlug: configuredSlug || slugify(configuredName || fallbackName),
+    columnistSlug: configuredSlug && !/^\d+$/.test(configuredSlug) ? configuredSlug : slugify(configuredName || fallbackName),
     socialLinks: Array.isArray(user.socialLinks) ? user.socialLinks : [],
   };
 }
