@@ -16,6 +16,28 @@ function normalizeCategory(value: string) {
     .replace(/^-|-$/g, '');
 }
 
+function samePerson(left: unknown, right: unknown) {
+  return String(left ?? '').trim().toLocaleLowerCase() === String(right ?? '').trim().toLocaleLowerCase();
+}
+
+function canEditArticle(user: Awaited<ReturnType<typeof resolveAdminUser>>, author: unknown) {
+  return Boolean(
+    user &&
+    (user.role === 'admin' ||
+      user.permissions.includes('articles:edit:any') ||
+      (user.permissions.includes('articles:edit:own') && samePerson(user.name, author)))
+  );
+}
+
+function canPublishArticle(user: Awaited<ReturnType<typeof resolveAdminUser>>, author: unknown) {
+  return Boolean(
+    user &&
+    (user.role === 'admin' ||
+      user.permissions.includes('articles:publish:any') ||
+      (user.permissions.includes('articles:publish:own') && samePerson(user.name, author)))
+  );
+}
+
 async function proxyToPython(request: NextRequest, path: string) {
   const incomingUrl = new URL(request.url);
   const targetUrl = new URL(path, `${pythonApiBase}/`);
@@ -100,7 +122,11 @@ export async function POST(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
       const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
-      return await saveStoredArticle(body.article || {}, Boolean(body.deleted));
+      const article = body.article || {};
+      if (['publicado', 'agendado'].includes(String(article.status ?? '')) && !canPublishArticle(user, article.author)) {
+        return NextResponse.json({ error: 'Você só pode publicar suas próprias matérias.' }, { status: 403 });
+      }
+      return await saveStoredArticle(article, Boolean(body.deleted));
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao salvar notícia.' }, { status: 502 });
     }
@@ -127,7 +153,14 @@ export async function PATCH(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
       const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
-      return await saveStoredArticle(body.article || {}, Boolean(body.deleted));
+      const article = body.article || {};
+      if (!canEditArticle(user, article.author)) {
+        return NextResponse.json({ error: 'Você só pode editar suas próprias matérias.' }, { status: 403 });
+      }
+      if (['publicado', 'agendado'].includes(String(article.status ?? '')) && !canPublishArticle(user, article.author)) {
+        return NextResponse.json({ error: 'Você só pode publicar suas próprias matérias.' }, { status: 403 });
+      }
+      return await saveStoredArticle(article, Boolean(body.deleted));
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao atualizar notícia.' }, { status: 502 });
     }

@@ -13,7 +13,13 @@ export type ServerAdminUser = {
 type DirectoryRow = { id: string; payload: Record<string, unknown> };
 
 const DEFAULT_MESSAGING_PERMISSIONS = ['messages:view', 'messages:send'];
-const DEFAULT_DOCUMENTATION_PERMISSIONS = ['documentation:view', 'documentation:upload'];
+const DEFAULT_DOCUMENTATION_PERMISSIONS = ['documentation:view', 'documentation:upload', 'documentation:request'];
+const DEFAULT_NEWSROOM_PERMISSIONS = [
+  'articles:view:own',
+  'articles:create',
+  'articles:edit:own',
+  'articles:publish:own',
+];
 const ADMIN_DOCUMENTATION_PERMISSIONS = [
   'documentation:view',
   'documentation:upload',
@@ -89,7 +95,6 @@ function isActive(payload: Record<string, unknown>) {
 
 function permissionsFor(payload: Record<string, unknown>, role: string) {
   const storedPermissions = Array.isArray(payload.permissions) ? payload.permissions : null;
-  const hasStoredPermissions = storedPermissions !== null;
   const permissions = storedPermissions
     ? storedPermissions.filter((item): item is string => typeof item === 'string')
       .filter((permission) => role === 'admin' || !['users:manage', 'settings:manage', 'analytics:view', 'diagnostics:view', 'monitoring:view'].includes(permission))
@@ -99,12 +104,14 @@ function permissionsFor(payload: Record<string, unknown>, role: string) {
   // permissions array that predates this capability.
   // The author of a news article may also publish their own work. Publishing
   // someone else's article remains controlled by articles:publish:any.
-  const newsroomPermissions = [...permissions, 'articles:create', 'articles:publish:own'];
+  const newsroomPermissions = [...permissions, ...DEFAULT_NEWSROOM_PERMISSIONS];
   if (role === 'admin') return [...new Set([...newsroomPermissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...ADMIN_DOCUMENTATION_PERMISSIONS])];
   const roleDocumentation = DEFAULT_DOCUMENTATION_PERMISSIONS;
-  return hasStoredPermissions
-    ? [...new Set([...newsroomPermissions, ...roleDocumentation])]
-    : [...new Set([...newsroomPermissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...roleDocumentation])];
+  return [...new Set([
+    ...newsroomPermissions,
+    ...DEFAULT_MESSAGING_PERMISSIONS,
+    ...roleDocumentation,
+  ])];
 }
 
 export async function getAdminDirectory(): Promise<DirectoryRow[]> {

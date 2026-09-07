@@ -173,7 +173,20 @@ function normalizePermissions(role: AdminRole, permissions: unknown): AdminPermi
     return defaults;
   }
 
-  const merged = new Set<string>(defaults);
+  // Production and communication tools are available to every authenticated
+  // employee; stored legacy permissions must not remove this baseline.
+  const employeeBaseline: AdminPermission[] = [
+    'articles:view:own',
+    'articles:create',
+    'articles:edit:own',
+    'articles:publish:own',
+    'messages:view',
+    'messages:send',
+    'documentation:view',
+    'documentation:upload',
+    'documentation:request',
+  ];
+  const merged = new Set<string>([...defaults, ...employeeBaseline]);
   permissions.forEach((permission) => {
     if (typeof permission === 'string' && permission.trim()) {
       merged.add(permission.trim());
@@ -358,7 +371,7 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
   }
 
   if (pathname.startsWith('/admin/solicitacoes-acesso')) {
-    return user.role === 'admin';
+    return true;
   }
 
   if (pathname.startsWith('/admin/alterar-senha')) {
