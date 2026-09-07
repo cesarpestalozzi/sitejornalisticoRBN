@@ -13,7 +13,7 @@ export type ServerAdminUser = {
 type DirectoryRow = { id: string; payload: Record<string, unknown> };
 
 const DEFAULT_MESSAGING_PERMISSIONS = ['messages:view', 'messages:send'];
-const DEFAULT_DOCUMENTATION_PERMISSIONS = ['documentation:view', 'documentation:upload', 'documentation:request'];
+const DEFAULT_DOCUMENTATION_PERMISSIONS = ['documentation:view', 'documentation:upload'];
 const ADMIN_DOCUMENTATION_PERMISSIONS = [
   'documentation:view',
   'documentation:upload',
@@ -68,13 +68,12 @@ function isActive(payload: Record<string, unknown>) {
 function permissionsFor(payload: Record<string, unknown>, role: string) {
   const storedPermissions = Array.isArray(payload.permissions) ? payload.permissions : null;
   const hasStoredPermissions = storedPermissions !== null;
-  const permissions = storedPermissions ? storedPermissions.filter((item): item is string => typeof item === 'string') : [];
+  const permissions = storedPermissions
+    ? storedPermissions.filter((item): item is string => typeof item === 'string')
+      .filter((permission) => role === 'admin' || !['users:manage', 'settings:manage', 'analytics:view', 'diagnostics:view', 'monitoring:view'].includes(permission))
+    : [];
   if (role === 'admin') return [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...ADMIN_DOCUMENTATION_PERMISSIONS])];
-  const roleDocumentation = role === 'editor-chefe'
-    ? [...DEFAULT_DOCUMENTATION_PERMISSIONS, 'documentation:review', 'documentation:delete', 'documentation:manage']
-    : role === 'editor'
-      ? [...DEFAULT_DOCUMENTATION_PERMISSIONS, 'documentation:review']
-      : DEFAULT_DOCUMENTATION_PERMISSIONS;
+  const roleDocumentation = DEFAULT_DOCUMENTATION_PERMISSIONS;
   return hasStoredPermissions
     ? [...new Set([...permissions, ...roleDocumentation])]
     : [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...roleDocumentation])];

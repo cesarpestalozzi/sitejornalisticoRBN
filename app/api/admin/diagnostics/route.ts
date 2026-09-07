@@ -1,12 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { listStoredArticles } from '@/app/api/_lib/articleStore';
 import { listStoredUsers, hasUserStoreConfig } from '@/app/api/_lib/userStore';
 import { hasAnalyticsStoreConfig, listAnalyticsEvents } from '@/app/api/_lib/analyticsStore';
 import { hasCommentStoreConfig, listStoredComments } from '@/app/api/_lib/commentStore';
+import { resolveAdminUser } from '@/app/api/_lib/adminServerAuth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!user || user.role !== 'admin') return NextResponse.json({ ok: false, error: 'Apenas o administrador principal pode acessar Diagnósticos.' }, { status: 403 });
   const checks: Array<{ key: string; label: string; status: 'ok' | 'warning' | 'error'; detail: string; action?: string }> = [];
   checks.push({
     key: 'users-store',

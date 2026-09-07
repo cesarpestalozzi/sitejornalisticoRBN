@@ -104,18 +104,6 @@ export default function AdminLogin() {
       return;
     }
 
-    // O painel legado mantém a sessão no navegador; espelhe o usuário no
-    // armazenamento do servidor para que APIs protegidas possam autorizá-lo.
-    try {
-      await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: user.id, payload: user }),
-      });
-    } catch {
-      // A autenticação continua funcionando quando o backend está temporariamente indisponível.
-    }
-
     const userData = {
       id: user.id,
       name: user.name,

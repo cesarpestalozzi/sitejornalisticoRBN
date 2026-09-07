@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveAdminUser } from '@/app/api/_lib/adminServerAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,9 @@ function headers() {
   return { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json', 'Content-Type': 'application/json' };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!user || user.role !== 'admin') return NextResponse.json({ ok: false, error: 'Apenas o administrador principal pode acessar Configurações.' }, { status: 403 });
   if (!tableUrl || !key) return NextResponse.json({ ok: false, error: 'Armazenamento de configurações não configurado.' }, { status: 503 });
   const response = await fetch(`${tableUrl}?id=eq.portal&select=payload,updated_at`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) return NextResponse.json({ ok: false, error: `Falha ao consultar configurações (${response.status}).` }, { status: 502 });
@@ -27,6 +30,8 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!user || user.role !== 'admin') return NextResponse.json({ ok: false, error: 'Apenas o administrador principal pode alterar Configurações.' }, { status: 403 });
   if (!tableUrl || !key) return NextResponse.json({ ok: false, error: 'Armazenamento de configurações não configurado.' }, { status: 503 });
   const body = await request.json().catch(() => null) as { settings?: unknown } | null;
   if (!body?.settings || typeof body.settings !== 'object') return NextResponse.json({ ok: false, error: 'Configurações inválidas.' }, { status: 400 });

@@ -166,7 +166,6 @@ function publicUser(row: { id: string; payload: Record<string, unknown> }) {
 export async function GET(request: NextRequest) {
   const user = await resolveAdminUser(request);
   if (!user || !can(user, 'documentation:view')) return errorResponse('Sessão ou permissão de documentação inválida.', 401);
-  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Desbloqueie Recursos Humanos com o PIN.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
 
   try {
@@ -181,8 +180,9 @@ export async function GET(request: NextRequest) {
     }
     if (targetUserId && !(await authorizedTarget(user, targetUserId))) return errorResponse('Você não pode consultar os documentos deste usuário.', 403);
 
+    const canSeeAll = canManage(user) || user.role === 'admin' || can(user, 'documentation:request');
     const [documents, directory] = await Promise.all([
-      listDocuments(targetUserId || (canManage(user) || user.role === 'admin' ? undefined : user.id)),
+      listDocuments(targetUserId || (canSeeAll ? undefined : user.id)),
       getAdminDirectory(),
     ]);
     const uniqueUsers = new Map<string, ReturnType<typeof publicUser>>();
@@ -199,7 +199,6 @@ export async function GET(request: NextRequest) {
       result[document.status] = (result[document.status] ?? 0) + 1;
       return result;
     }, {});
-    const canSeeAll = canManage(user) || user.role === 'admin' || can(user, 'documentation:request') || can(user, 'documentation:view') || can(user, 'documentation:upload');
     const visibleUsers = [...uniqueUsers.values()].filter((item) => canSeeAll || item.id === user.id);
     return NextResponse.json({
       ok: true,
@@ -218,7 +217,6 @@ export async function POST(request: NextRequest) {
   if (!user || (!can(user, 'documentation:upload') && !can(user, 'documentation:request'))) {
     return errorResponse('Sessão ou permissão de documentação inválida.', 401);
   }
-  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Desbloqueie Recursos Humanos com o PIN.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
 
   try {
@@ -242,8 +240,9 @@ export async function POST(request: NextRequest) {
     if (action === 'request' && documentTypes.some((item) => !DOCUMENT_TYPES.includes(item as typeof DOCUMENT_TYPES[number]))) return errorResponse('Tipo de documento inválido.');
     if (action === 'upload' && documentTypes.length !== 1) return errorResponse('Envios devem conter apenas um tipo de documento.');
     if (!(await userExists(targetUserId))) return errorResponse('Usuário não encontrado.', 404);
-    if (!(await authorizedTarget(user, targetUserId))) return errorResponse('Você não pode alterar documentos deste usuário.', 403);
+    if (action === 'upload' && targetUserId !== user.id) return errorResponse('Você só pode enviar documentos para o próprio perfil.', 403);
     if (action === 'request' && !can(user, 'documentation:request')) return errorResponse('Sem permissão para solicitar documentos.', 403);
+    if (action === 'request' && !(await authorizedTarget(user, targetUserId))) return errorResponse('Você não pode solicitar documentos para este usuário.', 403);
     if (action === 'upload' && !can(user, 'documentation:upload')) return errorResponse('Sem permissão para enviar documentos.', 403);
 
     const file = form.get('file');
@@ -351,8 +350,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const user = await resolveAdminUser(request);
-  if (!user || !can(user, 'documentation:view')) return errorResponse('Sessão ou permissão de documentação inválida.', 401);
-  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Desbloqueie Recursos Humanos com o PIN.', 403);
+  if (!user || (!can(user, 'documentation:review') && !can(user, 'documentation:manage') && user.role !== 'admin')) return errorResponse('Apenas RH autorizado pode revisar documentos.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
   try {
     const body = (await request.json()) as { id?: string; status?: DocumentationStatus; notes?: string; expiresAt?: string | null };
@@ -423,7 +421,6 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await resolveAdminUser(request);
   if (!user) return errorResponse('Sessão inválida.', 401);
-  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Desbloqueie Recursos Humanos com o PIN.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
   try {
     const id = new URL(request.url).searchParams.get('id')?.trim() || '';
@@ -431,8 +428,7 @@ export async function DELETE(request: NextRequest) {
     const document = await getDocument(id);
     if (!document || document.deleted_at) return errorResponse('Documento não encontrado.', 404);
     
-    const isOwnerOrAuthor = user.id === document.user_id || user.id === document.requested_by || user.id === document.uploaded_by;
-    const canDeleteDoc = user.role === 'admin' || can(user, 'documentation:delete') || can(user, 'documentation:manage') || can(user, 'users:manage') || isOwnerOrAuthor;
+    const canDeleteDoc = user.role === 'admin' || can(user, 'documentation:delete') || can(user, 'documentation:manage');
 
     if (!canDeleteDoc) {
       return errorResponse('Você não possui permissão para excluir este documento.', 403);

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const user = await resolveAdminUser(request);
-  if (!user) return NextResponse.json({ ok: false, error: 'Sessão inválida.' }, { status: 401 });
+  if (!user || user.role !== 'admin') return NextResponse.json({ ok: false, error: 'Apenas o administrador principal pode acessar Monitoramento.' }, { status: 403 });
 
   try {
     const userId = request.nextUrl.searchParams.get('userId') || undefined;

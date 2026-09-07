@@ -2,6 +2,7 @@
 import { isTestUser } from '@/app/api/_lib/adminServerAuth';
 import { hasUserStoreConfig, listStoredUsers, saveStoredUser } from '@/app/api/_lib/userStore';
 import { listStoredArticles, saveStoredArticle } from '@/app/api/_lib/articleStore';
+import { resolveAdminUser } from '@/app/api/_lib/adminServerAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +68,10 @@ async function proxyToPython(request: NextRequest, path: string) {
 }
 
 export async function GET(request: NextRequest) {
+  const actor = await resolveAdminUser(request);
+  if (!actor || (actor.role !== 'admin' && !actor.permissions.includes('users:manage'))) {
+    return NextResponse.json({ ok: false, error: 'Apenas usuários autorizados podem gerenciar o cadastro.' }, { status: 403 });
+  }
   if (hasUserStoreConfig()) {
     try {
       const rows = (await listStoredUsers()).filter((row) => {
@@ -85,6 +90,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const actor = await resolveAdminUser(request);
+  if (!actor || (actor.role !== 'admin' && !actor.permissions.includes('users:manage'))) {
+    return NextResponse.json({ ok: false, error: 'Apenas usuários autorizados podem alterar usuários.' }, { status: 403 });
+  }
   if (hasUserStoreConfig()) {
     try {
       const body = await request.json();
@@ -137,6 +146,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const actor = await resolveAdminUser(request);
+  if (!actor || actor.role !== 'admin') {
+    return NextResponse.json({ ok: false, error: 'Apenas o administrador principal pode remover usuários.' }, { status: 403 });
+  }
   if (hasUserStoreConfig()) {
     try {
       const id = new URL(request.url).searchParams.get('id')?.trim();

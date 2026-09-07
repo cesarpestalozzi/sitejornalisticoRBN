@@ -9,9 +9,6 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   if (!user || !user.permissions.includes('documentation:view') && user.role !== 'admin') {
     return NextResponse.json({ ok: false, error: 'Sessão ou permissão de documentação inválida.' }, { status: 401 });
   }
-  if (!hasDocumentationPinAccess(request, user.id)) {
-    return NextResponse.json({ ok: false, error: 'Desbloqueie Recursos Humanos com o PIN.' }, { status: 403 });
-  }
   if (!hasDocumentationStoreConfig()) {
     return NextResponse.json({ ok: false, error: 'Armazenamento de documentação não configurado.' }, { status: 503 });
   }
@@ -20,7 +17,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   if (!document || document.deleted_at || !document.content_base64 || !document.mime_type) {
     return NextResponse.json({ ok: false, error: 'Arquivo não encontrado.' }, { status: 404 });
   }
-  const canManage = user.role === 'admin' || user.permissions.includes('documentation:manage');
+  const canManage = user.role === 'admin' || user.permissions.includes('documentation:manage') || user.permissions.includes('documentation:review');
   if (!canManage && document.user_id !== user.id) {
     return NextResponse.json({ ok: false, error: 'Você não pode acessar este arquivo.' }, { status: 403 });
   }
