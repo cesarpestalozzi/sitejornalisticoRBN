@@ -567,7 +567,9 @@ function drawColumnTemplate(
   logoOffsetY: number,
   imageScale: number,
   imageOffsetX: number,
-  imageOffsetY: number
+  imageOffsetY: number,
+  titleFontFamily: string,
+  titleFontStyle: TitleFontStyle
 ) {
   context.fillStyle = '#F8F7F3';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -621,9 +623,10 @@ function drawColumnTemplate(
   drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 300, CANVAS_WIDTH, 680, imageScale, imageOffsetX, imageOffsetY);
   context.fillStyle = '#F8F7F3';
   context.fillRect(0, 980, CANVAS_WIDTH, 370);
-  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, 'Georgia, Times New Roman, serif', 'italic');
+  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, titleFontFamily, titleFontStyle);
   context.fillStyle = '#1F2937';
-  context.font = `italic 700 ${wrappedTitle.fontSize}px Georgia, Times New Roman, serif`;
+  const titleStyle = getFontStyleParts(titleFontStyle);
+  context.font = `${titleStyle.fontStyle} ${titleStyle.fontWeight} ${wrappedTitle.fontSize}px ${titleFontFamily}`;
   wrappedTitle.lines.forEach((line, index) => context.fillText(line, 58, 1080 + index * wrappedTitle.lineHeight));
   context.fillStyle = CARD_ACCENT_RED;
   context.fillRect(58, 1022, 120, 6);
@@ -1203,7 +1206,9 @@ export default function GeradorCardPage() {
           logoOffsetY,
           imageScale,
           imageOffsetX,
-          imageOffsetY
+          imageOffsetY,
+          getFontFamily(titleFont),
+          titleFontStyle
         );
         return;
       }
@@ -1279,7 +1284,9 @@ export default function GeradorCardPage() {
       throw new Error('Não foi possível iniciar o gerador da arte.');
     }
 
-    const maybeLogoImage = await loadImage(CARD_LOGO_SRC).catch(() => null);
+    const maybeLogoImage = await loadImage(CARD_LOGO_SRC)
+      .catch(() => loadImage('/logo-oficial.png'))
+      .catch(() => null);
     const maybeColumnistAvatar = isColumnCard && selectedColumnist?.avatar
       ? await loadImage(selectedColumnist.avatar).catch(() => null)
       : null;
@@ -1312,7 +1319,10 @@ export default function GeradorCardPage() {
       throw new Error('Seu navegador não suporta exportação de vídeo neste gerador.');
     }
 
-    const [heroVideo, maybeLogoImage] = await Promise.all([loadVideo(customVideoUrl), loadImage(CARD_LOGO_SRC).catch(() => null)]);
+    const [heroVideo, maybeLogoImage] = await Promise.all([
+      loadVideo(customVideoUrl),
+      loadImage(CARD_LOGO_SRC).catch(() => loadImage('/logo-oficial.png')).catch(() => null),
+    ]);
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_WIDTH;
     canvas.height = CANVAS_HEIGHT;
