@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { hasArticleStoreConfig, listStoredArticles, permanentlyDeleteStoredArticle, permanentlyDeleteStoredTrash, saveStoredArticle } from '../_lib/articleStore';
+import { resolveAdminUser } from '../_lib/adminServerAuth';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -52,6 +53,12 @@ export async function GET(request: NextRequest) {
       const id = searchParams.get('id') || undefined;
       const category = searchParams.get('category')?.trim().toLowerCase();
       const includeDeleted = searchParams.get('includeDeleted') === 'true';
+      if (includeDeleted) {
+        const user = await resolveAdminUser(request);
+        if (!user || (user.role !== 'admin' && !user.permissions.includes('articles:view:all'))) {
+          return NextResponse.json({ error: 'Sem permissão para consultar o acervo administrativo.' }, { status: 403 });
+        }
+      }
       const rows = await listStoredArticles(id);
       const visibleRows = rows.filter((row) => {
         if (!includeDeleted && row.deleted) {
@@ -86,6 +93,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!user || (!user.permissions.includes('articles:create') && user.role !== 'admin')) return NextResponse.json({ error: 'Sem permissão para criar notícias.' }, { status: 403 });
   if (hasArticleStoreConfig()) {
     try {
       const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
@@ -111,6 +120,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!user || (!user.permissions.includes('articles:edit:any') && !user.permissions.includes('articles:edit:own') && user.role !== 'admin')) return NextResponse.json({ error: 'Sem permissão para editar notícias.' }, { status: 403 });
   if (hasArticleStoreConfig()) {
     try {
       const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
@@ -136,6 +147,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const user = await resolveAdminUser(request);
+  if (!user || (user.role !== 'admin' && !user.permissions.includes('articles:delete:any') && !user.permissions.includes('articles:trash:manage'))) return NextResponse.json({ error: 'Sem permissão para excluir notícias.' }, { status: 403 });
   if (hasArticleStoreConfig()) {
     try {
       const searchParams = new URL(request.url).searchParams;

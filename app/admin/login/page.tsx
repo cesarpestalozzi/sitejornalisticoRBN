@@ -240,6 +240,11 @@ export default function AdminLogin() {
         setLoading(false);
         return;
       }
+      if (!(await establishSession(pendingUserId, password))) {
+        setError('Não foi possível iniciar uma sessão segura. Entre novamente com sua senha.');
+        setLoading(false);
+        return;
+      }
       markLoginActivity(pendingUserId);
       localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
       router.push(pendingUserData?.mustChangePassword ? '/admin/alterar-senha' : '/admin/dashboard');

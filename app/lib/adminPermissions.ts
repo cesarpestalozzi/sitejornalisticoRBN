@@ -357,6 +357,10 @@ export function canAccessAdminRoute(user: AdminSessionUser | null, pathname: str
     return hasPermission(user, 'settings:manage');
   }
 
+  if (pathname.startsWith('/admin/solicitacoes-acesso')) {
+    return user.role === 'admin';
+  }
+
   if (pathname.startsWith('/admin/alterar-senha')) {
     return true;
   }

@@ -49,6 +49,7 @@ const menuItems = [
   { label: 'Lixo', href: '/admin/lixo', icon: Trash2 },
   { label: 'Configurações', href: '/admin/configuracoes', icon: Settings },
   { label: 'Diagnóstico', href: '/admin/diagnostico', icon: Activity },
+  { label: 'Solicitações de acesso', href: '/admin/solicitacoes-acesso', icon: ClipboardCheck },
 ];
 
 export default function AdminSidebar() {
