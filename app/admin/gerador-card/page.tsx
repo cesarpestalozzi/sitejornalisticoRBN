@@ -610,9 +610,11 @@ function drawColumnTemplate(
   context.fillStyle = '#E5E7EB';
   context.fillRect(avatarX, avatarY, 164, 164);
   if (columnistAvatar) {
+    context.filter = 'grayscale(100%) contrast(112%) brightness(0.94)';
     const avatarWidth = 'naturalWidth' in columnistAvatar ? columnistAvatar.naturalWidth : 'width' in columnistAvatar ? columnistAvatar.width : 1;
     const avatarHeight = 'naturalHeight' in columnistAvatar ? columnistAvatar.naturalHeight : 'height' in columnistAvatar ? columnistAvatar.height : 1;
     drawCoverImage(context, columnistAvatar, Number(avatarWidth), Number(avatarHeight), avatarX, avatarY, 164, 164, 1, 0, 0);
+    context.filter = 'none';
   }
   context.restore();
   context.lineWidth = 8;
