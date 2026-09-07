@@ -32,7 +32,7 @@ export function getScheduledPublishTimeMs(article: Pick<ArticlePayloadLike, 'sch
   }
 
   const normalizedTime = article.scheduledTime.length === 5 ? `${article.scheduledTime}:00` : article.scheduledTime;
-  const scheduledDate = new Date(`${article.scheduledDate}T${normalizedTime}`);
+  const scheduledDate = new Date(`${article.scheduledDate}T${normalizedTime}-03:00`);
 
   if (Number.isNaN(scheduledDate.getTime())) {
     return null;
@@ -42,7 +42,7 @@ export function getScheduledPublishTimeMs(article: Pick<ArticlePayloadLike, 'sch
 }
 
 export function isScheduledArticleDue(article: Pick<ArticlePayloadLike, 'scheduledDate' | 'scheduledTime' | 'status'>, now = Date.now()) {
-  if (article.status !== 'agendado') {
+  if (article.status !== 'agendado' && article.status !== 'scheduled') {
     return false;
   }
 

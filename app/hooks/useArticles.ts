@@ -486,7 +486,7 @@ function getScheduledPublishTimeMs(article: Pick<Article, 'scheduledDate' | 'sch
   }
 
   const normalizedTime = article.scheduledTime.length === 5 ? `${article.scheduledTime}:00` : article.scheduledTime;
-  const scheduledDate = new Date(`${article.scheduledDate}T${normalizedTime}`);
+  const scheduledDate = new Date(`${article.scheduledDate}T${normalizedTime}-03:00`);
 
   if (Number.isNaN(scheduledDate.getTime())) {
     return null;
