@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useArticles } from '@/app/hooks/useArticles';
 import { formatDate } from '@/app/utils/dateUtils';
+import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 
 type Columnist = { id: string; name: string; avatar: string; bio: string; professionalInfo: string; publicRole: string; expertise: string; location: string; publicEmail: string; website: string; columnistSlug: string; socialLinks: Array<{ label: string; url: string }> };
 
@@ -23,7 +24,28 @@ export default function ColumnistProfilePage() {
   const { articles } = useArticles();
   const [columnist, setColumnist] = useState<Columnist | null>(null);
   useEffect(() => { fetch(`/api/columnists?slug=${encodeURIComponent(params.slug)}`, { cache: 'no-store' }).then((response) => response.json()).then((data: Columnist[]) => setColumnist(data[0] ?? null)).catch(() => setColumnist(null)); }, [params.slug]);
-  const authored = columnist ? articles.filter((article) => article.status === 'publicado' && ((article.authorUserIds ?? []).includes(columnist.id) || article.columnistUserId === columnist.id)) : [];
+  const authored = columnist
+    ? articles
+        .filter((article) => {
+          const articleStatus = normalizeArticleStatus(article.status, article.publishedAt ? 'publicado' : undefined);
+          const authorNames = String(article.author ?? '')
+            .split(/\s+e\s+|,\s*/i)
+            .map((name) => name.trim().replace(/^por\s+/i, '').toLowerCase())
+            .filter(Boolean);
+          const columnistName = columnist.name.trim().replace(/^por\s+/i, '').toLowerCase();
+          return (
+            articleStatus === 'publicado' &&
+            ((article.authorUserIds ?? []).map(String).includes(String(columnist.id)) ||
+              String(article.columnistUserId ?? '') === String(columnist.id) ||
+              authorNames.includes(columnistName))
+          );
+        })
+        .sort((left, right) => {
+          const leftDate = new Date(left.publishedAt || left.updatedAt || left.createdAt).getTime();
+          const rightDate = new Date(right.publishedAt || right.updatedAt || right.createdAt).getTime();
+          return rightDate - leftDate;
+        })
+    : [];
   if (!columnist) return <main className="mx-auto max-w-5xl p-8"><p>Colunista não encontrado.</p></main>;
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:py-12">
