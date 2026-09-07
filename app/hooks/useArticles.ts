@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   canCreateArticle,
   canDeleteArticle,
@@ -500,17 +500,12 @@ function syncLocalStorageSnapshot(nextArticles: Article[], nextDeletedArticles: 
     return;
   }
 
-  const active = nextArticles.filter((article) => !isLegacyMockArticle(article));
-  const deleted = nextDeletedArticles.filter((article) => !isLegacyMockArticle(article));
-
-  localStorage.setItem(ARTICLES_KEY, JSON.stringify(active));
-  localStorage.setItem(DELETED_ARTICLES_KEY, JSON.stringify(deleted));
-
-  for (const key of Object.keys(localStorage)) {
-    if (key.startsWith('pznews-article-view-')) {
-      localStorage.removeItem(key);
-    }
-  }
+  // Articles belong to the database. Remove only old browser snapshots and
+  // never mirror full article payloads (especially base64 media) to storage.
+  void nextArticles;
+  void nextDeletedArticles;
+  localStorage.removeItem(ARTICLES_KEY);
+  localStorage.removeItem(DELETED_ARTICLES_KEY);
 }
 
 function maybeSendBrowserNotification(article: Pick<Article, 'id' | 'title' | 'status'>) {
@@ -557,48 +552,6 @@ export function useArticles() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const readLocalData = () => {
-      const stored = localStorage.getItem(ARTICLES_KEY);
-      const deletedStored = localStorage.getItem(DELETED_ARTICLES_KEY);
-      let localActive: Article[] | null = null;
-      let localDeleted: Article[] = [];
-
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as Article[];
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            localActive = parsed
-              .map(normalizeArticle)
-              .filter((article) => !isLegacyMockArticle(article));
-          }
-        } catch (error) {
-          console.error('Erro ao carregar artigos locais:', error);
-          localActive = null;
-        }
-      }
-
-      if (deletedStored) {
-        try {
-          const parsedDeleted = JSON.parse(deletedStored) as Article[];
-          localDeleted = Array.isArray(parsedDeleted) ? parsedDeleted.map(normalizeArticle) : [];
-        } catch (error) {
-          console.error('Erro ao carregar artigos deletados locais:', error);
-          localDeleted = [];
-        }
-      }
-
-      return {
-        active: localActive,
-        deleted: localDeleted,
-      };
-    };
-
-    const loadFromLocal = () => {
-      const local = readLocalData();
-      setArticles(local.active && local.active.length > 0 ? local.active : []);
-      setDeletedArticles(local.deleted);
-    };
-
     let isActive = true;
 
     const load = async () => {
@@ -626,7 +579,10 @@ export function useArticles() {
         return;
       }
 
-      loadFromLocal();
+      // Do not fall back to localStorage: it is not an article database and
+      // can contain stale or oversized browser snapshots.
+      setArticles([]);
+      setDeletedArticles([]);
       setIsLoaded(true);
     };
 
@@ -636,29 +592,6 @@ export function useArticles() {
       isActive = false;
     };
   }, []);
-
-  const persistTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-
-    if (persistTimerRef.current) {
-      window.clearTimeout(persistTimerRef.current);
-    }
-
-    persistTimerRef.current = window.setTimeout(() => {
-      localStorage.setItem(ARTICLES_KEY, JSON.stringify(articles));
-      localStorage.setItem(DELETED_ARTICLES_KEY, JSON.stringify(deletedArticles));
-    }, 120);
-
-    return () => {
-      if (persistTimerRef.current) {
-        window.clearTimeout(persistTimerRef.current);
-      }
-    };
-  }, [articles, deletedArticles, isLoaded]);
 
   useEffect(() => {
     if (!isLoaded) {
@@ -921,20 +854,6 @@ export function useArticles() {
         views: (baseArticle.views ?? 0) + 1,
       };
 
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem(ARTICLES_KEY);
-        try {
-          const parsed = stored ? (JSON.parse(stored) as Article[]) : [];
-          const rawArticles = Array.isArray(parsed) ? parsed : [];
-          const nextStored = rawArticles.some((article) => article.id === id)
-            ? rawArticles.map((article) => (article.id === id ? nextArticle : article))
-            : [...rawArticles, nextArticle];
-          localStorage.setItem(ARTICLES_KEY, JSON.stringify(nextStored));
-        } catch (error) {
-          console.warn('Erro ao persistir contagem de visualização local:', error);
-        }
-      }
-
       void upsertRemoteArticle(nextArticle, false).catch((error) => {
         warnSupabaseWriteIssue('sincronizar visualização da matéria', error);
       });
@@ -958,20 +877,6 @@ export function useArticles() {
         ...baseArticle,
         shares: (baseArticle.shares ?? 0) + 1,
       };
-
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem(ARTICLES_KEY);
-        try {
-          const parsed = stored ? (JSON.parse(stored) as Article[]) : [];
-          const rawArticles = Array.isArray(parsed) ? parsed : [];
-          const nextStored = rawArticles.some((article) => article.id === id)
-            ? rawArticles.map((article) => (article.id === id ? nextArticle : article))
-            : [...rawArticles, nextArticle];
-          localStorage.setItem(ARTICLES_KEY, JSON.stringify(nextStored));
-        } catch (error) {
-          console.warn('Erro ao persistir contagem de compartilhamento local:', error);
-        }
-      }
 
       void upsertRemoteArticle(nextArticle, false).catch((error) => {
         warnSupabaseWriteIssue('sincronizar compartilhamento da matéria', error);
