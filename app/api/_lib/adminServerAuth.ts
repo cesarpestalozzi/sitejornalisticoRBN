@@ -55,8 +55,7 @@ export function isTestUser(payload: Record<string, unknown> | null | undefined):
     email.includes('persist-test') ||
     login.includes('999999999') ||
     login.startsWith('RBN99999') ||
-    login === '-' ||
-    login === ''
+    login === '-'
   ) {
     return true;
   }

@@ -226,8 +226,7 @@ export function isTestUser(user: Partial<User> | Record<string, unknown> | null 
     email.includes('persist-test') ||
     login.includes('999999999') ||
     login.startsWith('RBN99999') ||
-    login === '-' ||
-    login === ''
+    login === '-'
   ) {
     return true;
   }
