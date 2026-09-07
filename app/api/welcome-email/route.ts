@@ -17,7 +17,10 @@ export async function POST(request: Request) {
     const name = String(body?.name || '').trim();
     const login = String(body?.login || '').trim();
     const temporaryPassword = String(body?.temporaryPassword || '').trim();
-    const accessUrl = 'https://www.rbnbrasil.com.br/admin/login';
+    const requestedAccessUrl = String(body?.accessUrl || '').trim();
+    const accessUrl = /^https:\/\/www\.rbnbrasil\.com\.br\/admin\/login(?:[/?#].*)?$/.test(requestedAccessUrl)
+      ? requestedAccessUrl
+      : 'https://www.rbnbrasil.com.br/admin/login';
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ ok: false, error: 'E-mail inválido.' }, { status: 400 });
@@ -52,7 +55,8 @@ export async function POST(request: Request) {
             <p style="margin:0 0 10px; font-size:14px; font-weight:700; color:#111827;">Seu acesso</p>
             <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>E-mail/Login:</strong> ${escapeHtml(login || email)}</p>
             <p style="margin:0 0 8px; font-size:14px; color:#374151;"><strong>Senha temporária:</strong> ${escapeHtml(temporaryPassword || 'Entre em contato com o administrador para receber a senha temporária.')}</p>
-            <p style="margin:0; font-size:14px; color:#374151;"><strong>Acesse o sistema:</strong> <a href="${escapeHtml(accessUrl)}" style="color:#991b1b; word-break:break-all;">${escapeHtml(accessUrl)}</a></p>
+            <p style="margin:0 0 14px; font-size:14px; color:#374151;"><strong>Acesse o sistema:</strong> <a href="${escapeHtml(accessUrl)}" style="color:#991b1b; word-break:break-all;">${escapeHtml(accessUrl)}</a></p>
+            <p style="margin:0;"><a href="${escapeHtml(accessUrl)}" style="display:inline-block; background:#991b1b; color:#ffffff; text-decoration:none; font-weight:700; padding:12px 20px; border-radius:8px;">Entrar no Portal RBN</a></p>
           </div>
           <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.7; color: #374151;">Por segurança, essa é uma senha temporária e deverá ser alterada obrigatoriamente no seu primeiro acesso.</p>
           <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.7; color: #374151;">Ao entrar pela primeira vez, o próprio sistema solicitará que você cadastre uma nova senha. Após essa alteração, seu acesso estará liberado normalmente.</p>

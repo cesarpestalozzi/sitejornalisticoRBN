@@ -106,6 +106,7 @@ export default function AdminLogin() {
     setLoading(true);
 
     let user = resolveUserByIdentifier(identifier);
+    let authenticatedRemotely = false;
     if (!user) {
       const response = await fetch('/api/auth/admin-login', {
         method: 'POST',
@@ -115,10 +116,11 @@ export default function AdminLogin() {
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.user) {
         user = data.user;
+        authenticatedRemotely = true;
       }
     }
 
-    if (!user || !matchesPassword(user.passwordHash, password)) {
+    if (!user || (!authenticatedRemotely && !matchesPassword(user.passwordHash, password))) {
       setError('Identificacao ou senha invalidos. Use o login RBN + CPF e a senha cadastrada.');
       setLoading(false);
       return;
