@@ -109,6 +109,11 @@ async function normalizeRemoteRows(rows: SupabaseArticleRow[]) {
     if (!row || typeof row !== 'object' || !row.payload) {
       return;
     }
+    // Videoconference fallback records share the legacy Supabase table but
+    // are not newsroom articles.
+    if (row.id.startsWith('__videoconference:') || (row.payload as unknown as Record<string, unknown>)._type === 'videoconference_meeting') {
+      return;
+    }
 
     const normalized = normalizeArticle({
       ...row.payload,

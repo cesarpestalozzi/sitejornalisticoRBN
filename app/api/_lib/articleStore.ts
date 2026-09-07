@@ -46,7 +46,11 @@ export async function listStoredArticles(id?: string, options?: { publishedOnly?
   const response = await fetch(`${tableUrl}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
   const rows = (await response.json()) as ArticleRow[];
-  return rows.filter((row) => !row.id.startsWith('__analytics__:') && !row.id.startsWith('__comment__:'));
+  return rows.filter((row) =>
+    !row.id.startsWith('__analytics__:') &&
+    !row.id.startsWith('__comment__:') &&
+    !row.id.startsWith('__videoconference:')
+  );
 }
 
 export async function saveStoredArticle(article: Record<string, unknown>, deleted: boolean) {
