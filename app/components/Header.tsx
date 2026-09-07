@@ -24,6 +24,11 @@ export default function Header() {
   const [managedCategories, setManagedCategories] = useState(() => readManagedCategories());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [accountFirstName, setAccountFirstName] = useState('');
+  const [currentDate, setCurrentDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentDate(new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+  }, []);
 
   useEffect(() => {
     const syncSettings = () => setSettings(getSettings());
@@ -166,7 +171,7 @@ export default function Header() {
         <div className="border-b border-gray-800 bg-[#111111]">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-1 text-[11px] text-gray-200 sm:px-4">
             <div className="flex flex-wrap items-center gap-3">
-              <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              <span>{currentDate ?? ' '}</span>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-3">
