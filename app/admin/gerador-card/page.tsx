@@ -427,7 +427,26 @@ function makeNearBlackTransparent(image: HTMLImageElement) {
   }
 
   context.putImageData(imageData, 0, 0);
-  return canvas;
+  let minX = canvas.width;
+  let minY = canvas.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let index = 3; index < data.length; index += 4) {
+    if (data[index] === 0) continue;
+    const pixel = (index - 3) / 4;
+    const x = pixel % canvas.width;
+    const y = Math.floor(pixel / canvas.width);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  if (maxX < minX || maxY < minY) return canvas;
+  const trimmed = document.createElement('canvas');
+  trimmed.width = maxX - minX + 1;
+  trimmed.height = maxY - minY + 1;
+  trimmed.getContext('2d')?.drawImage(canvas, minX, minY, trimmed.width, trimmed.height, 0, 0, trimmed.width, trimmed.height);
+  return trimmed;
 }
 
 function drawTemplate(
@@ -563,18 +582,22 @@ function drawColumnTemplate(
   context.fillStyle = '#F8F7F3';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   if (logoImage) {
-    const logoRatio = logoImage.naturalWidth / logoImage.naturalHeight;
-    const logoWidth = 310;
-    context.drawImage(logoImage, 56, 42, logoWidth, logoWidth / logoRatio);
+    const preparedLogo = makeNearBlackTransparent(logoImage);
+    const logoRatio = preparedLogo.width / preparedLogo.height;
+    const logoWidth = 286;
+    const logoHeight = logoWidth / logoRatio;
+    context.drawImage(preparedLogo, 58, 52, logoWidth, logoHeight);
   }
   context.fillStyle = CARD_ACCENT_RED;
-  context.font = '800 28px Arial, sans-serif';
-  context.fillText('COLUNAS', 58, 154);
+  context.font = '800 26px Arial, sans-serif';
+  context.fillText('COLUNAS', 58, 178);
+  context.fillStyle = '#9CA3AF';
+  context.fillRect(58, 197, 120, 4);
   context.fillStyle = '#242424';
-  context.font = '700 30px Arial, sans-serif';
-  context.fillText(columnistName || 'Colunista RBN', 58, 194);
+  context.font = '700 34px Georgia, Times New Roman, serif';
+  context.fillText(columnistName || 'Colunista RBN', 58, 232);
   const avatarX = CANVAS_WIDTH - 218;
-  const avatarY = 36;
+  const avatarY = 58;
   context.save();
   context.beginPath();
   context.arc(avatarX + 82, avatarY + 82, 82, 0, Math.PI * 2);
@@ -592,15 +615,15 @@ function drawColumnTemplate(
   context.beginPath();
   context.arc(avatarX + 82, avatarY + 82, 82, 0, Math.PI * 2);
   context.stroke();
-  drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 230, CANVAS_WIDTH, 760, imageScale, imageOffsetX, imageOffsetY);
+  drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 270, CANVAS_WIDTH, 710, imageScale, imageOffsetX, imageOffsetY);
   context.fillStyle = '#F8F7F3';
-  context.fillRect(0, 990, CANVAS_WIDTH, 360);
-  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 280, 'Georgia, Times New Roman, serif', 'italic');
+  context.fillRect(0, 980, CANVAS_WIDTH, 370);
+  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, 'Georgia, Times New Roman, serif', 'italic');
   context.fillStyle = '#1F2937';
   context.font = `italic 700 ${wrappedTitle.fontSize}px Georgia, Times New Roman, serif`;
-  wrappedTitle.lines.forEach((line, index) => context.fillText(line, 58, 1075 + index * wrappedTitle.lineHeight));
+  wrappedTitle.lines.forEach((line, index) => context.fillText(line, 58, 1080 + index * wrappedTitle.lineHeight));
   context.fillStyle = CARD_ACCENT_RED;
-  context.fillRect(58, 1018, 110, 7);
+  context.fillRect(58, 1022, 120, 6);
 }
 
 function drawMemorialTemplate(
