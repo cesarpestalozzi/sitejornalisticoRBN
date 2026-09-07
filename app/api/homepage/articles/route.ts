@@ -32,12 +32,22 @@ export async function GET(request: NextRequest) {
       const rows = await listStoredArticles(undefined, { publishedOnly: true });
       const articles = rows
         .filter((row) => !row.deleted && isPublishedArticle(row.payload.status))
-        .map((row) => ({
-          ...row.payload,
-          id: row.id,
-          image: resolveArticleImage(row.id, row.payload),
-          updatedAt: row.payload.updatedAt || row.updated_at,
-        }))
+        .map((row) => {
+          const payload = row.payload;
+          return {
+            id: row.id,
+            title: String(payload.title ?? ''),
+            subtitle: String(payload.subtitle ?? ''),
+            category: String(payload.category ?? ''),
+            author: String(payload.author ?? ''),
+            excerpt: String(payload.excerpt ?? ''),
+            image: resolveArticleImage(row.id, payload),
+            featured: Boolean(payload.featured),
+            status: String(payload.status ?? 'publicado'),
+            updatedAt: String(payload.updatedAt ?? row.updated_at),
+            views: Number(payload.views ?? 0),
+          };
+        })
         .sort((left, right) => String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')));
       return NextResponse.json(articles, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {

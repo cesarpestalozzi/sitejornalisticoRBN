@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listStoredUsers } from '@/app/api/_lib/userStore';
+import { listStoredArticles } from '@/app/api/_lib/articleStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,23 @@ export async function GET(request: NextRequest) {
     const result = requested
       ? users.filter((user) => user.id.toLowerCase() === requested || user.columnistSlug.toLowerCase() === requested)
       : users;
+    if (query.get('includeArticles') === 'true') {
+      const rows = await listStoredArticles(undefined, { publishedOnly: true });
+      const enriched = result.map((user) => {
+        const name = user.name.toLowerCase();
+        const articles = rows
+          .filter((row) => {
+            const payload = row.payload;
+            const ids = Array.isArray(payload.authorUserIds) ? payload.authorUserIds.map(String) : [];
+            const authors = String(payload.author ?? '').split(/\s+e\s+|,\s*/i).map((value) => value.trim().replace(/^por\s+/i, '').toLowerCase());
+            return ids.includes(user.id) || String(payload.columnistUserId ?? '') === user.id || authors.includes(name);
+          })
+          .filter((row) => !row.deleted)
+          .map((row) => ({ ...row.payload, id: row.id, updatedAt: row.payload.updatedAt ?? row.updated_at }));
+        return { ...user, articles };
+      });
+      return NextResponse.json(enriched, { headers: { 'Cache-Control': 'no-store' } });
+    }
     return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar colunistas.' }, { status: 502 });

@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useArticles } from '@/app/hooks/useArticles';
 import { formatDate } from '@/app/utils/dateUtils';
 import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 
-type Columnist = { id: string; name: string; avatar: string; bio: string; professionalInfo: string; publicRole: string; expertise: string; location: string; publicEmail: string; website: string; columnistSlug: string; socialLinks: Array<{ label: string; url: string }> };
+type ColumnistArticle = { id: string; title: string; excerpt?: string; image?: string; images?: Array<{ url: string; isPrimary?: boolean }>; status?: string; publishedAt?: string; updatedAt?: string; createdAt?: string; author?: string; authorUserIds?: string[]; columnistUserId?: string };
+type Columnist = { id: string; name: string; avatar: string; bio: string; professionalInfo: string; publicRole: string; expertise: string; location: string; publicEmail: string; website: string; columnistSlug: string; socialLinks: Array<{ label: string; url: string }>; articles?: ColumnistArticle[] };
 
 function initials(name: string) {
   return name
@@ -21,11 +21,10 @@ function initials(name: string) {
 
 export default function ColumnistProfilePage() {
   const params = useParams<{ slug: string }>();
-  const { articles } = useArticles();
   const [columnist, setColumnist] = useState<Columnist | null>(null);
-  useEffect(() => { fetch(`/api/columnists?slug=${encodeURIComponent(params.slug)}`, { cache: 'no-store' }).then((response) => response.json()).then((data: Columnist[]) => setColumnist(data[0] ?? null)).catch(() => setColumnist(null)); }, [params.slug]);
+  useEffect(() => { fetch(`/api/columnists?slug=${encodeURIComponent(params.slug)}&includeArticles=true`, { cache: 'no-store' }).then((response) => response.json()).then((data: Columnist[]) => setColumnist(data[0] ?? null)).catch(() => setColumnist(null)); }, [params.slug]);
   const authored = columnist
-    ? articles
+    ? (columnist.articles ?? [])
         .filter((article) => {
           const articleStatus = normalizeArticleStatus(article.status, article.publishedAt ? 'publicado' : undefined);
           const authorNames = String(article.author ?? '')
@@ -41,8 +40,8 @@ export default function ColumnistProfilePage() {
           );
         })
         .sort((left, right) => {
-          const leftDate = new Date(left.publishedAt || left.updatedAt || left.createdAt).getTime();
-          const rightDate = new Date(right.publishedAt || right.updatedAt || right.createdAt).getTime();
+          const leftDate = new Date(left.publishedAt || left.updatedAt || left.createdAt || 0).getTime();
+          const rightDate = new Date(right.publishedAt || right.updatedAt || right.createdAt || 0).getTime();
           return rightDate - leftDate;
         })
     : [];
@@ -77,7 +76,7 @@ export default function ColumnistProfilePage() {
       <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {authored.map((article) => {
           const image = article.image || article.images?.find((item) => item.isPrimary)?.url || article.images?.[0]?.url || '/logo-oficial.png';
-          const date = article.publishedAt || article.updatedAt || article.createdAt;
+          const date = article.publishedAt || article.updatedAt || article.createdAt || 0;
           return (
             <Link key={article.id} href={`/artigo/${article.id}`} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#E11A1A] hover:shadow-md">
               <div className="aspect-[16/10] overflow-hidden bg-gray-100">
