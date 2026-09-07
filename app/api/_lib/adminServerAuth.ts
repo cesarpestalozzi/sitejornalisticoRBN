@@ -46,12 +46,10 @@ export function isTestUser(payload: Record<string, unknown> | null | undefined):
   if (role === 'leitor' || role === 'reader') return true;
 
   if (
-    name.includes('teste') ||
-    name.includes('test') ||
+    name === 'teste' ||
+    name.startsWith('teste ') ||
     name.startsWith('por redação') ||
     name.startsWith('usuario teste') ||
-    email.includes('test') ||
-    email.includes('teste') ||
     email.includes('persist-test') ||
     login.includes('999999999') ||
     login.startsWith('RBN99999') ||
