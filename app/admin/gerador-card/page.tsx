@@ -495,8 +495,8 @@ function drawTemplate(
     const preparedLogo = makeNearBlackTransparent(logoImage);
     const sourceWidth = 'naturalWidth' in preparedLogo ? preparedLogo.naturalWidth : preparedLogo.width;
     const sourceHeight = 'naturalHeight' in preparedLogo ? preparedLogo.naturalHeight : preparedLogo.height;
-    const maxLogoWidth = 580;
-    const maxLogoHeight = 208;
+    const maxLogoWidth = 360;
+    const maxLogoHeight = 130;
     const logoRatio = sourceWidth / sourceHeight;
     let logoWidth = maxLogoWidth;
     let logoHeight = logoWidth / logoRatio;
