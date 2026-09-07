@@ -430,6 +430,43 @@ function makeNearBlackTransparent(image: HTMLImageElement) {
   return canvas;
 }
 
+function cropTransparentImage(image: HTMLCanvasElement) {
+  const context = image.getContext('2d');
+  if (!context) {
+    return image;
+  }
+
+  const { width, height } = image;
+  const { data } = context.getImageData(0, 0, width, height);
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (data[(y * width + x) * 4 + 3] > 8) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    return image;
+  }
+
+  const croppedImage = document.createElement('canvas');
+  croppedImage.width = maxX - minX + 1;
+  croppedImage.height = maxY - minY + 1;
+  croppedImage
+    .getContext('2d')
+    ?.drawImage(image, minX, minY, croppedImage.width, croppedImage.height, 0, 0, croppedImage.width, croppedImage.height);
+  return croppedImage;
+}
+
 function drawTemplate(
   context: CanvasRenderingContext2D,
   title: string,
@@ -574,25 +611,23 @@ function drawColumnTemplate(
   context.fillStyle = '#F8F7F3';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   if (logoImage) {
-    const preparedLogo = makeNearBlackTransparent(logoImage);
+    const preparedLogoSource = makeNearBlackTransparent(logoImage);
+    const preparedLogo =
+      preparedLogoSource instanceof HTMLCanvasElement
+        ? cropTransparentImage(preparedLogoSource)
+        : preparedLogoSource;
     const logoRatio = preparedLogo.width / preparedLogo.height;
     let logoWidth = Math.min(190 * (logoSize / 100), 230);
     let logoHeight = logoWidth / logoRatio;
-    if (logoHeight > 104) {
-      logoHeight = 104;
+    if (logoHeight > 72) {
+      logoHeight = 72;
       logoWidth = logoHeight * logoRatio;
     }
-    const baseLogoX =
-      logoPosition === 'left'
-        ? 58
-        : logoPosition === 'center'
-          ? (CANVAS_WIDTH - logoWidth) / 2
-          : CANVAS_WIDTH - logoWidth - 58;
-    const logoX = Math.max(12, Math.min(CANVAS_WIDTH - logoWidth - 12, baseLogoX + logoOffsetX));
-    const logoY = Math.max(12, 28 + logoOffsetY);
+    const logoX = Math.max(12, Math.min(CANVAS_WIDTH - logoWidth - 12, 58 + logoOffsetX));
+    const logoY = Math.max(12, 26 + logoOffsetY);
     context.drawImage(preparedLogo, logoX, logoY, logoWidth, logoHeight);
   }
-  const categoryY = 178;
+  const categoryY = 166;
   context.fillStyle = CARD_ACCENT_RED;
   context.font = '800 26px Arial, sans-serif';
   context.fillText('COLUNAS', 58, categoryY);
