@@ -187,7 +187,7 @@ export async function updateStoredUserActivity(userId: string, fields: Record<st
 }
 
 function documentationPinSecret() {
-  return process.env.HR_DOCUMENTATION_PIN?.trim() || process.env.DOCUMENTATION_PIN?.trim() || '';
+  return process.env.HR_DOCUMENTATION_PIN?.trim() || process.env.DOCUMENTATION_PIN?.trim() || sessionSecret();
 }
 
 export function createDocumentationPinToken(userId: string) {

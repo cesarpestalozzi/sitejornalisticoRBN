@@ -166,6 +166,7 @@ function publicUser(row: { id: string; payload: Record<string, unknown> }) {
 export async function GET(request: NextRequest) {
   const user = await resolveAdminUser(request);
   if (!user || !can(user, 'documentation:view')) return errorResponse('Sessão ou permissão de documentação inválida.', 401);
+  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Digite sua senha para acessar o RH.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
 
   try {
@@ -217,6 +218,7 @@ export async function POST(request: NextRequest) {
   if (!user || (!can(user, 'documentation:upload') && !can(user, 'documentation:request'))) {
     return errorResponse('Sessão ou permissão de documentação inválida.', 401);
   }
+  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Digite sua senha para acessar o RH.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
 
   try {
@@ -351,6 +353,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const user = await resolveAdminUser(request);
   if (!user || (!can(user, 'documentation:review') && !can(user, 'documentation:manage') && user.role !== 'admin')) return errorResponse('Apenas RH autorizado pode revisar documentos.', 403);
+  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Digite sua senha para acessar o RH.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
   try {
     const body = (await request.json()) as { id?: string; status?: DocumentationStatus; notes?: string; expiresAt?: string | null };
@@ -421,6 +424,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const user = await resolveAdminUser(request);
   if (!user) return errorResponse('Sessão inválida.', 401);
+  if (!hasDocumentationPinAccess(request, user.id)) return errorResponse('Digite sua senha para acessar o RH.', 403);
   if (!hasDocumentationStoreConfig()) return errorResponse('Armazenamento de documentação não configurado.', 503);
   try {
     const id = new URL(request.url).searchParams.get('id')?.trim() || '';

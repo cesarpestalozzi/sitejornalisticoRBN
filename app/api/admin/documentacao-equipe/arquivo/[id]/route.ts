@@ -9,6 +9,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   if (!user || !user.permissions.includes('documentation:view') && user.role !== 'admin') {
     return NextResponse.json({ ok: false, error: 'Sessão ou permissão de documentação inválida.' }, { status: 401 });
   }
+  if (!hasDocumentationPinAccess(request, user.id)) {
+    return NextResponse.json({ ok: false, error: 'Digite sua senha para acessar o RH.' }, { status: 403 });
+  }
   if (!hasDocumentationStoreConfig()) {
     return NextResponse.json({ ok: false, error: 'Armazenamento de documentação não configurado.' }, { status: 503 });
   }

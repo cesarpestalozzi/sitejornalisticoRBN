@@ -169,7 +169,7 @@ export default function TeamDocumentationPage() {
     } catch (reason) {
       const msg = reason instanceof Error ? reason.message : 'Não foi possível carregar a documentação.';
       setError(msg);
-      if (msg.includes('PIN')) {
+      if (msg.includes('senha') || msg.includes('Senha')) {
         setUnlocked(false);
       }
     } finally {
@@ -388,24 +388,23 @@ export default function TeamDocumentationPage() {
               <ShieldAlert className="mx-auto h-10 w-10 text-[#991B1B]" />
               <h1 className="mt-4 text-2xl font-bold text-gray-900">Recursos Humanos</h1>
               <p className="mt-2 text-sm text-gray-600">
-                Informe o PIN de segurança para acessar a central oficial de documentos da equipe.
+                Digite sua senha novamente para acessar os documentos sigilosos da equipe.
               </p>
               <form onSubmit={unlockHumanResources} className="mt-6 space-y-3">
                 <input
                   type="password"
-                  inputMode="numeric"
-                  autoComplete="off"
+                  autoComplete="current-password"
                   value={pin}
                   onChange={(event) => setPin(event.target.value)}
-                  placeholder="PIN de acesso"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-lg font-bold tracking-[0.35em] focus:border-[#991B1B] focus:outline-none"
+                  placeholder="Sua senha de acesso"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-center text-lg focus:border-[#991B1B] focus:outline-none"
                 />
                 <button
                   type="submit"
                   disabled={!pin.trim() || unlocking}
                   className="w-full rounded-lg bg-[#991B1B] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7F1D1D] disabled:opacity-50"
                 >
-                  {unlocking ? 'Validando PIN...' : 'Acessar documentação'}
+                  {unlocking ? 'Validando senha...' : 'Acessar documentação'}
                 </button>
               </form>
               {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
