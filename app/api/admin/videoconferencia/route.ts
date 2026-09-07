@@ -192,7 +192,10 @@ export async function POST(request: NextRequest) {
       if (!pid || pid === user.id) continue;
       const row = directory.find((item) => String(item.id) === pid);
       if (row) {
-        const name = String(row.payload.name ?? row.payload.publicName ?? row.payload.email ?? 'Colaborador').trim();
+        const name = [row.payload.name, row.payload.publicName]
+          .map((value) => typeof value === 'string' ? value.trim() : '')
+          .find(Boolean);
+        if (!name) continue;
         const email = String(row.payload.email ?? '').trim();
         const role = String(row.payload.role ?? '').trim();
         participantsMap.set(pid, {

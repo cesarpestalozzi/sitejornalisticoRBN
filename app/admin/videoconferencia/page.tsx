@@ -83,12 +83,18 @@ export default function VideoconferenciaPage() {
     setLoading(true);
     try {
       // 1. Fetch current session / users
-      const userRes = await fetch('/api/admin/usuarios');
+      const userRes = await fetch('/api/admin/users', { cache: 'no-store' });
       if (userRes.ok) {
         const userData = await userRes.json();
-        const realUsers = (userData.users || userData || []).filter(
-          (u: any) => !u.email?.includes('teste') && !u.email?.includes('example')
-        );
+        const realUsers = (userData.rows || [])
+          .map((row: { id: string; payload?: Partial<User> }) => ({
+            id: row.id,
+            name: String(row.payload?.name ?? '').trim(),
+            email: String(row.payload?.email ?? '').trim(),
+            role: String(row.payload?.role ?? ''),
+            department: String(row.payload?.department ?? ''),
+          }))
+          .filter((u: User) => Boolean(u.name) && Boolean(u.email));
         setUsers(realUsers);
 
         // Find logged-in user or default to first

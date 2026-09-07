@@ -37,15 +37,22 @@ function publicDirectory(rows: Array<{ id: string; payload: Record<string, unkno
   const onlineWindow = Date.now() - 5 * 60 * 1000;
   return rows
     .filter((row) => row.id !== currentId && !['inativo', 'inactive', 'disabled', 'removido', 'removed', 'deleted'].includes(String(row.payload.status ?? 'ativo').toLowerCase()))
-    .map((row) => ({
-      id: row.id,
-      name: String(row.payload.publicName ?? row.payload.name ?? 'Usuário'),
-      email: String(row.payload.email ?? ''),
-      avatar: typeof row.payload.avatar === 'string' ? row.payload.avatar : '',
-      role: String(row.payload.role ?? ''),
-      lastSeenAt: typeof row.payload.lastSeenAt === 'string' ? row.payload.lastSeenAt : null,
-      isOnline: Boolean(row.payload.isOnline) && typeof row.payload.lastSeenAt === 'string' && new Date(row.payload.lastSeenAt).getTime() >= onlineWindow,
-    }));
+    .map((row) => {
+      const name = [row.payload.name, row.payload.publicName]
+        .map((value) => typeof value === 'string' ? value.trim() : '')
+        .find(Boolean);
+      if (!name) return null;
+      return {
+        id: row.id,
+        name,
+        email: String(row.payload.email ?? ''),
+        avatar: typeof row.payload.avatar === 'string' ? row.payload.avatar : '',
+        role: String(row.payload.role ?? ''),
+        lastSeenAt: typeof row.payload.lastSeenAt === 'string' ? row.payload.lastSeenAt : null,
+        isOnline: Boolean(row.payload.isOnline) && typeof row.payload.lastSeenAt === 'string' && new Date(row.payload.lastSeenAt).getTime() >= onlineWindow,
+      };
+    })
+    .filter((user): user is NonNullable<typeof user> => Boolean(user));
 }
 
 async function readBody(request: NextRequest) {

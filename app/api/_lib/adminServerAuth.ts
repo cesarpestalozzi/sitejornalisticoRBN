@@ -102,9 +102,13 @@ export async function resolveAdminUser(request: NextRequest): Promise<ServerAdmi
     const row = (await getAdminDirectory()).find((item) => String(item.id) === userId);
     if (!row || !isActive(row.payload ?? {})) return null;
     const role = normalizeRole(row.payload.role);
+    const name = [row.payload.name, row.payload.publicName]
+      .map((value) => typeof value === 'string' ? value.trim() : '')
+      .find(Boolean);
+    if (!name) return null;
     return {
       id: String(row.id),
-      name: String(row.payload.name ?? 'Usuário'),
+      name,
       email: String(row.payload.email ?? ''),
       role,
       permissions: permissionsFor(row.payload, role),
