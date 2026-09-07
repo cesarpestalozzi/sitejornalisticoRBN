@@ -97,7 +97,9 @@ function permissionsFor(payload: Record<string, unknown>, role: string) {
   // Creating a news article is a base newsroom capability for every active
   // employee. It must not disappear when an older user record has a custom
   // permissions array that predates this capability.
-  const newsroomPermissions = [...permissions, 'articles:create'];
+  // The author of a news article may also publish their own work. Publishing
+  // someone else's article remains controlled by articles:publish:any.
+  const newsroomPermissions = [...permissions, 'articles:create', 'articles:publish:own'];
   if (role === 'admin') return [...new Set([...newsroomPermissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...ADMIN_DOCUMENTATION_PERMISSIONS])];
   const roleDocumentation = DEFAULT_DOCUMENTATION_PERMISSIONS;
   return hasStoredPermissions

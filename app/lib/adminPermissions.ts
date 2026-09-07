@@ -127,8 +127,8 @@ const ROLE_DEFAULT_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     'messages:view',
     'messages:send',
   ],
-  jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload'],
-  colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload'],
+  jornalista: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload'],
+  colaborador: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload'],
   estagiario: ['dashboard:view', 'articles:view:own', 'articles:create', 'articles:edit:own', 'articles:publish:own', 'messages:view', 'messages:send', 'documentation:view', 'documentation:upload'],
 };
 
