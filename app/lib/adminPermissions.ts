@@ -390,7 +390,9 @@ export function canViewOwnArticles(user: AdminSessionUser | null) {
 }
 
 export function canCreateArticle(user: AdminSessionUser | null) {
-  return hasPermission(user, 'articles:create');
+  // Creation is available to every authenticated employee. Other actions
+  // such as publishing, approving, deleting, or managing users stay scoped.
+  return Boolean(user);
 }
 
 export function canEditArticle(user: AdminSessionUser | null, author: string) {

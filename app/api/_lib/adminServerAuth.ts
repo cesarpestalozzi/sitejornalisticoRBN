@@ -94,11 +94,15 @@ function permissionsFor(payload: Record<string, unknown>, role: string) {
     ? storedPermissions.filter((item): item is string => typeof item === 'string')
       .filter((permission) => role === 'admin' || !['users:manage', 'settings:manage', 'analytics:view', 'diagnostics:view', 'monitoring:view'].includes(permission))
     : [];
-  if (role === 'admin') return [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...ADMIN_DOCUMENTATION_PERMISSIONS])];
+  // Creating a news article is a base newsroom capability for every active
+  // employee. It must not disappear when an older user record has a custom
+  // permissions array that predates this capability.
+  const newsroomPermissions = [...permissions, 'articles:create'];
+  if (role === 'admin') return [...new Set([...newsroomPermissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...ADMIN_DOCUMENTATION_PERMISSIONS])];
   const roleDocumentation = DEFAULT_DOCUMENTATION_PERMISSIONS;
   return hasStoredPermissions
-    ? [...new Set([...permissions, ...roleDocumentation])]
-    : [...new Set([...permissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...roleDocumentation])];
+    ? [...new Set([...newsroomPermissions, ...roleDocumentation])]
+    : [...new Set([...newsroomPermissions, ...DEFAULT_MESSAGING_PERMISSIONS, ...roleDocumentation])];
 }
 
 export async function getAdminDirectory(): Promise<DirectoryRow[]> {

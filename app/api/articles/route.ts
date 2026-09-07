@@ -94,7 +94,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const user = await resolveAdminUser(request);
-  if (!user || (!user.permissions.includes('articles:create') && user.role !== 'admin')) return NextResponse.json({ error: 'Sem permissão para criar notícias.' }, { status: 403 });
+  // Any authenticated active employee may create a draft. Publication,
+  // approval, deletion, and administration remain separately permissioned.
+  if (!user) return NextResponse.json({ error: 'É necessário estar autenticado para criar notícias.' }, { status: 403 });
   if (hasArticleStoreConfig()) {
     try {
       const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
