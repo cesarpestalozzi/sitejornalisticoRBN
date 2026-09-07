@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDirectory, resolveAdminUser, updateStoredUserActivity } from '@/app/api/_lib/adminServerAuth';
+import { createAdminSessionToken, getAdminDirectory, resolveAdminUser, updateStoredUserActivity } from '@/app/api/_lib/adminServerAuth';
 import { getUserActivities, logUserActivity } from '@/app/api/_lib/activityStore';
 
 export const dynamic = 'force-dynamic';
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const logEntry = await logUserActivity(user.id, user.name, action, description, area);
 
     const response = NextResponse.json({ ok: true, log: logEntry });
-    response.cookies.set('rbn_admin_user', user.id, {
+    response.cookies.set('rbn_admin_user', createAdminSessionToken(user.id), {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',

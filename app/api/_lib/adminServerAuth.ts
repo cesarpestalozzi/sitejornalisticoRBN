@@ -29,6 +29,28 @@ const ROLE_ALIASES: Record<string, string> = {
   'editor chefe': 'editor-chefe',
 };
 
+function sessionSecret() {
+  return process.env.ADMIN_SESSION_SECRET?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || '';
+}
+
+export function createAdminSessionToken(userId: string) {
+  const secret = sessionSecret();
+  if (!secret) return '';
+  const expiresAt = Date.now() + 12 * 60 * 60 * 1000;
+  const value = `${userId}.${expiresAt}`;
+  const signature = createHmac('sha256', secret).update(value).digest('hex');
+  return `${value}.${signature}`;
+}
+
+function verifyAdminSessionToken(token: string) {
+  const secret = sessionSecret();
+  const [userId, expiresAt, signature] = token.split('.');
+  if (!secret || !userId || !expiresAt || !signature || Number(expiresAt) < Date.now()) return '';
+  const expected = createHmac('sha256', secret).update(`${userId}.${expiresAt}`).digest('hex');
+  if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return '';
+  return userId;
+}
+
 function normalizeRole(value: unknown) {
   const role = String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
   return ROLE_ALIASES[role] ?? role;
@@ -95,7 +117,7 @@ export async function getAdminDirectory(): Promise<DirectoryRow[]> {
 }
 
 export async function resolveAdminUser(request: NextRequest): Promise<ServerAdminUser | null> {
-  const userId = request.headers.get('x-admin-user-id')?.trim() || request.cookies.get('rbn_admin_user')?.value?.trim();
+  const userId = verifyAdminSessionToken(request.cookies.get('rbn_admin_user')?.value?.trim() || '');
   if (!userId) return null;
   try {
     const row = (await getAdminDirectory()).find((item) => String(item.id) === userId);

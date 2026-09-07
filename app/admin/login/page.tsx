@@ -62,6 +62,15 @@ export default function AdminLogin() {
     }).catch(() => undefined);
   };
 
+  const establishSession = async (userId: string, secret: string) => {
+    const response = await fetch('/api/auth/admin-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, password: secret }),
+    });
+    return response.ok;
+  };
+
   const loginHint = useMemo(() => {
     if (!isLoaded || !users.length) {
       return ADMIN_LOGIN;
@@ -138,6 +147,11 @@ export default function AdminLogin() {
       // Se nao conseguir verificar MFA, continua sem ele
     }
 
+    if (!(await establishSession(user.id, password))) {
+      setError('Não foi possível iniciar uma sessão segura. Tente novamente.');
+      setLoading(false);
+      return;
+    }
     markLoginActivity(user.id);
     localStorage.setItem('adminUser', JSON.stringify(userData));
     if (shouldForcePasswordChange(user)) {
@@ -221,6 +235,11 @@ export default function AdminLogin() {
         return;
       }
 
+      if (!(await establishSession(pendingUserId, password))) {
+        setError('Não foi possível iniciar uma sessão segura. Tente novamente.');
+        setLoading(false);
+        return;
+      }
       markLoginActivity(pendingUserId);
       localStorage.setItem('adminUser', JSON.stringify(pendingUserData));
       router.push(pendingUserData?.mustChangePassword ? '/admin/alterar-senha' : '/admin/dashboard');
