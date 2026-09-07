@@ -4,10 +4,11 @@ import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Download, FolderOpen, ImageUp, Layers3, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useArticles } from '@/app/hooks/useArticles';
+import { useUsers } from '@/app/hooks/useUsers';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 
 type CardTemplate = 'editorial' | 'urgente' | 'clean';
-type CardKind = 'news' | 'memorial';
+type CardKind = 'news' | 'column' | 'memorial';
 type ExportFormat = 'png' | 'jpeg';
 type HeaderTheme = 'black' | 'white';
 type FooterGradient = 'dark' | 'light';
@@ -87,6 +88,7 @@ const introAnimationOptions: Array<{ id: IntroAnimation; label: string; descript
 
 const cardKindOptions: Array<{ id: CardKind; label: string; description: string }> = [
   { id: 'news', label: 'Notícia', description: 'Card flexível para manchetes, imagem ou vídeo.' },
+  { id: 'column', label: 'Card de Coluna', description: 'Modelo editorial com colunista, foto de perfil e título da coluna.' },
   { id: 'memorial', label: 'Luto / Falecimento', description: 'Modelo sóbrio com foto, nome, profissão e anos de nascimento e falecimento.' },
 ];
 
@@ -545,6 +547,62 @@ function drawTemplate(
   context.restore();
 }
 
+function drawColumnTemplate(
+  context: CanvasRenderingContext2D,
+  title: string,
+  heroMedia: CanvasImageSource,
+  heroMediaWidth: number,
+  heroMediaHeight: number,
+  logoImage: HTMLImageElement | null,
+  columnistName: string,
+  columnistAvatar: CanvasImageSource | null,
+  imageScale: number,
+  imageOffsetX: number,
+  imageOffsetY: number
+) {
+  context.fillStyle = '#F8F7F3';
+  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  if (logoImage) {
+    const logoRatio = logoImage.naturalWidth / logoImage.naturalHeight;
+    const logoWidth = 310;
+    context.drawImage(logoImage, 56, 42, logoWidth, logoWidth / logoRatio);
+  }
+  context.fillStyle = CARD_ACCENT_RED;
+  context.font = '800 28px Arial, sans-serif';
+  context.fillText('COLUNAS', 58, 154);
+  context.fillStyle = '#242424';
+  context.font = '700 30px Arial, sans-serif';
+  context.fillText(columnistName || 'Colunista RBN', 58, 194);
+  const avatarX = CANVAS_WIDTH - 218;
+  const avatarY = 36;
+  context.save();
+  context.beginPath();
+  context.arc(avatarX + 82, avatarY + 82, 82, 0, Math.PI * 2);
+  context.clip();
+  context.fillStyle = '#E5E7EB';
+  context.fillRect(avatarX, avatarY, 164, 164);
+  if (columnistAvatar) {
+    const avatarWidth = 'naturalWidth' in columnistAvatar ? columnistAvatar.naturalWidth : 'width' in columnistAvatar ? columnistAvatar.width : 1;
+    const avatarHeight = 'naturalHeight' in columnistAvatar ? columnistAvatar.naturalHeight : 'height' in columnistAvatar ? columnistAvatar.height : 1;
+    drawCoverImage(context, columnistAvatar, Number(avatarWidth), Number(avatarHeight), avatarX, avatarY, 164, 164, 1, 0, 0);
+  }
+  context.restore();
+  context.lineWidth = 8;
+  context.strokeStyle = '#FFFFFF';
+  context.beginPath();
+  context.arc(avatarX + 82, avatarY + 82, 82, 0, Math.PI * 2);
+  context.stroke();
+  drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 230, CANVAS_WIDTH, 760, imageScale, imageOffsetX, imageOffsetY);
+  context.fillStyle = '#F8F7F3';
+  context.fillRect(0, 990, CANVAS_WIDTH, 360);
+  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 280, 'Georgia, Times New Roman, serif', 'italic');
+  context.fillStyle = '#1F2937';
+  context.font = `italic 700 ${wrappedTitle.fontSize}px Georgia, Times New Roman, serif`;
+  wrappedTitle.lines.forEach((line, index) => context.fillText(line, 58, 1075 + index * wrappedTitle.lineHeight));
+  context.fillStyle = CARD_ACCENT_RED;
+  context.fillRect(58, 1018, 110, 7);
+}
+
 function drawMemorialTemplate(
   context: CanvasRenderingContext2D,
   heroMedia: CanvasImageSource,
@@ -570,6 +628,7 @@ function drawMemorialTemplate(
   if ('filter' in context) {
     context.filter = 'grayscale(100%) contrast(112%) brightness(0.82)';
   }
+
   drawCoverImage(
     context,
     heroMedia,
@@ -643,8 +702,10 @@ function drawMemorialTemplate(
 
 export default function GeradorCardPage() {
   const { articles, isLoaded } = useArticles();
+  const { users } = useUsers();
   const [cardKind, setCardKind] = useState<CardKind>('news');
   const [selectedArticleId, setSelectedArticleId] = useState('');
+  const [selectedColumnistId, setSelectedColumnistId] = useState('');
   const [customTitle, setCustomTitle] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [showCategory, setShowCategory] = useState(true);
@@ -694,6 +755,13 @@ export default function GeradorCardPage() {
         .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
     [articles]
   );
+  const selectableColumnists = useMemo(
+    () => users
+      .filter((user) => user.status !== 'removido' && user.isColumnist && user.profileVisible !== false)
+      .sort((left, right) => (left.publicName || left.name).localeCompare(right.publicName || right.name)),
+    [users]
+  );
+  const selectedColumnist = selectableColumnists.find((user) => user.id === selectedColumnistId) ?? null;
 
   useEffect(() => {
     if (!selectedArticleId && selectableArticles.length > 0) {
@@ -818,13 +886,16 @@ export default function GeradorCardPage() {
   }, []);
 
   const categoryLabel = customCategory.trim() || (selectedArticle ? getCategoryDisplayName(selectedArticle.category) : 'Geral');
+  const isColumnCard = cardKind === 'column';
   const isMemorialCard = cardKind === 'memorial';
-  const isVideoSource = !isMemorialCard && Boolean(customVideoUrl);
+  const isVideoSource = !isMemorialCard && !isColumnCard && Boolean(customVideoUrl);
   const currentImageSource = isMemorialCard
     ? customImageDataUrl
     : customImageDataUrl || (selectedArticle ? `/api/article-image?id=${selectedArticle.id}` : '');
   const currentSourceLabel = isMemorialCard
     ? customImageName || 'Enviar foto da pessoa'
+    : isColumnCard
+      ? customImageName || (selectedArticle ? 'Imagem principal da matéria' : 'Enviar imagem principal')
     : customVideoName || customImageName || 'Midia da materia';
   const memorialYearsLabel = formatMemorialYears(memorialBirthDate, memorialDeathDate);
   const effectiveVideoTrim = clampVideoTrim(videoTrimStart, videoTrimDuration, videoSourceDuration);
@@ -1055,6 +1126,7 @@ export default function GeradorCardPage() {
       heroMediaWidth: number,
       heroMediaHeight: number,
       logoImage: HTMLImageElement | null,
+      columnistAvatar: CanvasImageSource | null,
       animationProgress = 1
     ) => {
       if (isMemorialCard) {
@@ -1071,6 +1143,23 @@ export default function GeradorCardPage() {
           memorialDeathDate,
           titleFont,
           titleFontStyle,
+          imageScale,
+          imageOffsetX,
+          imageOffsetY
+        );
+        return;
+      }
+
+      if (isColumnCard) {
+        drawColumnTemplate(
+          context,
+          customTitle.trim(),
+          heroMedia,
+          heroMediaWidth,
+          heroMediaHeight,
+          logoImage,
+          selectedColumnist ? (selectedColumnist.publicName || selectedColumnist.name) : '',
+          columnistAvatar,
           imageScale,
           imageOffsetX,
           imageOffsetY
@@ -1116,6 +1205,7 @@ export default function GeradorCardPage() {
       imageOffsetY,
       imageScale,
       isMemorialCard,
+      isColumnCard,
       introAnimation,
       isCategoryBackgroundTransparent,
       logoPosition,
@@ -1125,6 +1215,7 @@ export default function GeradorCardPage() {
       memorialProfession,
       showCategory,
       selectedArticle,
+      selectedColumnist,
       selectedTemplate,
       titleFont,
       titleFontStyle,
@@ -1142,11 +1233,14 @@ export default function GeradorCardPage() {
     }
 
     const maybeLogoImage = await loadImage(CARD_LOGO_SRC).catch(() => null);
+    const maybeColumnistAvatar = isColumnCard && selectedColumnist?.avatar
+      ? await loadImage(selectedColumnist.avatar).catch(() => null)
+      : null;
 
     if (isVideoSource && customVideoUrl) {
       const heroVideo = await loadVideo(customVideoUrl);
       await seekVideo(heroVideo, effectiveVideoTrim.startTime);
-      drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, 1);
+      drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, maybeColumnistAvatar, 1);
       return canvas.toDataURL('image/png');
     }
 
@@ -1155,11 +1249,11 @@ export default function GeradorCardPage() {
     }
 
     const heroImage = await loadImage(currentImageSource);
-    drawCurrentFrame(context, heroImage, heroImage.naturalWidth, heroImage.naturalHeight, maybeLogoImage, 1);
+    drawCurrentFrame(context, heroImage, heroImage.naturalWidth, heroImage.naturalHeight, maybeLogoImage, maybeColumnistAvatar, 1);
     const mimeType = isMemorialCard ? 'image/png' : exportFormat === 'png' ? 'image/png' : 'image/jpeg';
     const quality = isMemorialCard || exportFormat === 'png' ? undefined : 0.96;
     return canvas.toDataURL(mimeType, quality);
-  }, [currentImageSource, customVideoUrl, drawCurrentFrame, effectiveVideoTrim.startTime, exportFormat, isMemorialCard, isVideoSource]);
+  }, [currentImageSource, customVideoUrl, drawCurrentFrame, effectiveVideoTrim.startTime, exportFormat, isColumnCard, isMemorialCard, isVideoSource, selectedColumnist]);
 
   const generateVideoPreview = useCallback(async () => {
     if (!customVideoUrl || !selectedArticle) {
@@ -1207,7 +1301,7 @@ export default function GeradorCardPage() {
       const renderFrame = (now: number) => {
         const elapsedSeconds = (now - start) / 1000;
         const introProgress = Math.min(elapsedSeconds / VIDEO_INTRO_DURATION_SECONDS, 1);
-        drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, introProgress);
+        drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, null, introProgress);
 
         if (elapsedSeconds < durationSeconds && heroVideo.currentTime < effectiveVideoTrim.startTime + durationSeconds) {
           requestAnimationFrame(renderFrame);
@@ -1228,7 +1322,9 @@ export default function GeradorCardPage() {
   const generateCardPreview = useCallback(
     async (showLoading = false) => {
       const hasMemorialContent = Boolean(memorialFullName.trim() && memorialProfession.trim() && memorialBirthDate && memorialDeathDate && currentImageSource);
-      const hasNewsContent = Boolean(selectedArticle && (currentImageSource || isVideoSource));
+      const hasNewsContent = isColumnCard
+        ? Boolean(selectedColumnist && currentImageSource)
+        : Boolean(selectedArticle && (currentImageSource || isVideoSource));
 
       if ((isMemorialCard && !hasMemorialContent) || (!isMemorialCard && !hasNewsContent)) {
         setIsGenerating(false);
@@ -1237,8 +1333,10 @@ export default function GeradorCardPage() {
         setErrorMessage(
           isMemorialCard
             ? 'Preencha foto, nome, profissão, nascimento e falecimento para gerar o card de luto.'
-            : selectedArticle
-              ? 'Selecione uma notícia com mídia para gerar o card.'
+            : isColumnCard
+              ? 'Selecione um colunista e uma imagem principal para gerar o card de coluna.'
+              : selectedArticle
+                ? 'Selecione uma notícia com mídia para gerar o card.'
               : ''
         );
         return;
@@ -1294,7 +1392,7 @@ export default function GeradorCardPage() {
         }
       }
     },
-    [currentImageSource, generateStaticPreview, generateVideoPreview, isMemorialCard, isVideoSource, memorialBirthDate, memorialDeathDate, memorialFullName, memorialProfession, selectedArticle]
+    [currentImageSource, generateStaticPreview, generateVideoPreview, isColumnCard, isMemorialCard, isVideoSource, memorialBirthDate, memorialDeathDate, memorialFullName, memorialProfession, selectedArticle, selectedColumnist]
   );
 
   const handleGenerateCard = useCallback(async () => {
@@ -1304,7 +1402,9 @@ export default function GeradorCardPage() {
   useEffect(() => {
     const shouldPreviewMemorial = isMemorialCard
       ? Boolean(memorialFullName.trim() && memorialProfession.trim() && memorialBirthDate && memorialDeathDate && currentImageSource)
-      : Boolean(selectedArticle && (currentImageSource || isVideoSource));
+      : isColumnCard
+        ? Boolean(selectedColumnist && currentImageSource)
+        : Boolean(selectedArticle && (currentImageSource || isVideoSource));
 
     if (!shouldPreviewMemorial) {
       return;
@@ -1315,10 +1415,10 @@ export default function GeradorCardPage() {
     }, isVideoSource ? 180 : 120);
 
     return () => window.clearTimeout(timeoutId);
-  }, [currentImageSource, generateCardPreview, isMemorialCard, isVideoSource, memorialBirthDate, memorialDeathDate, memorialFullName, memorialProfession, selectedArticle]);
+  }, [currentImageSource, generateCardPreview, isColumnCard, isMemorialCard, isVideoSource, memorialBirthDate, memorialDeathDate, memorialFullName, memorialProfession, selectedArticle, selectedColumnist]);
 
   const handleDownloadCard = () => {
-    if (!previewUrl || (!isMemorialCard && !selectedArticle)) {
+    if (!previewUrl || (!isMemorialCard && !isColumnCard && !selectedArticle) || (isColumnCard && !selectedColumnist)) {
       return;
     }
 
@@ -1329,7 +1429,7 @@ export default function GeradorCardPage() {
 
     const link = document.createElement('a');
     link.href = previewUrl;
-    const newsFileBaseName = selectedArticle ? `rbn-card-${selectedArticle.id}` : 'rbn-card';
+    const newsFileBaseName = selectedArticle ? `rbn-card-${selectedArticle.id}` : isColumnCard ? `rbn-card-coluna-${selectedColumnist?.id ?? 'rbn'}` : 'rbn-card';
     link.download = isVideoSource
       ? `${newsFileBaseName}.${VIDEO_EXPORT_EXTENSION}`
       : `${isMemorialCard ? 'rbn-card-luto' : newsFileBaseName}.${isMemorialCard || exportFormat === 'png' ? 'png' : 'jpg'}`;
@@ -1471,6 +1571,36 @@ export default function GeradorCardPage() {
 
                 {!isMemorialCard ? (
                   <>
+                {isColumnCard && (
+                  <div className="space-y-2 rounded-2xl border border-[#991B1B]/15 bg-[#fff7f7] p-4">
+                    <label htmlFor="columnistId" className="text-sm font-semibold text-gray-800">
+                      Selecionar colunista
+                    </label>
+                    <select
+                      id="columnistId"
+                      value={selectedColumnistId}
+                      onChange={(event) => setSelectedColumnistId(event.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                    >
+                      <option value="">Selecione um colunista cadastrado</option>
+                      {selectableColumnists.map((columnist) => (
+                        <option key={columnist.id} value={columnist.id}>
+                          {columnist.publicName || columnist.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectableColumnists.length === 0 ? (
+                      <p className="text-xs text-amber-700">Nenhum colunista cadastrado. Cadastre ou vincule um colunista antes de gerar o card.</p>
+                    ) : selectedColumnist ? (
+                      <p className="text-xs text-gray-600">
+                        Perfil vinculado:{' '}
+                        <a className="font-semibold text-[#991B1B] underline" href={`/colunistas/${selectedColumnist.columnistSlug || selectedColumnist.id}`} target="_blank" rel="noreferrer">
+                          {selectedColumnist.publicName || selectedColumnist.name}
+                        </a>
+                      </p>
+                    ) : null}
+                  </div>
+                )}
                 {selectableArticles.length === 0 && (
                   <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-600">
                     Nenhuma notícia encontrada no momento. Você ainda pode usar o tipo de card Luto / Falecimento.
@@ -1478,7 +1608,7 @@ export default function GeradorCardPage() {
                 )}
                 <div className="space-y-2">
                   <label htmlFor="articleId" className="text-sm font-semibold text-gray-800">
-                    Notícia
+                    {isColumnCard ? 'Imagem cadastrada (selecione uma matéria)' : 'Notícia'}
                   </label>
                   <select
                     id="articleId"
@@ -2169,7 +2299,7 @@ export default function GeradorCardPage() {
                   <button
                     type="button"
                     onClick={handleGenerateCard}
-                    disabled={isGenerating || (isMemorialCard ? !customImageDataUrl : !selectedArticle)}
+                    disabled={isGenerating || (isMemorialCard ? !customImageDataUrl : isColumnCard ? !selectedColumnist || !currentImageSource : !selectedArticle)}
                     className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#991B1B] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7F1D1D] disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     {isGenerating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -2199,6 +2329,8 @@ export default function GeradorCardPage() {
                   <div className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
                     {isMemorialCard
                       ? 'Modelo Luto / Falecimento'
+                      : isColumnCard
+                        ? 'Card de Coluna'
                       : selectedTemplate === 'editorial'
                         ? 'Modelo Editorial'
                         : selectedTemplate === 'urgente'
