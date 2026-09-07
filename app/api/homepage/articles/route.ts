@@ -49,7 +49,11 @@ export async function GET(request: NextRequest) {
           };
         })
         .sort((left, right) => String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')));
-      return NextResponse.json(articles, { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json(articles, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=300',
+        },
+      });
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao consultar homepage.' }, { status: 502 });
     }

@@ -7,8 +7,7 @@ import { useEffect, useState } from 'react';
 import ArticleBodyContent from '@/app/components/ArticleBodyContent';
 import Sidebar from '@/app/components/Sidebar';
 import { featuredArticle as fallbackFeaturedArticle } from '@/app/data/mockData';
-import { useArticles } from '@/app/hooks/useArticles';
-import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categoryLabels';
+import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 import { readCurrentRbnUser, type RbnAccount } from '@/app/lib/rbnAuth';
 import { formatDate } from '@/app/utils/dateUtils';
 import { formatArticleAuthor } from '@/app/lib/articleAuthor';
@@ -189,7 +188,6 @@ const OFFICIAL_SITE_URL = 'https://www.rbnbrasil.com.br';
 
 export default function ArticlePageClient() {
   const params = useParams<{ id: string }>();
-  const { isLoaded: isArticlesLoaded } = useArticles();
   const [articleRecord, setArticleRecord] = useState<any | null>(null);
   const [commentsByArticle, setCommentsByArticle] = useState<Record<string, ArticleComment[]>>({});
   const [isLoaded, setIsLoaded] = useState(false);
@@ -316,7 +314,7 @@ export default function ArticlePageClient() {
     : null;
 
   useEffect(() => {
-    if (!isArticlesLoaded || !article?.id || typeof window === 'undefined') {
+    if (!isLoaded || !article?.id || typeof window === 'undefined') {
       return;
     }
 
@@ -340,7 +338,7 @@ export default function ArticlePageClient() {
       }),
       keepalive: true,
     }).catch((error) => console.warn('Falha ao registrar visualização:', error));
-  }, [article?.id, isArticlesLoaded]);
+  }, [article?.id, isLoaded]);
 
   const recordShare = (articleId?: string) => {
     if (!articleId || typeof window === 'undefined') {

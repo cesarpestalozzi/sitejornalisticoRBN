@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
       const now = Date.now();
-      const rows = await listStoredArticles();
+      // Scheduled publishing is centralized here. The browser no longer
+      // polls and rewrites the same records on every open admin page.
+      const rows = await listStoredArticles(undefined, { status: 'in.(agendado,scheduled)', limit: 1000 });
       const dueRows = rows.filter((row) => !row.deleted && isScheduledArticleDue(row.payload, now));
 
       await Promise.all(

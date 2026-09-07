@@ -6,6 +6,7 @@ import {
   inferCategoryFromText,
   normalizeText,
   RADAR_DEFAULT_SOURCES,
+  isAllowedRadarSource,
   type RadarCategory,
   type RadarNewsGroup,
   type RadarNewsItem,
@@ -373,7 +374,13 @@ export async function POST(request: NextRequest) {
     const selectedCategories = Array.isArray(body.categories) ? body.categories : [];
     const timeFilter: RadarTimeFilter = body.timeFilter ?? '24h';
     const maxItems = typeof body.maxItems === 'number' ? Math.min(Math.max(body.maxItems, 10), 200) : 80;
-    const sources = (Array.isArray(body.sources) && body.sources.length > 0 ? body.sources : RADAR_DEFAULT_SOURCES).filter((source) => source.enabled);
+    const requestedSources = Array.isArray(body.sources) && body.sources.length > 0 ? body.sources : RADAR_DEFAULT_SOURCES;
+    const enabledSourceIds = new Set(
+      requestedSources
+        .filter((source) => source.enabled && isAllowedRadarSource(source))
+        .map((source) => source.id)
+    );
+    const sources = RADAR_DEFAULT_SOURCES.filter((source) => enabledSourceIds.has(source.id));
 
     const cacheKey = hashText(
       JSON.stringify({

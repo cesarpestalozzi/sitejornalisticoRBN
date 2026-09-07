@@ -319,9 +319,10 @@ export default function AdminMessagesPage() {
   useEffect(() => {
     void loadInitial();
     const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       void api('/api/admin/messaging', { method: 'POST', body: JSON.stringify({ action: 'heartbeat' }) }).catch(() => undefined);
       void loadConversations();
-    }, 4_000);
+    }, 15_000);
     return () => window.clearInterval(interval);
   }, [loadConversations, loadInitial]);
 
@@ -332,8 +333,9 @@ export default function AdminMessagesPage() {
     }
     void fetchMessages(selectedId);
     const msgInterval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       void fetchMessages(selectedId);
-    }, 3_000);
+    }, 8_000);
     return () => window.clearInterval(msgInterval);
   }, [fetchMessages, selectedId]);
 

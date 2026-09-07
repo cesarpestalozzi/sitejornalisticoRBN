@@ -95,8 +95,7 @@ function mergeSourcesWithDefaults(storedSources: RadarSource[]) {
     } satisfies RadarSource;
   });
 
-  const customSources = storedSources.filter((source) => !defaultsById.has(source.id));
-  return [...mergedKnown, ...customSources];
+  return mergedKnown;
 }
 
 function formatDateTime(value: string) {

@@ -84,8 +84,9 @@ export default function UserMonitoringPage() {
   useEffect(() => {
     void loadData();
     const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
       void loadData();
-    }, 10000); // refresh every 10 seconds
+    }, 30000); // refresh every 30 seconds while the page is active
     return () => clearInterval(interval);
   }, [loadData]);
 

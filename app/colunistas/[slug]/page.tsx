@@ -49,18 +49,15 @@ export default function ColumnistProfilePage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:py-12">
       <section className="relative rounded-xl border border-gray-200 bg-[#f7f7f7] px-5 pb-6 pt-5 shadow-sm sm:px-8 sm:pb-8 sm:pt-6">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-x-3 gap-y-5 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center sm:gap-x-8">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-5 sm:items-center sm:gap-x-8">
           <div className="min-w-0 pt-1 text-left sm:col-start-1 sm:row-start-1">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Colunista</p>
             <h1 className="mt-2 break-words text-2xl font-bold tracking-tight text-[#E11A1A] sm:text-3xl">{columnist.name}</h1>
           </div>
-          <div className="flex items-start justify-center sm:col-start-2 sm:row-start-1">
-            <img src="/logo-oficial.png" alt="RBN Brasil" className="h-auto w-28 object-contain sm:w-40" />
-          </div>
           {columnist.avatar ? (
-            <img src={columnist.avatar} alt={columnist.name} className="col-start-3 row-start-1 h-20 w-20 justify-self-end rounded-full object-cover ring-4 ring-white sm:col-start-3 sm:h-32 sm:w-32" />
+            <img src={columnist.avatar} alt={columnist.name} className="col-start-2 row-start-1 h-20 w-20 justify-self-end rounded-full object-cover ring-4 ring-white sm:h-32 sm:w-32" />
           ) : (
-            <div className="col-start-3 row-start-1 flex h-20 w-20 items-center justify-center justify-self-end rounded-full bg-[#E11A1A] text-2xl font-bold text-white ring-4 ring-white sm:col-start-3 sm:h-32 sm:w-32 sm:text-3xl">
+            <div className="col-start-2 row-start-1 flex h-20 w-20 items-center justify-center justify-self-end rounded-full bg-[#E11A1A] text-2xl font-bold text-white ring-4 ring-white sm:h-32 sm:w-32 sm:text-3xl">
               {initials(columnist.name)}
             </div>
           )}

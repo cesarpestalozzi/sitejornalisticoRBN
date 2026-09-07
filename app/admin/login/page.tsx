@@ -105,9 +105,10 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    let user = resolveUserByIdentifier(identifier);
+    let user = null as ReturnType<typeof resolveUserByIdentifier>;
     let authenticatedRemotely = false;
-    if (!user) {
+    let remoteLoginUnavailable = false;
+    try {
       const response = await fetch('/api/auth/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,7 +118,17 @@ export default function AdminLogin() {
       if (response.ok && data.user) {
         user = data.user;
         authenticatedRemotely = true;
+      } else if (!response.ok && response.status >= 500) {
+        remoteLoginUnavailable = true;
       }
+    } catch {
+      remoteLoginUnavailable = true;
+    }
+
+    // Only use the cached directory when the backend is unavailable. A cached
+    // user must never override a server-side credential rejection.
+    if (!user && remoteLoginUnavailable) {
+      user = resolveUserByIdentifier(identifier);
     }
 
     if (!user || (!authenticatedRemotely && !matchesPassword(user.passwordHash, password))) {

@@ -37,6 +37,9 @@ type CardGeneratorPreset = {
     categoryBackgroundColor: string;
     categoryTextColor: string;
     categoryBorderColor: string;
+    logoSize?: number;
+    logoOffsetX?: number;
+    logoOffsetY?: number;
     imageScale: number;
     imageOffsetX: number;
     imageOffsetY: number;
@@ -608,7 +611,7 @@ function drawColumnTemplate(
   titleFontFamily: string,
   titleFontStyle: TitleFontStyle
 ) {
-  context.fillStyle = '#F8F7F3';
+  context.fillStyle = '#FFFFFF';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   if (logoImage) {
     const preparedLogoSource = makeNearBlackTransparent(logoImage);
@@ -658,7 +661,7 @@ function drawColumnTemplate(
   context.arc(avatarX + 82, avatarY + 82, 82, 0, Math.PI * 2);
   context.stroke();
   drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 300, CANVAS_WIDTH, 680, imageScale, imageOffsetX, imageOffsetY);
-  context.fillStyle = '#F8F7F3';
+  context.fillStyle = '#FFFFFF';
   context.fillRect(0, 980, CANVAS_WIDTH, 370);
   const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, titleFontFamily, titleFontStyle);
   context.fillStyle = '#1F2937';
@@ -999,6 +1002,9 @@ export default function GeradorCardPage() {
       titleFont,
       titleFontStyle,
       logoPosition,
+      logoSize,
+      logoOffsetX,
+      logoOffsetY,
       introAnimation,
       headerTheme,
       footerGradient,
@@ -1018,6 +1024,9 @@ export default function GeradorCardPage() {
       titleFont,
       titleFontStyle,
       logoPosition,
+      logoSize,
+      logoOffsetX,
+      logoOffsetY,
       introAnimation,
       headerTheme,
       footerGradient,
@@ -1048,6 +1057,9 @@ export default function GeradorCardPage() {
     setTitleFont(preset.config.titleFont);
     setTitleFontStyle(preset.config.titleFontStyle);
     setLogoPosition(preset.config.logoPosition);
+    setLogoSize(typeof preset.config.logoSize === 'number' && Number.isFinite(preset.config.logoSize) ? preset.config.logoSize : 100);
+    setLogoOffsetX(typeof preset.config.logoOffsetX === 'number' && Number.isFinite(preset.config.logoOffsetX) ? preset.config.logoOffsetX : 0);
+    setLogoOffsetY(typeof preset.config.logoOffsetY === 'number' && Number.isFinite(preset.config.logoOffsetY) ? preset.config.logoOffsetY : 0);
     setIntroAnimation(preset.config.introAnimation);
     setHeaderTheme(preset.config.headerTheme);
     setFooterGradient(preset.config.footerGradient);

@@ -81,6 +81,7 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
   const latestArticlesRef = useRef<HomeArticle[]>(initialArticles);
   const [isLoaded, setIsLoaded] = useState(true);
   const [columnists, setColumnists] = useState<HomeColumnist[]>(initialColumnists ?? []);
+  const lastHomepageSyncRef = useRef(Date.now());
   const { settings: contextSettings } = useSettingsContext();
   const settings = contextSettings ?? defaultSettings;
   const showAdsOnHomepage = settings.content.showAdsOnHomepage;
@@ -192,6 +193,7 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
         if (!sameArticles) {
           setArticles(nextArticles);
         }
+        lastHomepageSyncRef.current = Date.now();
       } catch {
         // mantém o último estado válido para evitar flicker
       } finally {
@@ -207,7 +209,7 @@ export default function HomeClient({ initialArticles, initialColumnists }: { ini
       }
     }, 5 * 60 * 1000);
     const onFocus = () => {
-      if (isWindowActive()) {
+      if (isWindowActive() && Date.now() - lastHomepageSyncRef.current >= 60_000) {
         void syncHomepageArticles();
       }
     };

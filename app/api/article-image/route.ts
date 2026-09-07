@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hasArticleStoreConfig, listStoredArticles } from '../_lib/articleStore';
+import { getStoredArticleImages, hasArticleStoreConfig } from '../_lib/articleStore';
 
 const PYTHON_BACKEND_URL = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-function getPrimaryArticleImage(payload?: Record<string, unknown>) {
-  if (!payload || typeof payload !== 'object') {
+function getPrimaryArticleImage(row?: { image?: unknown; images?: unknown } | null) {
+  if (!row || typeof row !== 'object') {
     return null;
   }
 
-  const directImage = typeof payload.image === 'string' ? payload.image : null;
+  const directImage = typeof row.image === 'string' ? row.image : null;
   if (directImage) {
     return directImage;
   }
 
-  const images = Array.isArray(payload.images) ? payload.images : [];
+  const images = Array.isArray(row.images) ? row.images : [];
   const primary = images.find(
     (item): item is { url: string } =>
       typeof item === 'object' && item !== null && 'url' in item && typeof item.url === 'string' && item.url.trim().length > 0
@@ -55,18 +55,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const rows = hasArticleStoreConfig()
-      ? await listStoredArticles(id)
+    const imageRow = hasArticleStoreConfig()
+      ? await getStoredArticleImages(id)
       : await (async () => {
           const response = await fetch(`${PYTHON_BACKEND_URL}/api/articles?id=${encodeURIComponent(id)}`, {
             headers: { Accept: 'application/json' },
             cache: 'no-store',
           });
-          if (!response.ok) return [];
-          return (await response.json()) as Array<{ payload?: Record<string, unknown> }>;
+          if (!response.ok) return null;
+          const rows = (await response.json()) as Array<{ payload?: Record<string, unknown> }>;
+          const payload = rows[0]?.payload;
+          return payload
+            ? { image: payload.image, images: payload.images }
+            : null;
         })();
-    const articlePayload = rows.find((row) => row.payload)?.payload;
-    const imageValue = getPrimaryArticleImage(articlePayload);
+    const imageValue = getPrimaryArticleImage(imageRow);
 
     if (!imageValue) {
       return NextResponse.redirect(new URL('/logo-oficial.png', request.url));

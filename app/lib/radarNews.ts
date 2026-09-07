@@ -165,7 +165,7 @@ export const RADAR_PAUTA_STATUS_OPTIONS: Array<{ id: RadarPautaStatus; label: st
   { id: 'descartada', label: 'Descartada' },
 ];
 
-export const RADAR_DEFAULT_SOURCES: RadarSource[] = [
+const RADAR_SOURCE_CATALOG: RadarSource[] = [
   {
     id: 'agencia-brasil',
     name: 'Agência Brasil',
@@ -617,6 +617,38 @@ export const RADAR_DEFAULT_SOURCES: RadarSource[] = [
     enabled: true,
   },
 ];
+
+const RADAR_ALLOWED_SOURCE_IDS = new Set([
+  'cnn-brasil',
+  'uol-noticias',
+  'folha-mercado',
+  'folha-em-cima-da-hora',
+  'estadao-ultimas',
+  'oglobo-ultimas',
+  'metropoles',
+  'poder360',
+  'congresso-em-foco',
+  'valor-economico',
+  'infomoney',
+  'agencia-brasil-politica',
+  'agencia-brasil-economia',
+  'agencia-brasil-cultura',
+  'g1',
+  'g1-politica',
+  'g1-economia',
+  'g1-pop-arte',
+  'ge-globo',
+  'bbc-brasil',
+  'exame',
+]);
+
+export const RADAR_DEFAULT_SOURCES: RadarSource[] = RADAR_SOURCE_CATALOG
+  .filter((source) => RADAR_ALLOWED_SOURCE_IDS.has(source.id))
+  .map((source) => ({ ...source, enabled: true }));
+
+export function isAllowedRadarSource(source: Pick<RadarSource, 'id'>) {
+  return RADAR_ALLOWED_SOURCE_IDS.has(source.id);
+}
 
 const CATEGORY_KEYWORDS: Record<RadarCategory, string[]> = {
   brasil: ['brasil', 'brasileiro', 'brasileira', 'são paulo', 'rio de janeiro', 'brasilia'],

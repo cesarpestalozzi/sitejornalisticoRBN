@@ -485,21 +485,6 @@ function normalizeArticle(article: Article): Article {
   };
 }
 
-function getScheduledPublishTimeMs(article: Pick<Article, 'scheduledDate' | 'scheduledTime'>) {
-  if (!article.scheduledDate || !article.scheduledTime) {
-    return null;
-  }
-
-  const normalizedTime = article.scheduledTime.length === 5 ? `${article.scheduledTime}:00` : article.scheduledTime;
-  const scheduledDate = new Date(`${article.scheduledDate}T${normalizedTime}-03:00`);
-
-  if (Number.isNaN(scheduledDate.getTime())) {
-    return null;
-  }
-
-  return scheduledDate.getTime();
-}
-
 function syncLocalStorageSnapshot(nextArticles: Article[], nextDeletedArticles: Article[]) {
   if (typeof window === 'undefined') {
     return;
@@ -597,63 +582,6 @@ export function useArticles() {
       isActive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-
-    const publishScheduledArticles = () => {
-      setArticles((current) => {
-        const now = Date.now();
-        const nowIso = new Date().toISOString();
-        const articlesToPublish: Article[] = [];
-
-        const nextArticles = current.map((article) => {
-          if (article.status !== 'agendado') {
-            return article;
-          }
-
-          const scheduledAt = getScheduledPublishTimeMs(article);
-          if (scheduledAt === null || scheduledAt > now) {
-            return article;
-          }
-
-          const nextArticle: Article = {
-            ...article,
-            status: 'publicado',
-            publishedAt: article.publishedAt ?? nowIso,
-            scheduledDate: undefined,
-            scheduledTime: undefined,
-            updatedAt: nowIso,
-            lastUpdatedAt: nowIso,
-          };
-
-          articlesToPublish.push(nextArticle);
-          return nextArticle;
-        });
-
-        if (articlesToPublish.length === 0) {
-          return current;
-        }
-
-        articlesToPublish.forEach((article) => {
-          void upsertRemoteArticle(article, false).catch((error) => {
-            warnSupabaseWriteIssue('publicar artigo agendado automaticamente', error);
-          });
-        });
-
-        return nextArticles;
-      });
-    };
-
-    publishScheduledArticles();
-    const timerId = window.setInterval(publishScheduledArticles, 30_000);
-
-    return () => {
-      window.clearInterval(timerId);
-    };
-  }, [isLoaded]);
 
   const addArticle = (article: Omit<Article, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'shares'>) => {
     const currentUser = getCurrentAdminUser();
