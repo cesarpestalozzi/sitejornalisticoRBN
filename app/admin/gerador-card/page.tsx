@@ -40,6 +40,9 @@ type CardGeneratorPreset = {
     logoSize?: number;
     logoOffsetX?: number;
     logoOffsetY?: number;
+    columnTitleSize?: number;
+    columnTitleOffsetX?: number;
+    columnTitleOffsetY?: number;
     imageScale: number;
     imageOffsetX: number;
     imageOffsetY: number;
@@ -336,13 +339,18 @@ function wrapText(
   maxWidth: number,
   maxHeight: number,
   fontFamily: string,
-  fontStyle: TitleFontStyle
+  fontStyle: TitleFontStyle,
+  preferredFontSize?: number
 ) {
   const normalizedText = text.replace(/\s+/g, ' ').trim();
   const words = normalizedText.split(' ').filter(Boolean);
   const fontStyleParts = getFontStyleParts(fontStyle);
 
-  for (let fontSize = 82; fontSize >= 42; fontSize -= 2) {
+  const maxFontSize = typeof preferredFontSize === 'number'
+    ? Math.max(24, Math.min(120, preferredFontSize))
+    : 82;
+  const minFontSize = typeof preferredFontSize === 'number' ? maxFontSize : 42;
+  for (let fontSize = maxFontSize; fontSize >= minFontSize; fontSize -= 2) {
     context.font = `${fontStyleParts.fontStyle} ${fontStyleParts.fontWeight} ${fontSize}px ${fontFamily}`;
     const lineHeight = Math.round(fontSize * 1.12);
     const lines: string[] = [];
@@ -374,10 +382,11 @@ function wrapText(
     }
   }
 
-  context.font = `${fontStyleParts.fontStyle} ${fontStyleParts.fontWeight} 42px ${fontFamily}`;
+  const fallbackFontSize = typeof preferredFontSize === 'number' ? minFontSize : 42;
+  context.font = `${fontStyleParts.fontStyle} ${fontStyleParts.fontWeight} ${fallbackFontSize}px ${fontFamily}`;
   return {
-    fontSize: 42,
-    lineHeight: 48,
+    fontSize: fallbackFontSize,
+    lineHeight: Math.round(fallbackFontSize * 1.12),
     lines: [normalizedText],
   } satisfies WrappedText;
 }
@@ -609,7 +618,10 @@ function drawColumnTemplate(
   imageOffsetX: number,
   imageOffsetY: number,
   titleFontFamily: string,
-  titleFontStyle: TitleFontStyle
+  titleFontStyle: TitleFontStyle,
+  titleSize: number,
+  titleOffsetX: number,
+  titleOffsetY: number
 ) {
   context.fillStyle = '#FFFFFF';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -663,13 +675,17 @@ function drawColumnTemplate(
   drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 300, CANVAS_WIDTH, 680, imageScale, imageOffsetX, imageOffsetY);
   context.fillStyle = '#FFFFFF';
   context.fillRect(0, 980, CANVAS_WIDTH, 370);
-  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, titleFontFamily, titleFontStyle);
-  context.fillStyle = '#1F2937';
   const titleStyle = getFontStyleParts(titleFontStyle);
-  context.font = `${titleStyle.fontStyle} ${titleStyle.fontWeight} ${wrappedTitle.fontSize}px ${titleFontFamily}`;
-  wrappedTitle.lines.forEach((line, index) => context.fillText(line, 58, 1080 + index * wrappedTitle.lineHeight));
+  const titleFontSize = Math.max(24, Math.min(120, titleSize));
+  context.font = `${titleStyle.fontStyle} ${titleStyle.fontWeight} ${titleFontSize}px ${titleFontFamily}`;
+  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, titleFontFamily, titleFontStyle, titleFontSize);
+  context.fillStyle = '#1F2937';
+  context.font = `${titleStyle.fontStyle} ${titleStyle.fontWeight} ${titleFontSize}px ${titleFontFamily}`;
+  const titleX = Math.max(24, Math.min(CANVAS_WIDTH - 70, 58 + titleOffsetX));
+  const titleY = Math.max(1010, Math.min(1320, 1080 + titleOffsetY));
+  wrappedTitle.lines.forEach((line, index) => context.fillText(line, titleX, titleY + index * wrappedTitle.lineHeight));
   context.fillStyle = CARD_ACCENT_RED;
-  context.fillRect(58, 1022, 120, 6);
+  context.fillRect(titleX, Math.max(990, titleY - wrappedTitle.lineHeight - 18), 120, 6);
 }
 
 function drawMemorialTemplate(
@@ -795,6 +811,9 @@ export default function GeradorCardPage() {
   const [logoSize, setLogoSize] = useState(100);
   const [logoOffsetX, setLogoOffsetX] = useState(0);
   const [logoOffsetY, setLogoOffsetY] = useState(0);
+  const [columnTitleSize, setColumnTitleSize] = useState(64);
+  const [columnTitleOffsetX, setColumnTitleOffsetX] = useState(0);
+  const [columnTitleOffsetY, setColumnTitleOffsetY] = useState(0);
   const [introAnimation, setIntroAnimation] = useState<IntroAnimation>('fade-up');
   const [headerTheme, setHeaderTheme] = useState<HeaderTheme>('black');
   const [footerGradient, setFooterGradient] = useState<FooterGradient>('dark');
@@ -1005,6 +1024,9 @@ export default function GeradorCardPage() {
       logoSize,
       logoOffsetX,
       logoOffsetY,
+      columnTitleSize,
+      columnTitleOffsetX,
+      columnTitleOffsetY,
       introAnimation,
       headerTheme,
       footerGradient,
@@ -1027,6 +1049,9 @@ export default function GeradorCardPage() {
       logoSize,
       logoOffsetX,
       logoOffsetY,
+      columnTitleSize,
+      columnTitleOffsetX,
+      columnTitleOffsetY,
       introAnimation,
       headerTheme,
       footerGradient,
@@ -1060,6 +1085,9 @@ export default function GeradorCardPage() {
     setLogoSize(typeof preset.config.logoSize === 'number' && Number.isFinite(preset.config.logoSize) ? preset.config.logoSize : 100);
     setLogoOffsetX(typeof preset.config.logoOffsetX === 'number' && Number.isFinite(preset.config.logoOffsetX) ? preset.config.logoOffsetX : 0);
     setLogoOffsetY(typeof preset.config.logoOffsetY === 'number' && Number.isFinite(preset.config.logoOffsetY) ? preset.config.logoOffsetY : 0);
+    setColumnTitleSize(typeof preset.config.columnTitleSize === 'number' && Number.isFinite(preset.config.columnTitleSize) ? preset.config.columnTitleSize : 64);
+    setColumnTitleOffsetX(typeof preset.config.columnTitleOffsetX === 'number' && Number.isFinite(preset.config.columnTitleOffsetX) ? preset.config.columnTitleOffsetX : 0);
+    setColumnTitleOffsetY(typeof preset.config.columnTitleOffsetY === 'number' && Number.isFinite(preset.config.columnTitleOffsetY) ? preset.config.columnTitleOffsetY : 0);
     setIntroAnimation(preset.config.introAnimation);
     setHeaderTheme(preset.config.headerTheme);
     setFooterGradient(preset.config.footerGradient);
@@ -1257,7 +1285,10 @@ export default function GeradorCardPage() {
           imageOffsetX,
           imageOffsetY,
           getFontFamily(titleFont),
-          titleFontStyle
+          titleFontStyle,
+          columnTitleSize,
+          columnTitleOffsetX,
+          columnTitleOffsetY
         );
         return;
       }
@@ -1774,6 +1805,67 @@ export default function GeradorCardPage() {
                     />
                   </div>
                 </div>
+                {isColumnCard && (
+                  <div className="space-y-4 rounded-2xl border border-[#991B1B]/20 bg-red-50/40 p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Posição e tamanho do texto da coluna</p>
+                      <p className="text-xs text-gray-500">Ajuste o título diretamente no card. Os valores ficam salvos na predefinição.</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <label className="space-y-2 text-sm font-semibold text-gray-800">
+                        Tamanho
+                        <input
+                          type="range"
+                          min="24"
+                          max="120"
+                          step="2"
+                          value={columnTitleSize}
+                          onChange={(event) => setColumnTitleSize(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                        <span className="block text-xs font-normal text-gray-500">{columnTitleSize}px</span>
+                      </label>
+                      <label className="space-y-2 text-sm font-semibold text-gray-800">
+                        Mover horizontal
+                        <input
+                          type="range"
+                          min="-400"
+                          max="400"
+                          step="2"
+                          value={columnTitleOffsetX}
+                          onChange={(event) => setColumnTitleOffsetX(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                        <span className="block text-xs font-normal text-gray-500">{columnTitleOffsetX}px</span>
+                      </label>
+                      <label className="space-y-2 text-sm font-semibold text-gray-800">
+                        Mover vertical
+                        <input
+                          type="range"
+                          min="-70"
+                          max="220"
+                          step="2"
+                          value={columnTitleOffsetY}
+                          onChange={(event) => setColumnTitleOffsetY(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                        <span className="block text-xs font-normal text-gray-500">{columnTitleOffsetY}px</span>
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setColumnTitleSize(64);
+                        setColumnTitleOffsetX(0);
+                        setColumnTitleOffsetY(0);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-[#991B1B] hover:text-[#991B1B]"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Restaurar texto
+                    </button>
+                  </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
