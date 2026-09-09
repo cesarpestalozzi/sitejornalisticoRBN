@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Bell,
@@ -54,7 +54,7 @@ const REFRESH_STORAGE_KEY = 'pz_news_radar_refresh_minutes';
 const KEYWORDS_STORAGE_KEY = 'pz_news_radar_keywords';
 const PAUTAS_STORAGE_KEY = 'pz_news_radar_pautas';
 const RADAR_ENABLED_STORAGE_KEY = 'pz_news_radar_enabled';
-const DEFAULT_REFRESH_MINUTES = 5;
+const DEFAULT_REFRESH_MINUTES = 20;
 const REALTIME_REFRESH_MINUTES = 0;
 const REALTIME_REFRESH_MS = 30 * 1000;
 
@@ -246,6 +246,7 @@ export default function RadarNoticiasPage() {
   const [newKeyword, setNewKeyword] = useState('');
   const [selectedGroupForAnalysis, setSelectedGroupForAnalysis] = useState<RadarNewsGroup | null>(null);
   const [isSourcePanelOpen, setIsSourcePanelOpen] = useState(false);
+  const fetchRadarRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (currentUser && !canAccessAdminRoute(currentUser, '/admin/radar-noticias')) {
@@ -325,6 +326,8 @@ export default function RadarNoticiasPage() {
     }
   }, [query, selectedCategories, timeFilter, sources, currentUser, radarEnabled]);
 
+  fetchRadarRef.current = fetchRadar;
+
   useEffect(() => {
     if (!currentUser || !canAccessAdminRoute(currentUser, '/admin/radar-noticias') || !radarEnabled) {
       return;
@@ -335,10 +338,10 @@ export default function RadarNoticiasPage() {
       if (!isVisible) {
         return;
       }
-      void fetchRadar();
+      void fetchRadarRef.current();
     }, 0);
     return () => window.clearTimeout(timerId);
-  }, [currentUser, fetchRadar, radarEnabled]);
+  }, [currentUser, radarEnabled]);
 
   useEffect(() => {
     if (!currentUser || !canAccessAdminRoute(currentUser, '/admin/radar-noticias') || !radarEnabled) {
@@ -350,11 +353,11 @@ export default function RadarNoticiasPage() {
       if (!isVisible) {
         return;
       }
-      void fetchRadar();
+      void fetchRadarRef.current();
     }, getRefreshIntervalMs(refreshMinutes));
 
     return () => window.clearInterval(timerId);
-  }, [currentUser, fetchRadar, radarEnabled, refreshMinutes]);
+  }, [currentUser, radarEnabled, refreshMinutes]);
 
   const visibleGroups = useMemo(() => {
     const filtered = groups.filter((group) => !ignoredIds.includes(group.id));

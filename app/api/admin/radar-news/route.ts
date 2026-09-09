@@ -49,7 +49,13 @@ type CacheEntry = {
   payload: RadarPayload;
 };
 
-const RSS_CACHE_TTL_MS = 90_000;
+type FeedCacheEntry = {
+  expiresAt: number;
+  items: ParsedFeedItem[];
+};
+
+const RSS_CACHE_TTL_MS = 120_000;
+const FEED_CACHE_TTL_MS = 300_000;
 const STOP_WORDS = new Set([
   'para',
   'com',
@@ -85,9 +91,14 @@ const STOP_WORDS = new Set([
   'suas',
 ]);
 
-const globalCache = globalThis as typeof globalThis & { __rbnRadarCache?: Map<string, CacheEntry> };
+const globalCache = globalThis as typeof globalThis & {
+  __rbnRadarCache?: Map<string, CacheEntry>;
+  __rbnRadarFeedCache?: Map<string, FeedCacheEntry>;
+};
 const radarCache = globalCache.__rbnRadarCache ?? new Map<string, CacheEntry>();
+const radarFeedCache = globalCache.__rbnRadarFeedCache ?? new Map<string, FeedCacheEntry>();
 globalCache.__rbnRadarCache = radarCache;
+globalCache.__rbnRadarFeedCache = radarFeedCache;
 
 function decodeHtml(value: string) {
   return value
@@ -347,14 +358,18 @@ function computeTrendingTopics(groups: RadarNewsGroup[]) {
 }
 
 async function fetchSource(source: RadarSource) {
+  const cached = radarFeedCache.get(source.id);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.items;
+  }
+
   const response = await fetch(source.url, {
     method: 'GET',
-    cache: 'no-store',
     headers: {
       Accept: 'application/rss+xml, application/xml, text/xml;q=0.9,*/*;q=0.8',
       'User-Agent': 'RBN-Radar/1.0 (+https://www.rbnbrasil.com.br)',
     },
-    next: { revalidate: 0 },
+    next: { revalidate: 300 },
     signal: AbortSignal.timeout(10_000),
   });
 
@@ -364,7 +379,9 @@ async function fetchSource(source: RadarSource) {
 
   const xmlBuffer = await response.arrayBuffer();
   const xml = decodeFeedXml(xmlBuffer, response.headers.get('content-type'));
-  return parseRss(xml);
+  const items = parseRss(xml);
+  radarFeedCache.set(source.id, { expiresAt: Date.now() + FEED_CACHE_TTL_MS, items });
+  return items;
 }
 
 export async function POST(request: NextRequest) {
