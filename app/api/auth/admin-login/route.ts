@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isTestUser } from '@/app/api/_lib/adminServerAuth';
+import { createAdminSessionToken, isTestUser } from '@/app/api/_lib/adminServerAuth';
 import { listStoredUsers } from '@/app/api/_lib/userStore';
 
 function encodePassword(value: string) {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   if (!row || (stored !== password && stored !== encodePassword(password))) {
     return NextResponse.json({ ok: false, error: 'Identificação ou senha inválidos.' }, { status: 401 });
   }
-  return NextResponse.json({
+  const response = NextResponse.json({
     ok: true,
     user: {
       ...row.payload,
@@ -35,4 +35,22 @@ export async function POST(request: NextRequest) {
       passwordHash: undefined,
     },
   });
+
+  // Establish the server session as part of the successful credential login.
+  // MFA-enabled accounts receive their cookie only after the second factor.
+  if (!row.payload.mfaEnabled) {
+    const token = createAdminSessionToken(row.id);
+    if (!token) {
+      return NextResponse.json({ ok: false, error: 'Sessão segura não configurada.' }, { status: 503 });
+    }
+    response.cookies.set('rbn_admin_user', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 12,
+    });
+  }
+
+  return response;
 }
