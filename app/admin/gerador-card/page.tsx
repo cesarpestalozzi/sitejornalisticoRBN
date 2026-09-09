@@ -2630,7 +2630,7 @@ export default function GeradorCardPage() {
                 </div>
               </section>
 
-              <section className="rounded-2xl bg-white p-5 shadow-sm">
+              <section className="rounded-2xl bg-white p-5 shadow-sm xl:sticky xl:top-6 xl:h-fit xl:self-start">
                 <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Prévia</h2>
