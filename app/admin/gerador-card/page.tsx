@@ -43,6 +43,8 @@ type CardGeneratorPreset = {
     columnTitleSize?: number;
     columnTitleOffsetX?: number;
     columnTitleOffsetY?: number;
+    columnAccentOffsetX?: number;
+    columnAccentOffsetY?: number;
     imageScale: number;
     imageOffsetX: number;
     imageOffsetY: number;
@@ -621,7 +623,9 @@ function drawColumnTemplate(
   titleFontStyle: TitleFontStyle,
   titleSize: number,
   titleOffsetX: number,
-  titleOffsetY: number
+  titleOffsetY: number,
+  accentOffsetX: number,
+  accentOffsetY: number
 ) {
   context.fillStyle = '#FFFFFF';
   context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -685,7 +689,9 @@ function drawColumnTemplate(
   const titleY = Math.max(1010, Math.min(1320, 1080 + titleOffsetY));
   wrappedTitle.lines.forEach((line, index) => context.fillText(line, titleX, titleY + index * wrappedTitle.lineHeight));
   context.fillStyle = CARD_ACCENT_RED;
-  context.fillRect(titleX, Math.max(990, titleY - wrappedTitle.lineHeight - 18), 120, 6);
+  const accentX = Math.max(12, Math.min(CANVAS_WIDTH - 132, titleX + accentOffsetX));
+  const accentY = Math.max(990, Math.min(1338, titleY - wrappedTitle.lineHeight - 18 + accentOffsetY));
+  context.fillRect(accentX, accentY, 120, 6);
 }
 
 function drawMemorialTemplate(
@@ -814,6 +820,8 @@ export default function GeradorCardPage() {
   const [columnTitleSize, setColumnTitleSize] = useState(64);
   const [columnTitleOffsetX, setColumnTitleOffsetX] = useState(0);
   const [columnTitleOffsetY, setColumnTitleOffsetY] = useState(0);
+  const [columnAccentOffsetX, setColumnAccentOffsetX] = useState(0);
+  const [columnAccentOffsetY, setColumnAccentOffsetY] = useState(0);
   const [introAnimation, setIntroAnimation] = useState<IntroAnimation>('fade-up');
   const [headerTheme, setHeaderTheme] = useState<HeaderTheme>('black');
   const [footerGradient, setFooterGradient] = useState<FooterGradient>('dark');
@@ -1027,6 +1035,8 @@ export default function GeradorCardPage() {
       columnTitleSize,
       columnTitleOffsetX,
       columnTitleOffsetY,
+      columnAccentOffsetX,
+      columnAccentOffsetY,
       introAnimation,
       headerTheme,
       footerGradient,
@@ -1052,6 +1062,8 @@ export default function GeradorCardPage() {
       columnTitleSize,
       columnTitleOffsetX,
       columnTitleOffsetY,
+      columnAccentOffsetX,
+      columnAccentOffsetY,
       introAnimation,
       headerTheme,
       footerGradient,
@@ -1088,6 +1100,8 @@ export default function GeradorCardPage() {
     setColumnTitleSize(typeof preset.config.columnTitleSize === 'number' && Number.isFinite(preset.config.columnTitleSize) ? preset.config.columnTitleSize : 64);
     setColumnTitleOffsetX(typeof preset.config.columnTitleOffsetX === 'number' && Number.isFinite(preset.config.columnTitleOffsetX) ? preset.config.columnTitleOffsetX : 0);
     setColumnTitleOffsetY(typeof preset.config.columnTitleOffsetY === 'number' && Number.isFinite(preset.config.columnTitleOffsetY) ? preset.config.columnTitleOffsetY : 0);
+    setColumnAccentOffsetX(typeof preset.config.columnAccentOffsetX === 'number' && Number.isFinite(preset.config.columnAccentOffsetX) ? preset.config.columnAccentOffsetX : 0);
+    setColumnAccentOffsetY(typeof preset.config.columnAccentOffsetY === 'number' && Number.isFinite(preset.config.columnAccentOffsetY) ? preset.config.columnAccentOffsetY : 0);
     setIntroAnimation(preset.config.introAnimation);
     setHeaderTheme(preset.config.headerTheme);
     setFooterGradient(preset.config.footerGradient);
@@ -1288,7 +1302,9 @@ export default function GeradorCardPage() {
           titleFontStyle,
           columnTitleSize,
           columnTitleOffsetX,
-          columnTitleOffsetY
+          columnTitleOffsetY,
+          columnAccentOffsetX,
+          columnAccentOffsetY
         );
         return;
       }
@@ -1327,6 +1343,11 @@ export default function GeradorCardPage() {
       categoryBorderColor,
       categoryLabel,
       categoryTextColor,
+      columnAccentOffsetX,
+      columnAccentOffsetY,
+      columnTitleOffsetX,
+      columnTitleOffsetY,
+      columnTitleSize,
       customTitle,
       footerGradient,
       headerTheme,
@@ -1811,7 +1832,7 @@ export default function GeradorCardPage() {
                       <p className="text-sm font-semibold text-gray-800">Posição e tamanho do texto da coluna</p>
                       <p className="text-xs text-gray-500">Ajuste o título diretamente no card. Os valores ficam salvos na predefinição.</p>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                       <label className="space-y-2 text-sm font-semibold text-gray-800">
                         Tamanho
                         <input
@@ -1851,6 +1872,32 @@ export default function GeradorCardPage() {
                         />
                         <span className="block text-xs font-normal text-gray-500">{columnTitleOffsetY}px</span>
                       </label>
+                      <label className="space-y-2 text-sm font-semibold text-gray-800">
+                        Barrinha horizontal
+                        <input
+                          type="range"
+                          min="-400"
+                          max="400"
+                          step="2"
+                          value={columnAccentOffsetX}
+                          onChange={(event) => setColumnAccentOffsetX(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                        <span className="block text-xs font-normal text-gray-500">{columnAccentOffsetX}px</span>
+                      </label>
+                      <label className="space-y-2 text-sm font-semibold text-gray-800">
+                        Barrinha vertical
+                        <input
+                          type="range"
+                          min="-180"
+                          max="260"
+                          step="2"
+                          value={columnAccentOffsetY}
+                          onChange={(event) => setColumnAccentOffsetY(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                        <span className="block text-xs font-normal text-gray-500">{columnAccentOffsetY}px</span>
+                      </label>
                     </div>
                     <button
                       type="button"
@@ -1858,6 +1905,8 @@ export default function GeradorCardPage() {
                         setColumnTitleSize(64);
                         setColumnTitleOffsetX(0);
                         setColumnTitleOffsetY(0);
+                        setColumnAccentOffsetX(0);
+                        setColumnAccentOffsetY(0);
                       }}
                       className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-[#991B1B] hover:text-[#991B1B]"
                     >
