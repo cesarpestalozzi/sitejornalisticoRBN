@@ -1600,7 +1600,7 @@ export default function GeradorCardPage() {
     <div className="flex min-h-screen flex-col bg-gray-100 md:flex-row">
       <AdminSidebar />
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1">
         <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-8">
           <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
