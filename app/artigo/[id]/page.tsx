@@ -34,6 +34,7 @@ function resolveAbsoluteImageUrl(value?: string | null, articleId?: string, vers
 type ArticlePayload = {
   id: string;
   slug?: string;
+  metaDescription?: string;
   title: string;
   subtitle?: string;
   excerpt?: string;
@@ -121,7 +122,7 @@ export async function generateMetadata({
   }
 
   const title = article.title;
-  const description = article.subtitle || article.excerpt || 'Leia a matéria completa no RBN.';
+  const description = article.metaDescription || article.subtitle || article.excerpt || 'Leia a matéria completa no RBN.';
   const primaryImage = resolveAbsoluteImageUrl(
    article.image ||
      article.images?.find((image) => image.isPrimary)?.url ||

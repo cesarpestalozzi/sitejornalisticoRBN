@@ -327,6 +327,7 @@ export default function EditArticlePage() {
       updateArticle(formData.id, {
         title: formData.title,
         slug: formData.slug ? slugifyTitle(formData.slug) || undefined : undefined,
+        metaDescription: formData.metaDescription?.trim() || undefined,
         subtitle: formData.subtitle,
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
@@ -718,6 +719,19 @@ export default function EditArticlePage() {
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
                     />
                     <p className="mt-1 text-xs text-gray-500">Define a URL pública da matéria. Alterar o slug de uma matéria já publicada muda o link — evite editar depois de divulgada.</p>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Descrição para SEO</label>
+                    <textarea
+                      name="metaDescription"
+                      value={formData.metaDescription ?? ''}
+                      onChange={handleFieldChange}
+                      rows={3}
+                      maxLength={160}
+                      placeholder="Descrição curta para mecanismos de busca"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Usada nos mecanismos de busca e ao compartilhar o link (até 160 caracteres). Deixe em branco para usar o resumo automaticamente.</p>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicação</label>

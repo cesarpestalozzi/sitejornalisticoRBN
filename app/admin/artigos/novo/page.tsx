@@ -190,6 +190,7 @@ export default function NewArticlePage() {
   const [journalistReviewDone, setJournalistReviewDone] = useState(false);
   const [editorialWarning, setEditorialWarning] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
+  const [seoDescriptionManuallyEdited, setSeoDescriptionManuallyEdited] = useState(false);
   const [slugSuggestion, setSlugSuggestion] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [keywordTags, setKeywordTags] = useState<string[]>([]);
@@ -264,6 +265,7 @@ export default function NewArticlePage() {
         setJournalistReviewDone(false);
         setEditorialWarning('');
         setSeoDescription(parsed.seoDescription);
+        setSeoDescriptionManuallyEdited(true);
         setSlugSuggestion(parsed.slugSuggestion);
         setKeywordTags(parsed.keywords);
         setFormData((current) => ({
@@ -354,6 +356,17 @@ export default function NewArticlePage() {
     }
     setSlugSuggestion(slugifyTitle(formData.title));
   }, [formData.title, slugManuallyEdited]);
+
+  // Gera automaticamente a descrição para SEO a partir do resumo (ou da
+  // linha fina, se o resumo ainda não tiver sido escrito), enquanto o
+  // usuário não editar o campo manualmente.
+  useEffect(() => {
+    if (seoDescriptionManuallyEdited) {
+      return;
+    }
+    const source = formData.excerpt.trim() || formData.subtitle.trim();
+    setSeoDescription(source.slice(0, 160));
+  }, [formData.excerpt, formData.subtitle, seoDescriptionManuallyEdited]);
 
   const runAiAssistAction = (action: 'melhorar-titulo' | 'criar-linha-fina' | 'criar-resumo' | 'expandir-contexto' | 'gerar-nova-versao') => {
     if (!radarDraft) {
@@ -712,6 +725,7 @@ export default function NewArticlePage() {
       const createdArticle = addArticle({
         title: formData.title,
         slug: slugifyTitle(slugSuggestion || formData.title) || undefined,
+        metaDescription: seoDescription.trim() || undefined,
         subtitle: formData.subtitle,
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
@@ -938,11 +952,16 @@ export default function NewArticlePage() {
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Descrição para SEO</label>
                     <textarea
                       value={seoDescription}
-                      onChange={(event) => setSeoDescription(event.target.value)}
+                      onChange={(event) => {
+                        setSeoDescriptionManuallyEdited(true);
+                        setSeoDescription(event.target.value);
+                      }}
                       rows={3}
+                      maxLength={160}
                       placeholder="Descrição curta para mecanismos de busca"
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
                     />
+                    <p className="mt-1 text-xs text-gray-500">Gerada automaticamente a partir do resumo. Edite se quiser personalizar (até 160 caracteres).</p>
                   </div>
                   {keywordTags.length > 0 && (
                     <div>

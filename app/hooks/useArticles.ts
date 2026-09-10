@@ -35,6 +35,7 @@ export interface ArticleVideo {
 export interface Article {
   id: string;
   slug?: string;
+  metaDescription?: string;
   title: string;
   subtitle: string;
   category: string;
@@ -473,6 +474,7 @@ function normalizeArticle(article: Article): Article {
     ...article,
     title: typeof article.title === 'string' ? article.title : 'Sem título',
     slug: typeof article.slug === 'string' && article.slug.trim() ? article.slug.trim() : undefined,
+    metaDescription: typeof article.metaDescription === 'string' && article.metaDescription.trim() ? article.metaDescription.trim() : undefined,
     subtitle: typeof article.subtitle === 'string' ? article.subtitle : '',
     category: typeof article.category === 'string' ? article.category : 'Geral',
     author: typeof article.author === 'string' ? article.author : 'RBN',
