@@ -110,6 +110,13 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: 'Sem permissão para consultar o acervo administrativo.' }, { status: 403 });
         }
       }
+      // Importante: esta listagem alimenta o useArticles() no painel, cujo
+      // estado em memória é reaproveitado por ações parciais (marcar
+      // destaque, somar visualizações/compartilhamentos, excluir) que
+      // regravam a matéria inteira. Por isso NÃO usamos payload_lite aqui
+      // — usar a versão sem a galeria de imagens apagaria "images" ao
+      // salvar essas ações. A resposta ao navegador já é enxuta via
+      // liteArticlePayload() abaixo; o que muda é a origem no Postgres.
       const rows = await listStoredArticles(id);
       const visibleRows = rows.filter((row) => {
         if (!includeDeleted && row.deleted) {

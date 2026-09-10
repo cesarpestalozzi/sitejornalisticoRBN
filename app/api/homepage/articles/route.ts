@@ -29,7 +29,7 @@ function resolveArticleImage(id: string, payload: Record<string, unknown>) {
 export async function GET(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
-      const rows = await listStoredArticles(undefined, { publishedOnly: true });
+      const rows = await listStoredArticles(undefined, { publishedOnly: true, lite: true });
       const articles = rows
         .filter((row) => !row.deleted && isPublishedArticle(row.payload.status))
         .map((row) => {

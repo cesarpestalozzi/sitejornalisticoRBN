@@ -73,7 +73,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
 
   try {
     if (hasArticleStoreConfig()) {
-      const rows = await listStoredArticles(undefined, { publishedOnly: true });
+      const rows = await listStoredArticles(undefined, { publishedOnly: true, lite: true });
       return rows
         .filter((row) => !row.deleted && isPublished(row.payload.status))
         .map((row) => ({

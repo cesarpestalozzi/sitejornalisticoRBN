@@ -43,9 +43,34 @@ function headers() {
   };
 }
 
-async function fetchArticleRows(params: URLSearchParams): Promise<ArticleRow[]> {
-  const response = await fetch(`${tableUrl}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
-  if (!response.ok) throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
+// Enquanto a coluna payload_lite (gerada no Postgres, sem imagens em
+// base64) não existir no banco, tentamos usá-la e caímos de volta ao
+// payload completo automaticamente — assim o deploy nunca quebra mesmo
+// antes da migração SQL ser executada no Supabase.
+let payloadLiteSupported = true;
+
+function isMissingPayloadLiteColumn(status: number, body: string) {
+  return status >= 400 && /payload_lite/i.test(body);
+}
+
+async function fetchArticleRows(params: URLSearchParams, lite?: boolean): Promise<ArticleRow[]> {
+  const effectiveLite = Boolean(lite) && payloadLiteSupported;
+  const requestParams = new URLSearchParams(params);
+  if (effectiveLite) {
+    requestParams.set('select', requestParams.get('select')!.replace('payload', 'payload:payload_lite'));
+  }
+
+  const response = await fetch(`${tableUrl}?${requestParams.toString()}`, { headers: headers(), cache: 'no-store' });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    if (effectiveLite && isMissingPayloadLiteColumn(response.status, body)) {
+      // A migração ainda não rodou no Supabase (ver supabase/schema.sql);
+      // repetimos a mesma consulta pedindo o payload completo.
+      payloadLiteSupported = false;
+      return fetchArticleRows(params, false);
+    }
+    throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
+  }
   const rows = (await response.json()) as ArticleRow[];
   return rows.filter((row) =>
     !row.id.startsWith('__analytics__:') &&
@@ -59,6 +84,13 @@ export async function listStoredArticles(id?: string, options?: {
   status?: string;
   category?: string;
   limit?: number;
+  // Quando true, pede ao Postgres a coluna gerada payload_lite em vez do
+  // payload completo, evitando transferir imagens em base64 do Supabase
+  // para o servidor em consultas de listagem (home, categorias, colunistas,
+  // analytics, diagnóstico). Nunca deve ser usado quando o resultado for
+  // regravado depois (ex.: cron, troca de nome de autor), pois payload_lite
+  // não contém o campo "images" original.
+  lite?: boolean;
 }): Promise<ArticleRow[]> {
   if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
   const buildParams = () => {
@@ -79,7 +111,7 @@ export async function listStoredArticles(id?: string, options?: {
 
   const params = buildParams();
   if (id) params.set('id', `eq.${id}`);
-  const rows = await fetchArticleRows(params);
+  const rows = await fetchArticleRows(params, options?.lite);
 
   // A URL pública das matérias pode usar o slug amigável em vez do ID
   // numérico. Se a busca direta pelo ID não encontrar nada, tentamos
@@ -88,7 +120,7 @@ export async function listStoredArticles(id?: string, options?: {
     const slugParams = buildParams();
     slugParams.set('payload->>slug', `eq.${id}`);
     slugParams.set('limit', '1');
-    return fetchArticleRows(slugParams);
+    return fetchArticleRows(slugParams, options?.lite);
   }
 
   return rows;

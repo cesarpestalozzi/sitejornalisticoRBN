@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   try {
     const [events, articles, users] = await Promise.all([
       listAnalyticsEvents(from || undefined, to || undefined),
-      listStoredArticles(),
+      listStoredArticles(undefined, { lite: true }),
       listStoredUsers(),
     ]);
     const commentsResponse = await fetch(new URL('/api/comments', request.url), { headers: { Accept: 'application/json' }, cache: 'no-store' });

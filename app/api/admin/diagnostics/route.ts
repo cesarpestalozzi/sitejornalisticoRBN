@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     checks.push({ key: 'users-read', label: 'Consulta de usuários', status: 'error', detail: error instanceof Error ? error.message : 'Falha desconhecida.' });
   }
   try {
-    const articles = await listStoredArticles();
+    const articles = await listStoredArticles(undefined, { lite: true });
     const active = articles.filter((row) => !row.deleted);
     const withoutAuthorId = active.filter((row) => !Array.isArray(row.payload.authorUserIds) || row.payload.authorUserIds.length === 0);
     checks.push({

@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       ? users.filter((user) => user.id.toLowerCase() === requested || user.columnistSlug.toLowerCase() === requested)
       : users;
     if (query.get('includeArticles') === 'true') {
-      const rows = await listStoredArticles(undefined, { publishedOnly: true });
+      const rows = await listStoredArticles(undefined, { publishedOnly: true, lite: true });
       const enriched = result.map((user) => {
         const name = user.name.toLowerCase();
         const articles = rows

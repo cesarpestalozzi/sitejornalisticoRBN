@@ -15,6 +15,33 @@ create index if not exists idx_pz_news_articles_updated_at
 create index if not exists idx_pz_news_articles_deleted
   on public.pz_news_articles (deleted);
 
+-- Coluna gerada (computada dentro do Postgres) usada por todas as
+-- listagens somente-leitura (home, categorias, colunistas, busca, painel,
+-- analytics, diagnóstico). Ela é igual ao payload, mas troca a imagem
+-- embutida em base64 por uma referência leve a /api/article-image, e
+-- remove a galeria "images" (que também pode conter base64). Como o
+-- cálculo acontece dentro do banco, as imagens em base64 nunca saem do
+-- Postgres nessas consultas — isso é o que reduz o egress do Supabase.
+-- Nunca usar esta coluna em fluxos que regravam a matéria (cron de
+-- agendamento, troca de nome de autor), pois ela não tem o campo
+-- "images" original.
+alter table public.pz_news_articles
+  add column if not exists payload_lite jsonb generated always as (
+    (payload - 'image' - 'images') || jsonb_build_object(
+      'image',
+      case
+        when (payload->>'image') like 'data:%' then to_jsonb('/api/article-image?id=' || id)
+        when coalesce(payload->>'image', '') <> '' then payload->'image'
+        when jsonb_array_length(coalesce(payload->'images', '[]'::jsonb)) > 0 then
+          case
+            when (payload->'images'->0->>'url') like 'data:%' then to_jsonb('/api/article-image?id=' || id)
+            else payload->'images'->0->'url'
+          end
+        else 'null'::jsonb
+      end
+    )
+  ) stored;
+
 create table if not exists public.pz_news_users (
   id text primary key,
   payload jsonb not null default '{}'::jsonb,
