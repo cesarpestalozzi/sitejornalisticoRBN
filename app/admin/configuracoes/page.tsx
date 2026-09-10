@@ -51,7 +51,8 @@ export default function SettingsPage() {
       await saveSettings(settings);
       addToast('Configurações salvas com sucesso!', 'success', 3000);
     } catch (error) {
-      addToast('Erro ao salvar configurações', 'error', 5000);
+      const message = error instanceof Error && error.message ? error.message : 'Erro ao salvar configurações';
+      addToast(message, 'error', 8000);
       console.error('Erro ao salvar:', error);
     }
   };

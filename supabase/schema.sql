@@ -30,6 +30,8 @@ create table if not exists public.pz_news_settings (
 );
 alter table public.pz_news_settings enable row level security;
 create index if not exists idx_pz_news_settings_updated_at on public.pz_news_settings (updated_at desc);
+drop policy if exists "service_role_settings_access" on public.pz_news_settings;
+create policy "service_role_settings_access" on public.pz_news_settings for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
 
 create table if not exists public.pz_news_comments (
   id text primary key,

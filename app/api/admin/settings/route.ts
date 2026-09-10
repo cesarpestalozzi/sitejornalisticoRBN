@@ -43,7 +43,11 @@ export async function PUT(request: NextRequest) {
   });
   if (!response.ok) {
     const detail = await response.text();
-    return NextResponse.json({ ok: false, error: `Falha ao salvar configurações: ${detail.slice(0, 240)}` }, { status: 502 });
+    const isMissingTable = /Could not find the table.*pz_news_settings/i.test(detail);
+    const friendlyError = isMissingTable
+      ? 'A tabela "pz_news_settings" ainda não existe no banco Supabase. Peça para um administrador executar o SQL em supabase/schema.sql (bloco pz_news_settings) no SQL Editor do Supabase.'
+      : `Falha ao salvar configurações: ${detail.slice(0, 240)}`;
+    return NextResponse.json({ ok: false, error: friendlyError }, { status: 502 });
   }
   return NextResponse.json({ ok: true, settings: body.settings });
 }
