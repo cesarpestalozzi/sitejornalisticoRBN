@@ -14,6 +14,7 @@ const Sidebar = lazy(() => import('./Sidebar'));
 
 interface HomeArticle {
   id: string;
+  slug?: string;
   title: string;
   subtitle: string;
   category: string;
@@ -43,6 +44,7 @@ function toDisplayArticle(article: HomeArticle): Article {
 
   return {
     id: article.id,
+    slug: article.slug,
     title: article.title,
     subtitle: article.subtitle,
     excerpt: article.excerpt,
@@ -66,6 +68,7 @@ function toNewsCard(article: HomeArticle): NewsCard {
 
   return {
     id: displayArticle.id,
+    slug: displayArticle.slug,
     title: displayArticle.title,
     excerpt: displayArticle.excerpt,
     image: displayArticle.image,

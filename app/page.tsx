@@ -7,6 +7,7 @@ import { listStoredUsers } from './api/_lib/userStore';
 
 interface HomeArticle {
   id: string;
+  slug?: string;
   title: string;
   subtitle: string;
   category: string;
@@ -77,6 +78,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
         .filter((row) => !row.deleted && isPublished(row.payload.status))
         .map((row) => ({
           id: row.id,
+          slug: typeof row.payload.slug === 'string' && row.payload.slug.trim() ? row.payload.slug.trim() : undefined,
           title: String(row.payload.title ?? 'Sem título'),
           subtitle: String(row.payload.subtitle ?? ''),
           category: String(row.payload.category ?? 'Geral'),
@@ -99,6 +101,7 @@ async function getHomepageArticles(): Promise<HomeArticle[]> {
     return Array.isArray(payload)
       ? payload.map((article: Record<string, unknown>) => ({
           id: String(article.id ?? ''),
+          slug: typeof article.slug === 'string' && article.slug.trim() ? article.slug.trim() : undefined,
           title: String(article.title ?? 'Sem título'),
           subtitle: String(article.subtitle ?? ''),
           category: String(article.category ?? 'Geral'),

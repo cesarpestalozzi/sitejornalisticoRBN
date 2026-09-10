@@ -5,8 +5,9 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { formatDate } from '@/app/utils/dateUtils';
 import { normalizeArticleStatus } from '@/app/lib/articleStatus';
+import { getArticleHref } from '@/app/lib/articleSlug';
 
-type ColumnistArticle = { id: string; title: string; excerpt?: string; image?: string; images?: Array<{ url: string; isPrimary?: boolean }>; status?: string; publishedAt?: string; updatedAt?: string; createdAt?: string; author?: string; authorUserIds?: string[]; columnistUserId?: string };
+type ColumnistArticle = { id: string; slug?: string; title: string; excerpt?: string; image?: string; images?: Array<{ url: string; isPrimary?: boolean }>; status?: string; publishedAt?: string; updatedAt?: string; createdAt?: string; author?: string; authorUserIds?: string[]; columnistUserId?: string };
 type Columnist = { id: string; name: string; avatar: string; bio: string; professionalInfo: string; publicRole: string; expertise: string; location: string; publicEmail: string; website: string; columnistSlug: string; socialLinks: Array<{ label: string; url: string }>; articles?: ColumnistArticle[] };
 
 function initials(name: string) {
@@ -80,7 +81,7 @@ export default function ColumnistProfilePage() {
           const image = article.image || article.images?.find((item) => item.isPrimary)?.url || article.images?.[0]?.url || '/logo-oficial.png';
           const date = article.publishedAt || article.updatedAt || article.createdAt || 0;
           return (
-            <Link key={article.id} href={`/artigo/${article.id}`} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#E11A1A] hover:shadow-md">
+            <Link key={article.id} href={getArticleHref(article)} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[#E11A1A] hover:shadow-md">
               <div className="aspect-[16/10] overflow-hidden bg-gray-100">
                 <img src={image} alt={article.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
               </div>

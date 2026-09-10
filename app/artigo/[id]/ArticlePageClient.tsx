@@ -223,11 +223,18 @@ export default function ArticlePageClient() {
         }
 
         const rows = (await response.json()) as Array<{ id?: string; payload?: any }>;
-        const match = rows.find((row) => {
+        // A API já resolve a matéria pelo ID numérico OU pelo slug amigável
+        // (payload.slug), então basta confiar na resposta do servidor. Ainda
+        // validamos por ID quando possível; se nada bater (ex.: parâmetro é
+        // um slug), usamos a primeira linha retornada, pois o servidor só
+        // devolve a matéria correspondente para essa busca.
+        const idMatch = rows.find((row) => {
           const candidates = [row.id, row.payload?.id];
           return candidates.some((candidate) => idsMatch(candidate, params.id));
         });
-        const nextArticle = normalizeLoadedArticle(match?.payload ?? match ?? null, params.id);
+        const slugMatch = rows.find((row) => String(row.payload?.slug ?? '').trim() === params.id);
+        const match = idMatch ?? slugMatch ?? rows[0];
+        const nextArticle = normalizeLoadedArticle(match?.payload ?? match ?? null, String(match?.id ?? params.id));
 
         if (isActive) {
           setArticleRecord(nextArticle);

@@ -22,6 +22,7 @@ function getNotificationRecipients(payload: unknown) {
 export async function notifyArticleRecipients(requestUrl: string, article: unknown, publishedAtIso: string) {
   const payload = article as {
     id?: unknown;
+    slug?: unknown;
     title?: unknown;
     excerpt?: unknown;
     notificationEnabled?: unknown;
@@ -45,7 +46,8 @@ export async function notifyArticleRecipients(requestUrl: string, article: unkno
 
   const officialSiteUrl = 'https://www.rbnbrasil.com.br';
   const requestOrigin = new URL(requestUrl).origin;
-  const articleUrl = new URL(`/artigo/${encodeURIComponent(articleId)}`, officialSiteUrl).toString();
+  const articleSlug = typeof payload.slug === 'string' ? payload.slug.trim() : '';
+  const articleUrl = new URL(`/artigo/${encodeURIComponent(articleSlug || articleId)}`, officialSiteUrl).toString();
   const response = await fetch(new URL('/api/admin/article-notify', requestOrigin).toString(), {
     method: 'POST',
     headers: {

@@ -20,6 +20,7 @@ import {
   useCurrentAdminUser,
 } from '@/app/lib/adminPermissions';
 import { defaultManagedCategories, readManagedCategories, type ManagedCategory } from '@/app/lib/managedCategories';
+import { slugifyTitle, getArticleHref } from '@/app/lib/articleSlug';
 
 function stripHtml(content: string) {
   return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -171,6 +172,7 @@ export default function NewArticlePage() {
     message: string;
     status: 'rascunho' | 'agendado' | 'publicado';
     articleId: string;
+    articleHref: string;
   } | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [notifyByEmail, setNotifyByEmail] = useState(true);
@@ -189,6 +191,7 @@ export default function NewArticlePage() {
   const [editorialWarning, setEditorialWarning] = useState('');
   const [seoDescription, setSeoDescription] = useState('');
   const [slugSuggestion, setSlugSuggestion] = useState('');
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [keywordTags, setKeywordTags] = useState<string[]>([]);
   const [isPestalozziOpen, setIsPestalozziOpen] = useState(false);
   const [pestalozziFeedback, setPestalozziFeedback] = useState('');
@@ -342,6 +345,15 @@ export default function NewArticlePage() {
     setSelectedTitleOption(title);
     setFormData((current) => ({ ...current, title }));
   };
+
+  // Gera automaticamente a sugestão de URL (slug) a partir do título,
+  // enquanto o usuário não editar o campo manualmente.
+  useEffect(() => {
+    if (slugManuallyEdited) {
+      return;
+    }
+    setSlugSuggestion(slugifyTitle(formData.title));
+  }, [formData.title, slugManuallyEdited]);
 
   const runAiAssistAction = (action: 'melhorar-titulo' | 'criar-linha-fina' | 'criar-resumo' | 'expandir-contexto' | 'gerar-nova-versao') => {
     if (!radarDraft) {
@@ -695,9 +707,11 @@ export default function NewArticlePage() {
 
     setIsPublishing(true);
     let createdArticleId = '';
+    let createdArticleHref = '';
     try {
       const createdArticle = addArticle({
         title: formData.title,
+        slug: slugifyTitle(slugSuggestion || formData.title) || undefined,
         subtitle: formData.subtitle,
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
@@ -718,6 +732,7 @@ export default function NewArticlePage() {
         scheduledTime: publishStatus === 'agendado' ? scheduledTime : undefined,
       });
       createdArticleId = createdArticle.id;
+      createdArticleHref = getArticleHref(createdArticle);
       await persistArticle(createdArticle);
     } catch (error) {
       setIsPublishing(false);
@@ -734,7 +749,7 @@ export default function NewArticlePage() {
           },
           body: JSON.stringify({
             articleId: createdArticleId,
-            articleUrl: `${window.location.origin}/artigo/${encodeURIComponent(createdArticleId)}`,
+            articleUrl: `${window.location.origin}${createdArticleHref}`,
             title: formData.title,
             excerpt: formData.excerpt || plainContent.slice(0, 180),
             recipients: selectedRecipients,
@@ -776,6 +791,7 @@ export default function NewArticlePage() {
       message: messages[publishStatus],
       status: publishStatus,
       articleId: createdArticleId,
+      articleHref: createdArticleHref,
     });
     setIsPublishing(false);
   };
@@ -811,7 +827,7 @@ export default function NewArticlePage() {
                 {publishFeedback.status === 'publicado' && (
                   <>
                     <Link
-                      href={`/artigo/${encodeURIComponent(publishFeedback.articleId)}`}
+                      href={publishFeedback.articleHref}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-[#236A88] transition hover:bg-gray-50"
@@ -909,10 +925,14 @@ export default function NewArticlePage() {
                     <input
                       type="text"
                       value={slugSuggestion}
-                      onChange={(event) => setSlugSuggestion(event.target.value)}
+                      onChange={(event) => {
+                        setSlugManuallyEdited(true);
+                        setSlugSuggestion(event.target.value);
+                      }}
                       placeholder="exemplo-de-slug-jornalistico"
                       className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
                     />
+                    <p className="mt-1 text-xs text-gray-500">Gerado automaticamente a partir do título. Edite se quiser personalizar a URL da matéria.</p>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Descrição para SEO</label>

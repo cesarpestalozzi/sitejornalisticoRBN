@@ -43,27 +43,7 @@ function headers() {
   };
 }
 
-export async function listStoredArticles(id?: string, options?: {
-  publishedOnly?: boolean;
-  status?: string;
-  category?: string;
-  limit?: number;
-}): Promise<ArticleRow[]> {
-  if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
-  const params = new URLSearchParams({
-    select: 'id,payload,deleted,updated_at',
-    order: 'updated_at.desc',
-    limit: String(Math.min(Math.max(options?.limit ?? 10000, 1), 10000)),
-  });
-  if (id) params.set('id', `eq.${id}`);
-  if (options?.publishedOnly) {
-    params.set('payload->>status', 'in.(publicado,published,online)');
-    params.set('deleted', 'eq.false');
-  } else if (options?.status) {
-    params.set('payload->>status', options.status.startsWith('in.') ? options.status : `eq.${options.status}`);
-  }
-
-  if (options?.category) params.set('payload->>category', `eq.${options.category}`);
+async function fetchArticleRows(params: URLSearchParams): Promise<ArticleRow[]> {
   const response = await fetch(`${tableUrl}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
   const rows = (await response.json()) as ArticleRow[];
@@ -72,6 +52,46 @@ export async function listStoredArticles(id?: string, options?: {
     !row.id.startsWith('__comment__:') &&
     !row.id.startsWith('__videoconference:')
   );
+}
+
+export async function listStoredArticles(id?: string, options?: {
+  publishedOnly?: boolean;
+  status?: string;
+  category?: string;
+  limit?: number;
+}): Promise<ArticleRow[]> {
+  if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
+  const buildParams = () => {
+    const params = new URLSearchParams({
+      select: 'id,payload,deleted,updated_at',
+      order: 'updated_at.desc',
+      limit: String(Math.min(Math.max(options?.limit ?? 10000, 1), 10000)),
+    });
+    if (options?.publishedOnly) {
+      params.set('payload->>status', 'in.(publicado,published,online)');
+      params.set('deleted', 'eq.false');
+    } else if (options?.status) {
+      params.set('payload->>status', options.status.startsWith('in.') ? options.status : `eq.${options.status}`);
+    }
+    if (options?.category) params.set('payload->>category', `eq.${options.category}`);
+    return params;
+  };
+
+  const params = buildParams();
+  if (id) params.set('id', `eq.${id}`);
+  const rows = await fetchArticleRows(params);
+
+  // A URL pública das matérias pode usar o slug amigável em vez do ID
+  // numérico. Se a busca direta pelo ID não encontrar nada, tentamos
+  // localizar a matéria pelo slug salvo dentro do payload.
+  if (id && rows.length === 0) {
+    const slugParams = buildParams();
+    slugParams.set('payload->>slug', `eq.${id}`);
+    slugParams.set('limit', '1');
+    return fetchArticleRows(slugParams);
+  }
+
+  return rows;
 }
 
 export async function getStoredArticleImages(id: string): Promise<ArticleImageRow | null> {

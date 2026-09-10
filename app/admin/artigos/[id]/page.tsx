@@ -9,6 +9,7 @@ import ArticleMediaManager, { type ArticleImage, type ArticleVideo } from '@/app
 import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
 import { useArticles, fetchFullArticleById, type Article } from '@/app/hooks/useArticles';
+import { getArticleHref, slugifyTitle } from '@/app/lib/articleSlug';
 import { useToast, ToastContainer } from '@/app/components/Toast';
 import { getPublicUserName, useUsers } from '@/app/hooks/useUsers';
 import type { PestalozziChatMessage, PestalozziVersion } from '@/app/lib/pestalozzi';
@@ -325,6 +326,7 @@ export default function EditArticlePage() {
     try {
       updateArticle(formData.id, {
         title: formData.title,
+        slug: formData.slug ? slugifyTitle(formData.slug) || undefined : undefined,
         subtitle: formData.subtitle,
         category: formData.category,
         excerpt: formData.excerpt || plainContent.slice(0, 180),
@@ -355,7 +357,7 @@ export default function EditArticlePage() {
             },
             body: JSON.stringify({
               articleId: formData.id,
-              articleUrl: `${window.location.origin}/artigo/${encodeURIComponent(formData.id)}`,
+              articleUrl: `${window.location.origin}${getArticleHref({ id: formData.id, slug: formData.slug ? slugifyTitle(formData.slug) : undefined })}`,
               title: formData.title,
               excerpt: formData.excerpt || plainContent.slice(0, 180),
               recipients: selectedRecipients,
@@ -704,6 +706,18 @@ export default function EditArticlePage() {
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Resumo</label>
                     <textarea name="excerpt" value={formData.excerpt} onChange={handleFieldChange} rows={4} className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-gray-900">Sugestão de URL (slug)</label>
+                    <input
+                      type="text"
+                      name="slug"
+                      value={formData.slug ?? ''}
+                      onChange={handleFieldChange}
+                      placeholder="exemplo-de-slug-jornalistico"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-[#FF796C] focus:outline-none"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Define a URL pública da matéria. Alterar o slug de uma matéria já publicada muda o link — evite editar depois de divulgada.</p>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-semibold text-gray-900">Local de publicação</label>

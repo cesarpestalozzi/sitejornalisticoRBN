@@ -33,6 +33,7 @@ function resolveAbsoluteImageUrl(value?: string | null, articleId?: string, vers
 
 type ArticlePayload = {
   id: string;
+  slug?: string;
   title: string;
   subtitle?: string;
   excerpt?: string;
@@ -52,11 +53,15 @@ async function fetchArticleById(id: string): Promise<ArticlePayload | null> {
   try {
     if (hasArticleStoreConfig()) {
       const rows = await listStoredArticles(id);
-      const stored = rows.find((row) => row.id === id && !row.deleted);
+      // listStoredArticles já resolve pelo ID numérico OU pelo slug salvo no
+      // payload; a resposta contém no máximo a matéria correspondente, então
+      // não precisamos filtrar novamente por row.id === id (o slug de URL
+      // não é o mesmo valor da chave interna).
+      const stored = rows.find((row) => !row.deleted);
       const article = stored?.payload as ArticlePayload | undefined;
       const status = String(article?.status || '').trim().toLowerCase();
-      if (article && (!status || ['publicado', 'published', 'publish', 'online'].includes(status))) {
-        return article;
+      if (article && stored && (!status || ['publicado', 'published', 'publish', 'online'].includes(status))) {
+        return { ...article, id: stored.id };
       }
       return null;
     }
@@ -73,10 +78,10 @@ async function fetchArticleById(id: string): Promise<ArticlePayload | null> {
     }
 
     const rows = (await response.json()) as Array<{ id?: string; payload?: ArticlePayload }>;
-    const match = rows.find((row) => row.id === id && row.payload);
+    const match = rows.find((row) => row.id === id || String(row.payload?.slug ?? '') === id) ?? rows[0];
     const article = match?.payload;
     if (article && (!article.status || article.status === 'publicado')) {
-      return article;
+      return { ...article, id: String(match?.id ?? article.id ?? id) };
     }
 
     return null;
@@ -122,7 +127,7 @@ export async function generateMetadata({
      article.images?.find((image) => image.isPrimary)?.url ||
      article.images?.[0]?.url ||
      `${OFFICIAL_SITE_URL}/logo-oficial.png`,
-   resolved.id,
+   article.id,
    article.updatedAt || article.lastUpdatedAt || article.publishedAt
   );
 

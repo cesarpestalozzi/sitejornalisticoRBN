@@ -8,9 +8,11 @@ import { getCategoryDisplayName, normalizeCategorySlug } from '@/app/lib/categor
 import { readManagedCategories } from '@/app/lib/managedCategories';
 import { formatDate } from '@/app/utils/dateUtils';
 import { formatArticleAuthor } from '@/app/lib/articleAuthor';
+import { getArticleHref } from '@/app/lib/articleSlug';
 
 interface CategoryArticle {
   id: string;
+  slug?: string;
   title: string;
   subtitle: string;
   category: string;
@@ -127,7 +129,7 @@ export default function CategoryPage() {
           ) : (
             <div className="space-y-8">
               {featuredArticle && (
-                <Link href={`/artigo/${featuredArticle.id}`} className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <Link href={getArticleHref(featuredArticle)} className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                   <div className="h-56 bg-gray-200 sm:h-72">
                     <img
                       src={featuredArticle.image || '/logo-oficial.png'}
@@ -154,7 +156,7 @@ export default function CategoryPage() {
                   <h3 className="mb-4 text-xl font-bold text-gray-900">Mais notícias</h3>
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     {moreArticles.map((article) => (
-                      <Link key={article.id} href={`/artigo/${article.id}`} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                      <Link key={article.id} href={getArticleHref(article)} className="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
                         <div className="h-40 bg-gray-200">
                           <img src={article.image || '/logo-oficial.png'} alt={article.title} className="h-full w-full object-cover" />
                         </div>

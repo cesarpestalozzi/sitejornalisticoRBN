@@ -6,6 +6,7 @@ import { NewsCard } from '@/app/types';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 import { formatDate, timeAgo } from '@/app/utils/dateUtils';
 import { formatArticleAuthor } from '@/app/lib/articleAuthor';
+import { getArticleHref } from '@/app/lib/articleSlug';
 
 interface NewsCardProps {
   article: NewsCard;
@@ -13,7 +14,7 @@ interface NewsCardProps {
 
 export default function NewsCardComponent({ article }: NewsCardProps) {
   return (
-    <Link href={`/artigo/${article.id}`}>
+    <Link href={getArticleHref(article)}>
       <article className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm transition duration-300 hover:shadow-md">
         <div className="relative h-40 overflow-hidden bg-gray-200 sm:h-44 md:h-48">
           <Image

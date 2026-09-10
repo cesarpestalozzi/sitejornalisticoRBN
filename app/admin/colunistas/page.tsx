@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useArticles } from '@/app/hooks/useArticles';
+import { getArticleHref } from '@/app/lib/articleSlug';
 import { ColumnistCanvasElement, ColumnistCanvasLayout, useUsers } from '@/app/hooks/useUsers';
 
 type EditorialForm = {
@@ -339,7 +340,7 @@ export default function ColumnistsPage() {
                   {message && <p className="mt-4 rounded bg-gray-50 p-3 text-sm text-gray-700">{message}</p>}
                   <div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => void save()} className="rounded bg-[#991B1B] px-4 py-3 font-semibold text-white">Vincular e salvar perfil</button>{selected.isColumnist && <button type="button" onClick={() => void unlink()} className="rounded border border-gray-300 px-4 py-3 font-semibold text-gray-700">Remover vínculo</button>}</div>
                   <h3 className="mt-8 text-lg font-bold">Matérias publicadas ({authored.length})</h3>
-                  <ul className="mt-3 space-y-2">{authored.map((article) => <li key={article.id}><Link className="text-[#991B1B] hover:underline" href={`/artigo/${article.id}`}>{article.title}</Link></li>)}</ul>
+                  <ul className="mt-3 space-y-2">{authored.map((article) => <li key={article.id}><Link className="text-[#991B1B] hover:underline" href={getArticleHref(article)}>{article.title}</Link></li>)}</ul>
                 </>
               )}
             </section>

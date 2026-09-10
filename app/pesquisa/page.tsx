@@ -8,6 +8,7 @@ import { useArticles } from '@/app/hooks/useArticles';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
 import { formatDate } from '@/app/utils/dateUtils';
 import { formatArticleAuthor } from '@/app/lib/articleAuthor';
+import { getArticleHref } from '@/app/lib/articleSlug';
 
 function SearchMagnifierIcon({ className = '' }: { className?: string }) {
   return (
@@ -105,7 +106,7 @@ function SearchPageContent() {
           ) : (
             <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {results.map((article) => (
-                <Link key={article.id} href={`/artigo/${article.id}`} className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+                <Link key={article.id} href={getArticleHref(article)} className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
                   <div className="h-40 bg-gray-200">
                     <img src={article.image || '/'} alt={article.title} className="h-full w-full object-cover" />
                   </div>

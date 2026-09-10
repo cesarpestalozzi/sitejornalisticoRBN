@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
           const payload = row.payload;
           return {
             id: row.id,
+            slug: typeof payload.slug === 'string' && payload.slug.trim() ? payload.slug.trim() : undefined,
             title: String(payload.title ?? ''),
             subtitle: String(payload.subtitle ?? ''),
             category: String(payload.category ?? ''),

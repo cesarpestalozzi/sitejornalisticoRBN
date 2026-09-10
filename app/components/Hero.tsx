@@ -8,6 +8,7 @@ import { formatDate } from '@/app/utils/dateUtils';
 import { useSettingsContext } from '@/app/contexts/SettingsContext';
 import { defaultSettings } from '@/app/lib/settings';
 import { formatArticleAuthor } from '@/app/lib/articleAuthor';
+import { getArticleHref } from '@/app/lib/articleSlug';
 
 interface HeroProps {
   article: Article | null;
@@ -72,7 +73,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
 
         <div className="mt-6 grid grid-cols-1 gap-5 md:gap-8 lg:grid-cols-3">
          <div className="lg:col-span-2">
-           <Link href={`/artigo/${article.id}`}>
+           <Link href={getArticleHref(article)}>
              <div className="group cursor-pointer overflow-hidden rounded-xl">
                <Image 
                  src={article.image} 
@@ -95,7 +96,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
                <span className="text-[10px] text-gray-500 sm:text-xs">{formatDate(article.date)}</span>
              </div>
 
-             <Link href={`/artigo/${article.id}`}>
+             <Link href={getArticleHref(article)}>
                <h1 className="font-editorial cursor-pointer text-2xl font-bold leading-[1.02] text-gray-900 transition group-hover:text-[#991B1B] sm:text-3xl md:text-5xl">
                  {article.title}
                </h1>
@@ -112,7 +113,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
                  </div>
                </div>
 
-               <Link href={`/artigo/${article.id}`} className="inline-flex items-center justify-center rounded-full bg-[#111111] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111111] hover:text-white focus:text-white sm:px-6">
+               <Link href={getArticleHref(article)} className="inline-flex items-center justify-center rounded-full bg-[#111111] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#111111] hover:text-white focus:text-white sm:px-6">
                  Ler mais
                </Link>
              </div>
@@ -123,7 +124,7 @@ export default function Hero({ article, secondaryArticles = [] }: HeroProps) {
            <h3 className="text-base font-bold text-gray-900 sm:text-lg">Destaques</h3>
            <div className="space-y-4 sm:space-y-6">
              {secondaryArticles.map((secondaryArticle) => (
-               <Link key={secondaryArticle.id} href={`/artigo/${secondaryArticle.id}`} className="group block border-b border-gray-200 pb-4 last:border-0 sm:pb-6">
+               <Link key={secondaryArticle.id} href={getArticleHref(secondaryArticle)} className="group block border-b border-gray-200 pb-4 last:border-0 sm:pb-6">
                  <div className="flex gap-3">
                    <div className="relative aspect-square w-20 shrink-0 overflow-hidden rounded bg-gray-200 sm:w-28">
                      <Image 

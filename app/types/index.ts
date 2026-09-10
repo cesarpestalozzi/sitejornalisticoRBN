@@ -2,6 +2,7 @@
 
 export interface Article {
   id: string;
+  slug?: string;
   title: string;
   subtitle?: string;
   content: string;
@@ -21,6 +22,7 @@ export interface Article {
 
 export interface NewsCard {
   id: string;
+  slug?: string;
   title: string;
   excerpt: string;
   image: string;
