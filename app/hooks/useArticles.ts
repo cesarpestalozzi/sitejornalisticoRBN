@@ -536,33 +536,87 @@ function isLegacyMockArticle(article: Pick<Article, 'id'>) {
   return /^article-\d+$/.test(article.id);
 }
 
+/**
+ * Busca uma única matéria com os dados completos (incluindo a imagem em
+ * base64 original), sem depender da listagem geral. A listagem usada por
+ * useArticles() traz as imagens já "leves" (referência via /api/article-image)
+ * para não sobrecarregar o painel; ao abrir uma matéria específica para
+ * edição, buscamos o registro completo diretamente para preservar a imagem
+ * original ao salvar.
+ */
+export async function fetchFullArticleById(id: string): Promise<Article | null> {
+  try {
+    const response = await fetch(`/api/articles?id=${encodeURIComponent(id)}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const rows = (await response.json()) as SupabaseArticleRow[];
+    const row = rows.find((item) => item.id === id) ?? rows[0];
+    if (!row || !row.payload) {
+      return null;
+    }
+    return normalizeArticle({
+      ...row.payload,
+      id: String(row.payload.id || row.id),
+      createdAt: row.payload.createdAt || row.updated_at || new Date().toISOString(),
+      updatedAt: row.payload.updatedAt || row.updated_at || new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Erro ao carregar matéria completa:', error);
+    return null;
+  }
+}
+
 export function useArticles() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [deletedArticles, setDeletedArticles] = useState<Article[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let isActive = true;
 
     const load = async () => {
-      try {
-        const remoteData = await readRemoteArticles();
+      setLoadError(null);
+      // A rota de artigos pode responder intermitentemente com erro (ex.: 502
+      // por instabilidade momentânea da Vercel/Supabase). Tentamos algumas
+      // vezes antes de desistir, em vez de já mostrar "nenhum artigo".
+      const attempts = 3;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          const remoteData = await readRemoteArticles();
 
-        if (!isActive) {
-          return;
+          if (!isActive) {
+            return;
+          }
+
+          if (remoteData) {
+            // Fonte de verdade: remoto. Isso evita divergência entre dispositivos
+            // e elimina sobrescrita por snapshots locais antigos.
+            setArticles(remoteData.active);
+            setDeletedArticles(remoteData.deleted);
+            syncLocalStorageSnapshot(remoteData.active, remoteData.deleted);
+            setIsLoaded(true);
+            return;
+          }
+        } catch (error) {
+          console.error(`Erro ao carregar artigos remotos (tentativa ${attempt}/${attempts}):`, error);
+          if (attempt === attempts) {
+            if (!isActive) {
+              return;
+            }
+            setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as matérias.');
+          }
         }
 
-        if (remoteData) {
-          // Fonte de verdade: remoto. Isso evita divergência entre dispositivos
-          // e elimina sobrescrita por snapshots locais antigos.
-          setArticles(remoteData.active);
-          setDeletedArticles(remoteData.deleted);
-          syncLocalStorageSnapshot(remoteData.active, remoteData.deleted);
-          setIsLoaded(true);
-          return;
+        if (attempt < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 800));
         }
-      } catch (error) {
-        console.error('Erro ao carregar artigos remotos:', error);
       }
 
       if (!isActive) {
@@ -581,7 +635,9 @@ export function useArticles() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [reloadToken]);
+
+  const reloadArticles = () => setReloadToken((current) => current + 1);
 
   const addArticle = (article: Omit<Article, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'shares'>) => {
     const currentUser = getCurrentAdminUser();
@@ -825,6 +881,8 @@ export function useArticles() {
     articles,
     deletedArticles,
     isLoaded,
+    loadError,
+    reloadArticles,
     addArticle,
     persistArticle,
     updateArticle,

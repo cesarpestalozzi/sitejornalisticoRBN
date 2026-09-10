@@ -8,7 +8,7 @@ import AdminSidebar from '@/app/components/AdminSidebar';
 import ArticleMediaManager, { type ArticleImage, type ArticleVideo } from '@/app/components/ArticleMediaManager';
 import ArticlePreviewPanel from '@/app/components/ArticlePreviewPanel';
 import HtmlEditor from '@/app/components/HtmlEditor';
-import { useArticles, type Article } from '@/app/hooks/useArticles';
+import { useArticles, fetchFullArticleById, type Article } from '@/app/hooks/useArticles';
 import { useToast, ToastContainer } from '@/app/components/Toast';
 import { getPublicUserName, useUsers } from '@/app/hooks/useUsers';
 import type { PestalozziChatMessage, PestalozziVersion } from '@/app/lib/pestalozzi';
@@ -115,7 +115,12 @@ export default function EditArticlePage() {
   const [replaceSelectionRequest, setReplaceSelectionRequest] = useState<{ id: number; text: string } | null>(null);
 
   const article = useMemo(() => articles.find((currentArticle) => currentArticle.id === params?.id), [articles, params?.id]);
-  const formData = article ? drafts[article.id] ?? article : null;
+  const [fullArticle, setFullArticle] = useState<Article | null>(null);
+  const articleWithFullImage = useMemo(
+    () => (fullArticle && fullArticle.id === article?.id ? { ...article, ...fullArticle } : article),
+    [article, fullArticle]
+  );
+  const formData = articleWithFullImage ? drafts[articleWithFullImage.id] ?? articleWithFullImage : null;
   const selectedAuthorIds = formData?.authorUserIds ?? [];
   const categoryOptions = useMemo(() => {
     const options = [...availableCategories];
@@ -209,18 +214,37 @@ export default function EditArticlePage() {
   }, []);
 
   useEffect(() => {
-    if (!article) {
+    let isActive = true;
+    setFullArticle(null);
+
+    if (!params?.id) {
+      return;
+    }
+
+    fetchFullArticleById(params.id).then((fetchedArticle) => {
+      if (isActive && fetchedArticle) {
+        setFullArticle(fetchedArticle);
+      }
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [params?.id]);
+
+  useEffect(() => {
+    if (!articleWithFullImage) {
       return;
     }
 
     queueMicrotask(() => {
       setMediaState({
-        images: article.images ?? [],
-        videos: article.videos ?? [],
-        primaryImage: article.image ?? '',
+        images: articleWithFullImage.images ?? [],
+        videos: articleWithFullImage.videos ?? [],
+        primaryImage: articleWithFullImage.image ?? '',
       });
     });
-  }, [article]);
+  }, [articleWithFullImage]);
 
   const handleFieldChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (!formData) {

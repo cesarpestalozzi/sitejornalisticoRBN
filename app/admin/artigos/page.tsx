@@ -14,7 +14,7 @@ import {
 import { normalizeArticleStatus } from '@/app/lib/articleStatus';
 
 export default function AdminArticles() {
-  const { articles, deletedArticles, deleteArticle, isLoaded } = useArticles();
+  const { articles, deletedArticles, deleteArticle, isLoaded, loadError, reloadArticles } = useArticles();
   const currentUser = useCurrentAdminUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
@@ -159,6 +159,27 @@ export default function AdminArticles() {
               </div>
             </div>
           </section>
+
+          {loadError && (
+            <section className="mb-6 flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-5 text-red-800 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                <div>
+                  <p className="font-semibold">Não foi possível carregar as matérias.</p>
+                  <p className="text-sm text-red-700">
+                    Pode ter sido uma instabilidade momentânea de rede. Suas matérias não foram apagadas — tente novamente.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={reloadArticles}
+                className="whitespace-nowrap rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800"
+              >
+                Tentar novamente
+              </button>
+            </section>
+          )}
 
           {filteredArticles.length === 0 ? (
             <section className="rounded-xl bg-white p-12 text-center shadow-sm">

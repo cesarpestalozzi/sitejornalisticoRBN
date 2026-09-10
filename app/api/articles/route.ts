@@ -16,6 +16,35 @@ function normalizeCategory(value: string) {
     .replace(/^-|-$/g, '');
 }
 
+function isEmbeddedImageValue(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('data:');
+}
+
+function liteArticlePayload(id: string, payload: Record<string, unknown>) {
+  const hasEmbeddedImage = isEmbeddedImageValue(payload.image);
+  const images = Array.isArray(payload.images) ? payload.images : [];
+  const hasEmbeddedGallery = images.some(
+    (item) => item && typeof item === 'object' && isEmbeddedImageValue((item as { url?: unknown }).url)
+  );
+
+  if (!hasEmbeddedImage && !hasEmbeddedGallery) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    image: hasEmbeddedImage ? `/api/article-image?id=${encodeURIComponent(id)}` : payload.image,
+    images: hasEmbeddedGallery
+      ? images.map((item, index) => {
+          if (item && typeof item === 'object' && isEmbeddedImageValue((item as { url?: unknown }).url)) {
+            return { ...(item as object), url: `/api/article-image?id=${encodeURIComponent(id)}&index=${index}` };
+          }
+          return item;
+        })
+      : payload.images,
+  };
+}
+
 function samePerson(left: unknown, right: unknown) {
   return String(left ?? '').trim().toLocaleLowerCase() === String(right ?? '').trim().toLocaleLowerCase();
 }
@@ -91,7 +120,15 @@ export async function GET(request: NextRequest) {
         }
         return normalizeCategory(String(row.payload.category ?? '')) === normalizeCategory(category);
       });
-      return NextResponse.json(visibleRows, {
+      // A listagem completa (sem id) é usada para montar a visão geral do
+      // painel. Enviar as imagens em base64 de todas as matérias de uma vez
+      // gera respostas de dezenas de megabytes e derruba a rota com 502 na
+      // Vercel. Trocamos por uma referência leve; a edição de uma matéria
+      // específica (com "id") continua recebendo os dados originais.
+      const responseRows = id
+        ? visibleRows
+        : visibleRows.map((row) => ({ ...row, payload: liteArticlePayload(row.id, row.payload) }));
+      return NextResponse.json(responseRows, {
         headers: { 'Cache-Control': 'no-store' },
       });
     } catch (error) {

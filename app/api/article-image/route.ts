@@ -3,9 +3,20 @@ import { getStoredArticleImages, hasArticleStoreConfig } from '../_lib/articleSt
 
 const PYTHON_BACKEND_URL = (process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
-function getPrimaryArticleImage(row?: { image?: unknown; images?: unknown } | null) {
+function getPrimaryArticleImage(row?: { image?: unknown; images?: unknown } | null, index?: number) {
   if (!row || typeof row !== 'object') {
     return null;
+  }
+
+  if (typeof index === 'number' && index > 0) {
+    const images = Array.isArray(row.images) ? row.images : [];
+    const target = images[index];
+    if (target && typeof target === 'object' && 'url' in target && typeof (target as { url?: unknown }).url === 'string') {
+      const value = (target as { url: string }).url;
+      if (value.trim().length > 0) {
+        return value;
+      }
+    }
   }
 
   const directImage = typeof row.image === 'string' ? row.image : null;
@@ -49,6 +60,8 @@ async function proxyRemoteImage(imageUrl: string, request: NextRequest) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
+  const indexParam = searchParams.get('index');
+  const index = indexParam !== null ? Number(indexParam) : undefined;
 
   if (!id) {
     return NextResponse.json({ error: 'ID da matéria obrigatório.' }, { status: 400 });
@@ -69,7 +82,7 @@ export async function GET(request: NextRequest) {
             ? { image: payload.image, images: payload.images }
             : null;
         })();
-    const imageValue = getPrimaryArticleImage(imageRow);
+    const imageValue = getPrimaryArticleImage(imageRow, Number.isFinite(index) ? index : undefined);
 
     if (!imageValue) {
       return NextResponse.redirect(new URL('/logo-oficial.png', request.url));
