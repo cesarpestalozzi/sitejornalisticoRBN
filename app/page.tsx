@@ -125,7 +125,9 @@ async function getHomepageColumnists(): Promise<HomeColumnist[]> {
     return users
       .filter((row) => String(row.payload.status ?? 'ativo').trim().toLowerCase() === 'ativo' && row.payload.isColumnist === true && row.payload.profileVisible !== false)
       .map((row) => {
-        const name = String(row.payload.publicName ?? row.payload.name ?? row.id).trim();
+        const configuredName = String(row.payload.publicName ?? '').trim();
+        const fallbackName = String(row.payload.name ?? row.id).trim();
+        const name = configuredName || fallbackName;
         const slug = publicColumnistSlug(name, row.payload.columnistSlug);
         return { id: row.id, name, avatar: String(row.payload.avatar ?? ''), bio: String(row.payload.bio ?? ''), columnistSlug: slug };
       });
