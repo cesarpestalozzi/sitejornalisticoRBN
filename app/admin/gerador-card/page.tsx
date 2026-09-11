@@ -1,11 +1,22 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Montserrat } from 'next/font/google';
 import { Download, FolderOpen, ImageUp, Layers3, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useUsers } from '@/app/hooks/useUsers';
 import { getCategoryDisplayName } from '@/app/lib/categoryLabels';
+
+// Auto-hospedada pelo Next.js (sem chamadas externas ao Google Fonts em
+// tempo de execução). Usada tanto pelos campos de texto do gerador quanto
+// pelo canvas de desenho do card (ver MONTSERRAT_FONT_FAMILY).
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  display: 'swap',
+});
+const MONTSERRAT_FONT_FAMILY = montserrat.style.fontFamily;
 
 type CardTemplate = 'editorial' | 'urgente' | 'clean';
 type CardKind = 'news' | 'column' | 'memorial';
@@ -13,7 +24,22 @@ type ExportFormat = 'png' | 'jpeg';
 type HeaderTheme = 'black' | 'white';
 type FooterGradient = 'dark' | 'light';
 type LogoPosition = 'left' | 'center' | 'right';
-type TitleFont = 'arial' | 'calibri' | 'cambria' | 'georgia' | 'impact' | 'garamond' | 'trebuchet' | 'verdana' | 'times';
+type TitleAlign = 'left' | 'center' | 'right';
+type TitleFont =
+  | 'arial'
+  | 'calibri'
+  | 'cambria'
+  | 'georgia'
+  | 'impact'
+  | 'garamond'
+  | 'trebuchet'
+  | 'verdana'
+  | 'times'
+  | 'montserrat-regular'
+  | 'montserrat-medium'
+  | 'montserrat-semibold'
+  | 'montserrat-bold'
+  | 'montserrat-extrabold';
 type TitleFontStyle = 'regular' | 'bold' | 'italic' | 'bold-italic';
 type IntroAnimation = 'fade-up' | 'slide-left' | 'zoom-in';
 type PreviewKind = 'image' | 'video';
@@ -28,6 +54,7 @@ type CardGeneratorPreset = {
     exportFormat: ExportFormat;
     titleFont: TitleFont;
     titleFontStyle: TitleFontStyle;
+    titleAlign?: TitleAlign;
     logoPosition: LogoPosition;
     introAnimation: IntroAnimation;
     headerTheme: HeaderTheme;
@@ -37,6 +64,11 @@ type CardGeneratorPreset = {
     categoryBackgroundColor: string;
     categoryTextColor: string;
     categoryBorderColor: string;
+    categoryFont?: TitleFont;
+    categoryFontStyle?: TitleFontStyle;
+    categoryFontSize?: number;
+    categoryPadding?: number;
+    categoryBorderRadius?: number;
     logoSize?: number;
     logoOffsetX?: number;
     logoOffsetY?: number;
@@ -76,7 +108,7 @@ const templateOptions: Array<{
   { id: 'clean', name: 'Clean', description: 'Leitura limpa, com composição elegante e minimalista.' },
 ];
 
-const fontOptions: Array<{ id: TitleFont; label: string; family: string }> = [
+const fontOptions: Array<{ id: TitleFont; label: string; family: string; weight?: number }> = [
   { id: 'arial', label: 'Arial', family: 'Arial, Helvetica, sans-serif' },
   { id: 'calibri', label: 'Calibri', family: 'Calibri, Arial, sans-serif' },
   { id: 'cambria', label: 'Cambria', family: 'Cambria, Georgia, serif' },
@@ -86,6 +118,11 @@ const fontOptions: Array<{ id: TitleFont; label: string; family: string }> = [
   { id: 'trebuchet', label: 'Trebuchet', family: 'Trebuchet MS, Arial, sans-serif' },
   { id: 'verdana', label: 'Verdana', family: 'Verdana, Geneva, sans-serif' },
   { id: 'times', label: 'Times', family: 'Times New Roman, Times, serif' },
+  { id: 'montserrat-regular', label: 'Montserrat Regular', family: MONTSERRAT_FONT_FAMILY, weight: 400 },
+  { id: 'montserrat-medium', label: 'Montserrat Medium', family: MONTSERRAT_FONT_FAMILY, weight: 500 },
+  { id: 'montserrat-semibold', label: 'Montserrat SemiBold', family: MONTSERRAT_FONT_FAMILY, weight: 600 },
+  { id: 'montserrat-bold', label: 'Montserrat Bold', family: MONTSERRAT_FONT_FAMILY, weight: 700 },
+  { id: 'montserrat-extrabold', label: 'Montserrat ExtraBold', family: MONTSERRAT_FONT_FAMILY, weight: 800 },
 ];
 
 const introAnimationOptions: Array<{ id: IntroAnimation; label: string; description: string }> = [
@@ -176,6 +213,38 @@ function getFontStyleParts(fontStyle: TitleFontStyle) {
       return { fontStyle: 'italic', fontWeight: '800' };
     default:
       return { fontStyle: 'normal', fontWeight: '700' };
+  }
+}
+
+// Algumas fontes (as variantes Montserrat) já têm um peso fixo e nomeado
+// (Regular/Medium/SemiBold/Bold/ExtraBold). Quando a fonte escolhida tiver
+// esse peso definido, ele prevalece sobre o peso genérico do estilo
+// Regular/Negrito — assim "Montserrat SemiBold" sempre desenha em 600,
+// não importa se o estilo está marcado como Regular ou Negrito.
+function getEffectiveFontStyleParts(font: TitleFont, fontStyle: TitleFontStyle) {
+  const base = getFontStyleParts(fontStyle);
+  const fixedWeight = fontOptions.find((option) => option.id === font)?.weight;
+  return fixedWeight ? { ...base, fontWeight: String(fixedWeight) } : base;
+}
+
+// O Canvas 2D não espera automaticamente o carregamento de web fonts como o
+// HTML faz: se a fonte Montserrat ainda não tiver sido baixada pelo
+// navegador, o desenho usa silenciosamente a fonte de fallback do sistema.
+// Antes de desenhar o card, garantimos que todos os pesos do Montserrat já
+// estejam prontos (chamadas repetidas são baratas: o navegador guarda em
+// cache assim que o primeiro carregamento termina).
+async function ensureCardFontsLoaded() {
+  if (typeof document === 'undefined' || !('fonts' in document)) {
+    return;
+  }
+
+  const weights = [400, 500, 600, 700, 800];
+  try {
+    await Promise.all(weights.map((weight) => document.fonts.load(`${weight} 48px ${MONTSERRAT_FONT_FAMILY}`)));
+    await document.fonts.ready;
+  } catch {
+    // Se o carregamento falhar (ex.: sem rede), o desenho segue com a
+    // fonte de fallback em vez de travar a geração do card.
   }
 }
 
@@ -342,11 +411,12 @@ function wrapText(
   maxHeight: number,
   fontFamily: string,
   fontStyle: TitleFontStyle,
-  preferredFontSize?: number
+  preferredFontSize?: number,
+  font?: TitleFont
 ) {
   const normalizedText = text.replace(/\s+/g, ' ').trim();
   const words = normalizedText.split(' ').filter(Boolean);
-  const fontStyleParts = getFontStyleParts(fontStyle);
+  const fontStyleParts = font ? getEffectiveFontStyleParts(font, fontStyle) : getFontStyleParts(fontStyle);
 
   const maxFontSize = typeof preferredFontSize === 'number'
     ? Math.max(24, Math.min(120, preferredFontSize))
@@ -504,14 +574,22 @@ function drawTemplate(
   categoryBackgroundColor: string,
   categoryTextColor: string,
   categoryBorderColor: string,
+  categoryFont: TitleFont,
+  categoryFontStyle: TitleFontStyle,
+  categoryFontSize: number,
+  categoryPadding: number,
+  categoryBorderRadius: number,
   titleFont: TitleFont,
   titleFontStyle: TitleFontStyle,
+  titleAlign: TitleAlign,
   introAnimation: IntroAnimation,
   animationProgress: number
 ) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const titleFontFamily = getFontFamily(titleFont);
-  const fontStyleParts = getFontStyleParts(titleFontStyle);
+  const fontStyleParts = getEffectiveFontStyleParts(titleFont, titleFontStyle);
+  const categoryFontFamily = getFontFamily(categoryFont);
+  const categoryFontStyleParts = getEffectiveFontStyleParts(categoryFont, categoryFontStyle);
   const introFrameStyle = getIntroFrameStyle(introAnimation, animationProgress);
   drawCoverImage(
     context,
@@ -581,25 +659,35 @@ function drawTemplate(
   let titleStartY = categoryY + 68;
 
   if (showCategory) {
-    context.font = `${fontStyleParts.fontStyle} 700 30px ${titleFontFamily}`;
-    const categoryWidth = Math.min(460, Math.max(190, context.measureText(categoryLabel.toUpperCase()).width + 52));
+    const safeCategoryFontSize = Math.max(18, Math.min(60, categoryFontSize));
+    const safeCategoryPadding = Math.max(12, Math.min(60, categoryPadding));
+    const safeCategoryRadius = Math.max(0, Math.min(60, categoryBorderRadius));
+    context.font = `${categoryFontStyleParts.fontStyle} ${categoryFontStyleParts.fontWeight} ${safeCategoryFontSize}px ${categoryFontFamily}`;
+    const categoryHeight = safeCategoryFontSize + safeCategoryPadding;
+    const measuredCategoryWidth = context.measureText(categoryLabel.toUpperCase()).width + safeCategoryPadding * 2;
+    const categoryWidth = Math.max(categoryHeight, Math.min(CANVAS_WIDTH - categoryX * 2, measuredCategoryWidth));
     context.fillStyle = isCategoryBackgroundTransparent ? 'rgba(255,255,255,0)' : categoryBackgroundColor;
-    drawRoundedRect(context, categoryX, categoryY, categoryWidth, 58, 29);
+    drawRoundedRect(context, categoryX, categoryY, categoryWidth, categoryHeight, safeCategoryRadius);
     context.lineWidth = 3;
     context.strokeStyle = categoryBorderColor;
     context.stroke();
     context.fillStyle = categoryTextColor;
-    context.fillText(categoryLabel.toUpperCase(), categoryX + 26, categoryY + 38);
-    titleStartY = categoryY + 126;
+    context.textBaseline = 'middle';
+    context.fillText(categoryLabel.toUpperCase(), categoryX + safeCategoryPadding, categoryY + categoryHeight / 2 + 1);
+    context.textBaseline = 'alphabetic';
+    titleStartY = categoryY + categoryHeight + 68;
   }
 
-  const wrappedTitle = wrapText(context, title, CANVAS_WIDTH - 144, 320, titleFontFamily, titleFontStyle);
+  const wrappedTitle = wrapText(context, title, CANVAS_WIDTH - 144, 320, titleFontFamily, titleFontStyle, undefined, titleFont);
   context.fillStyle = footerGradient === 'light' ? '#111111' : '#FFFFFF';
   context.font = `${fontStyleParts.fontStyle} ${fontStyleParts.fontWeight} ${wrappedTitle.fontSize}px ${titleFontFamily}`;
 
+  const titleAlignX = titleAlign === 'center' ? CANVAS_WIDTH / 2 : titleAlign === 'right' ? CANVAS_WIDTH - 72 : 72;
+  context.textAlign = titleAlign === 'center' ? 'center' : titleAlign === 'right' ? 'right' : 'left';
   wrappedTitle.lines.forEach((line, index) => {
-    context.fillText(line, 72, titleStartY + index * wrappedTitle.lineHeight);
+    context.fillText(line, titleAlignX, titleStartY + index * wrappedTitle.lineHeight);
   });
+  context.textAlign = 'start';
   context.restore();
 }
 
@@ -620,6 +708,7 @@ function drawColumnTemplate(
   imageOffsetX: number,
   imageOffsetY: number,
   titleFontFamily: string,
+  titleFont: TitleFont,
   titleFontStyle: TitleFontStyle,
   titleSize: number,
   titleOffsetX: number,
@@ -679,10 +768,10 @@ function drawColumnTemplate(
   drawCoverImage(context, heroMedia, heroMediaWidth, heroMediaHeight, 0, 300, CANVAS_WIDTH, 680, imageScale, imageOffsetX, imageOffsetY);
   context.fillStyle = '#FFFFFF';
   context.fillRect(0, 980, CANVAS_WIDTH, 370);
-  const titleStyle = getFontStyleParts(titleFontStyle);
+  const titleStyle = getEffectiveFontStyleParts(titleFont, titleFontStyle);
   const titleFontSize = Math.max(24, Math.min(120, titleSize));
   context.font = `${titleStyle.fontStyle} ${titleStyle.fontWeight} ${titleFontSize}px ${titleFontFamily}`;
-  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, titleFontFamily, titleFontStyle, titleFontSize);
+  const wrappedTitle = wrapText(context, title || 'Título da coluna', CANVAS_WIDTH - 116, 300, titleFontFamily, titleFontStyle, titleFontSize, titleFont);
   context.fillStyle = '#1F2937';
   context.font = `${titleStyle.fontStyle} ${titleStyle.fontWeight} ${titleFontSize}px ${titleFontFamily}`;
   const titleX = Math.max(24, Math.min(CANVAS_WIDTH - 70, 58 + titleOffsetX));
@@ -716,7 +805,7 @@ function drawMemorialTemplate(
 ) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const titleFontFamily = getFontFamily(titleFont);
-  const fontStyleParts = getFontStyleParts(titleFontStyle);
+  const fontStyleParts = getEffectiveFontStyleParts(titleFont, titleFontStyle);
 
   context.save();
   if ('filter' in context) {
@@ -776,7 +865,7 @@ function drawMemorialTemplate(
   const normalizedProfession = profession.trim().toUpperCase();
   const yearsLine = formatMemorialYears(birthDate, deathDate);
 
-  const wrappedName = wrapText(context, normalizedName, CANVAS_WIDTH - 180, 260, titleFontFamily, titleFontStyle);
+  const wrappedName = wrapText(context, normalizedName, CANVAS_WIDTH - 180, 260, titleFontFamily, titleFontStyle, undefined, titleFont);
   context.fillStyle = '#FFFFFF';
   context.font = `${fontStyleParts.fontStyle} ${fontStyleParts.fontWeight} ${wrappedName.fontSize}px ${titleFontFamily}`;
   const nameStartY = 920;
@@ -813,6 +902,7 @@ export default function GeradorCardPage() {
   const [exportFormat, setExportFormat] = useState<ExportFormat>('png');
   const [titleFont, setTitleFont] = useState<TitleFont>('arial');
   const [titleFontStyle, setTitleFontStyle] = useState<TitleFontStyle>('bold');
+  const [titleAlign, setTitleAlign] = useState<TitleAlign>('left');
   const [logoPosition, setLogoPosition] = useState<LogoPosition>('right');
   const [logoSize, setLogoSize] = useState(100);
   const [logoOffsetX, setLogoOffsetX] = useState(0);
@@ -832,6 +922,11 @@ export default function GeradorCardPage() {
   const [isCategoryBackgroundTransparent, setIsCategoryBackgroundTransparent] = useState(false);
   const [categoryTextColor, setCategoryTextColor] = useState(CARD_ACCENT_RED);
   const [categoryBorderColor, setCategoryBorderColor] = useState(CARD_ACCENT_RED);
+  const [categoryFont, setCategoryFont] = useState<TitleFont>('montserrat-extrabold');
+  const [categoryFontStyle, setCategoryFontStyle] = useState<TitleFontStyle>('regular');
+  const [categoryFontSize, setCategoryFontSize] = useState(30);
+  const [categoryPadding, setCategoryPadding] = useState(26);
+  const [categoryBorderRadius, setCategoryBorderRadius] = useState(29);
   const [customImageDataUrl, setCustomImageDataUrl] = useState('');
   const [customImageName, setCustomImageName] = useState('');
   const [customVideoUrl, setCustomVideoUrl] = useState('');
@@ -992,6 +1087,7 @@ export default function GeradorCardPage() {
   const categoryLabel = customCategory.trim() || (selectedArticle ? getCategoryDisplayName(selectedArticle.category) : 'Geral');
   const isColumnCard = cardKind === 'column';
   const isMemorialCard = cardKind === 'memorial';
+  const isNewsCard = !isColumnCard && !isMemorialCard;
   const isVideoSource = !isMemorialCard && !isColumnCard && Boolean(customVideoUrl);
   const currentImageSource = isMemorialCard
     ? customImageDataUrl
@@ -1028,6 +1124,7 @@ export default function GeradorCardPage() {
       exportFormat,
       titleFont,
       titleFontStyle,
+      titleAlign,
       logoPosition,
       logoSize,
       logoOffsetX,
@@ -1045,6 +1142,11 @@ export default function GeradorCardPage() {
       categoryBackgroundColor,
       categoryTextColor,
       categoryBorderColor,
+      categoryFont,
+      categoryFontStyle,
+      categoryFontSize,
+      categoryPadding,
+      categoryBorderRadius,
       imageScale,
       imageOffsetX,
       imageOffsetY,
@@ -1055,6 +1157,7 @@ export default function GeradorCardPage() {
       exportFormat,
       titleFont,
       titleFontStyle,
+      titleAlign,
       logoPosition,
       logoSize,
       logoOffsetX,
@@ -1072,6 +1175,11 @@ export default function GeradorCardPage() {
       categoryBackgroundColor,
       categoryTextColor,
       categoryBorderColor,
+      categoryFont,
+      categoryFontStyle,
+      categoryFontSize,
+      categoryPadding,
+      categoryBorderRadius,
       imageScale,
       imageOffsetX,
       imageOffsetY,
@@ -1093,6 +1201,7 @@ export default function GeradorCardPage() {
     setExportFormat(preset.config.exportFormat);
     setTitleFont(preset.config.titleFont);
     setTitleFontStyle(preset.config.titleFontStyle);
+    setTitleAlign(preset.config.titleAlign ?? 'left');
     setLogoPosition(preset.config.logoPosition);
     setLogoSize(typeof preset.config.logoSize === 'number' && Number.isFinite(preset.config.logoSize) ? preset.config.logoSize : 100);
     setLogoOffsetX(typeof preset.config.logoOffsetX === 'number' && Number.isFinite(preset.config.logoOffsetX) ? preset.config.logoOffsetX : 0);
@@ -1110,6 +1219,16 @@ export default function GeradorCardPage() {
     setCategoryBackgroundColor(preset.config.categoryBackgroundColor);
     setCategoryTextColor(preset.config.categoryTextColor);
     setCategoryBorderColor(preset.config.categoryBorderColor);
+    // Predefinicoes salvas antes desta atualizacao nao tem esses campos.
+    // Nesse caso, reproduzimos exatamente o visual antigo da etiqueta
+    // (mesma fonte do titulo, negrito, 30px, 26px de espacamento e cantos
+    // totalmente arredondados) em vez de assumir o novo padrao Montserrat,
+    // para nao alterar o resultado de predefinicoes ja salvas.
+    setCategoryFont(preset.config.categoryFont ?? preset.config.titleFont);
+    setCategoryFontStyle(preset.config.categoryFontStyle ?? 'bold');
+    setCategoryFontSize(typeof preset.config.categoryFontSize === 'number' && Number.isFinite(preset.config.categoryFontSize) ? preset.config.categoryFontSize : 30);
+    setCategoryPadding(typeof preset.config.categoryPadding === 'number' && Number.isFinite(preset.config.categoryPadding) ? preset.config.categoryPadding : 26);
+    setCategoryBorderRadius(typeof preset.config.categoryBorderRadius === 'number' && Number.isFinite(preset.config.categoryBorderRadius) ? preset.config.categoryBorderRadius : 29);
     setImageScale(preset.config.imageScale);
     setImageOffsetX(preset.config.imageOffsetX);
     setImageOffsetY(preset.config.imageOffsetY);
@@ -1299,6 +1418,7 @@ export default function GeradorCardPage() {
           imageOffsetX,
           imageOffsetY,
           getFontFamily(titleFont),
+          titleFont,
           titleFontStyle,
           columnTitleSize,
           columnTitleOffsetX,
@@ -1332,8 +1452,14 @@ export default function GeradorCardPage() {
         categoryBackgroundColor,
         categoryTextColor,
         categoryBorderColor,
+        categoryFont,
+        categoryFontStyle,
+        categoryFontSize,
+        categoryPadding,
+        categoryBorderRadius,
         titleFont,
         titleFontStyle,
+        titleAlign,
         introAnimation,
         animationProgress
       );
@@ -1343,6 +1469,11 @@ export default function GeradorCardPage() {
       categoryBorderColor,
       categoryLabel,
       categoryTextColor,
+      categoryFont,
+      categoryFontStyle,
+      categoryFontSize,
+      categoryPadding,
+      categoryBorderRadius,
       columnAccentOffsetX,
       columnAccentOffsetY,
       columnTitleOffsetX,
@@ -1372,10 +1503,12 @@ export default function GeradorCardPage() {
       selectedTemplate,
       titleFont,
       titleFontStyle,
+      titleAlign,
     ]
   );
 
   const generateStaticPreview = useCallback(async () => {
+    await ensureCardFontsLoaded();
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_WIDTH;
     canvas.height = CANVAS_HEIGHT;
@@ -1414,6 +1547,8 @@ export default function GeradorCardPage() {
     if (!customVideoUrl || !selectedArticle) {
       throw new Error('Envie um vídeo para gerar a versão em movimento do card.');
     }
+
+    await ensureCardFontsLoaded();
 
     const mimeType = getVideoMimeType();
     if (!mimeType) {
@@ -1948,7 +2083,7 @@ export default function GeradorCardPage() {
                 <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
                   <div>
                     <p className="text-sm font-semibold text-gray-800">Fonte do texto</p>
-                    <p className="text-xs text-gray-500">Escolha a família e o estilo, como em um editor de texto.</p>
+                    <p className="text-xs text-gray-500">Escolha a família e o estilo, como em um editor de texto. Agora com os 5 pesos do Montserrat.</p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
@@ -1985,9 +2120,39 @@ export default function GeradorCardPage() {
                       </select>
                     </div>
                   </div>
+                  {isNewsCard && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-gray-800">Alinhamento da manchete</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { id: 'left', label: 'Esquerda' },
+                          { id: 'center', label: 'Centro' },
+                          { id: 'right', label: 'Direita' },
+                        ] as Array<{ id: TitleAlign; label: string }>).map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setTitleAlign(option.id)}
+                            className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                              titleAlign === option.id
+                                ? 'border-[#991B1B] bg-[#991B1B]/10 text-[#991B1B]'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-[#991B1B]/40'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div
                     className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-4 text-lg text-gray-900"
-                    style={{ fontFamily: getFontFamily(titleFont), fontStyle: titleFontStyle.includes('italic') ? 'italic' : 'normal', fontWeight: titleFontStyle.includes('bold') ? 800 : 700 }}
+                    style={{
+                      fontFamily: getFontFamily(titleFont),
+                      fontStyle: getEffectiveFontStyleParts(titleFont, titleFontStyle).fontStyle,
+                      fontWeight: Number(getEffectiveFontStyleParts(titleFont, titleFontStyle).fontWeight),
+                      textAlign: isNewsCard ? titleAlign : 'left',
+                    }}
                   >
                     {customTitle.trim() || 'Prévia da fonte do título'}
                   </div>
@@ -2133,20 +2298,118 @@ export default function GeradorCardPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">Barrinha da categoria</p>
-                      <p className="text-xs text-gray-500">Agora no estilo fundo branco, texto vermelho e contorno vermelho, com cores editáveis.</p>
+                      <p className="text-xs text-gray-500">Fonte, peso, tamanho, cores, cantos e espaçamento internos são todos editáveis. A largura sempre se ajusta ao texto.</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCategoryBackgroundTransparent(false);
-                        setCategoryBackgroundColor('#FFFFFF');
-                        setCategoryTextColor(CARD_ACCENT_RED);
-                        setCategoryBorderColor(CARD_ACCENT_RED);
-                      }}
-                      className="text-xs font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]"
-                    >
-                      Padrão
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCategoryBackgroundTransparent(false);
+                          setCategoryBackgroundColor('#FFFFFF');
+                          setCategoryTextColor(CARD_ACCENT_RED);
+                          setCategoryBorderColor(CARD_ACCENT_RED);
+                        }}
+                        className="text-xs font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]"
+                      >
+                        Padrão
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCategoryBackgroundTransparent(false);
+                          setCategoryBackgroundColor(CARD_ACCENT_RED);
+                          setCategoryTextColor('#FFFFFF');
+                          setCategoryBorderColor(CARD_ACCENT_RED);
+                          setCategoryFont('montserrat-extrabold');
+                          setCategoryFontStyle('regular');
+                          setCategoryFontSize(30);
+                          setCategoryPadding(26);
+                          setCategoryBorderRadius(29);
+                        }}
+                        className="text-xs font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]"
+                      >
+                        Estilo editorial (referência)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label htmlFor="categoryFont" className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                        Fonte da etiqueta
+                      </label>
+                      <select
+                        id="categoryFont"
+                        value={categoryFont}
+                        onChange={(event) => setCategoryFont(event.target.value as TitleFont)}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                      >
+                        {fontOptions.map((font) => (
+                          <option key={font.id} value={font.id}>
+                            {font.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="categoryFontStyle" className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                        Peso da fonte
+                      </label>
+                      <select
+                        id="categoryFontStyle"
+                        value={categoryFontStyle}
+                        onChange={(event) => setCategoryFontStyle(event.target.value as TitleFontStyle)}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                      >
+                        <option value="regular">Regular</option>
+                        <option value="bold">Negrito</option>
+                        <option value="italic">Itálico</option>
+                        <option value="bold-italic">Negrito itálico</option>
+                      </select>
+                      <p className="text-[11px] text-gray-500">Para as variantes Montserrat, o peso exato (Regular/Medium/SemiBold/Bold/ExtraBold) já vem da fonte escolhida acima.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                      Tamanho da fonte
+                      <input
+                        type="range"
+                        min="18"
+                        max="60"
+                        step="1"
+                        value={categoryFontSize}
+                        onChange={(event) => setCategoryFontSize(Number(event.target.value))}
+                        className="w-full accent-[#991B1B]"
+                      />
+                      <span className="block text-xs font-normal normal-case text-gray-500">{categoryFontSize}px</span>
+                    </label>
+                    <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                      Espaçamento interno
+                      <input
+                        type="range"
+                        min="12"
+                        max="60"
+                        step="1"
+                        value={categoryPadding}
+                        onChange={(event) => setCategoryPadding(Number(event.target.value))}
+                        className="w-full accent-[#991B1B]"
+                      />
+                      <span className="block text-xs font-normal normal-case text-gray-500">{categoryPadding}px</span>
+                    </label>
+                    <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                      Raio dos cantos
+                      <input
+                        type="range"
+                        min="0"
+                        max="60"
+                        step="1"
+                        value={categoryBorderRadius}
+                        onChange={(event) => setCategoryBorderRadius(Number(event.target.value))}
+                        className="w-full accent-[#991B1B]"
+                      />
+                      <span className="block text-xs font-normal normal-case text-gray-500">{categoryBorderRadius}px {categoryBorderRadius >= (categoryFontSize + categoryPadding) / 2 ? '(cápsula)' : ''}</span>
+                    </label>
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-3">
@@ -2219,6 +2482,25 @@ export default function GeradorCardPage() {
                         <span className="text-sm font-medium text-gray-700">{categoryBorderColor.toUpperCase()}</span>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="flex justify-start">
+                    <span
+                      className="inline-flex items-center rounded-full px-4 py-2 text-sm uppercase tracking-wide"
+                      style={{
+                        backgroundColor: isCategoryBackgroundTransparent ? 'transparent' : categoryBackgroundColor,
+                        color: categoryTextColor,
+                        border: `2px solid ${categoryBorderColor}`,
+                        borderRadius: `${categoryBorderRadius}px`,
+                        padding: `${categoryPadding * 0.4}px ${categoryPadding}px`,
+                        fontFamily: getFontFamily(categoryFont),
+                        fontStyle: getEffectiveFontStyleParts(categoryFont, categoryFontStyle).fontStyle,
+                        fontWeight: Number(getEffectiveFontStyleParts(categoryFont, categoryFontStyle).fontWeight),
+                        fontSize: `${Math.min(categoryFontSize, 28)}px`,
+                      }}
+                    >
+                      {(showCategory ? categoryLabel : 'ENTRETENIMENTO').toUpperCase()}
+                    </span>
                   </div>
                 </div>
 
