@@ -66,7 +66,7 @@ type CardOverlayMode = 'full' | 'custom';
 type SocialPlatformKey = 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'website' | 'other';
 type SocialLinkEntry = { value: string; enabled: boolean };
 type SocialLinksState = Record<SocialPlatformKey, SocialLinkEntry> & { otherLabel: string };
-type SocialBadgeEntry = { badge: string; text: string; color: string };
+type SocialBadgeEntry = { platform: SocialPlatformKey; text: string; color: string };
 type CardGeneratorPreset = {
   id: string;
   name: string;
@@ -143,19 +143,44 @@ const SOCIAL_PLATFORM_META: Record<
   SocialPlatformKey,
   {
     label: string;
-    badge: string;
     color: string;
     placeholder: string;
     Icon: ComponentType<{ className?: string; style?: CSSProperties }>;
   }
 > = {
-  instagram: { label: 'Instagram', badge: 'IG', color: '#D6249F', placeholder: '@rbnbrasil', Icon: Instagram },
-  tiktok: { label: 'TikTok', badge: 'TT', color: '#111111', placeholder: '@rbnbrasil', Icon: Music2 },
-  youtube: { label: 'YouTube', badge: 'YT', color: '#CC0000', placeholder: '@rbnbrasil', Icon: Youtube },
-  facebook: { label: 'Facebook', badge: 'FB', color: '#1877F2', placeholder: '/rbnbrasil', Icon: Facebook },
-  website: { label: 'Site', badge: 'WEB', color: '#1F2937', placeholder: 'rbnbrasil.com.br', Icon: Globe },
-  other: { label: 'Outro contato', badge: '', color: '#374151', placeholder: 'Ex.: WhatsApp (11) 99999-9999', Icon: Link2 },
+  instagram: { label: 'Instagram', color: '#D6249F', placeholder: '@rbnbrasil', Icon: Instagram },
+  tiktok: { label: 'TikTok', color: '#111111', placeholder: '@rbnbrasil', Icon: Music2 },
+  youtube: { label: 'YouTube', color: '#CC0000', placeholder: '@rbnbrasil', Icon: Youtube },
+  facebook: { label: 'Facebook', color: '#1877F2', placeholder: '/rbnbrasil', Icon: Facebook },
+  website: { label: 'Site', color: '#1F2937', placeholder: 'rbnbrasil.com.br', Icon: Globe },
+  other: { label: 'Outro contato', color: '#374151', placeholder: 'Ex.: WhatsApp (11) 99999-9999', Icon: Link2 },
 };
+
+// Marcação interna (sem o wrapper <svg>) de cada ícone, copiada das mesmas
+// definições usadas pelos componentes lucide-react acima, para desenhar o
+// logotipo real de cada rede dentro do selo colorido do card (em vez de
+// uma sigla de texto/emoji).
+const SOCIAL_ICON_INNER_SVG: Record<SocialPlatformKey, string> = {
+  instagram:
+    '<rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>',
+  tiktok: '<circle cx="8" cy="18" r="4"/><path d="M12 18V2l7 4"/>',
+  youtube:
+    '<path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>',
+  facebook: '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>',
+  website: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  other: '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>',
+};
+
+function buildSocialIconDataUrl(platform: SocialPlatformKey) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${SOCIAL_ICON_INNER_SVG[platform]}</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function loadSocialIconImages() {
+  return Promise.all(
+    SOCIAL_PLATFORM_ORDER.map(async (platform) => [platform, await loadImage(buildSocialIconDataUrl(platform))] as const)
+  ).then((pairs) => Object.fromEntries(pairs) as Record<SocialPlatformKey, HTMLImageElement>);
+}
 
 const templateOptions: Array<{
   id: CardTemplate;
@@ -609,61 +634,58 @@ function drawRoundedRect(
   context.fill();
 }
 
-// Desenha a linha de redes sociais/site do card: um selo colorido com a
-// sigla da rede (ex.: "IG") seguido do valor cadastrado (ex.: "@rbnbrasil"),
-// quebrando para a linha seguinte quando não cabe mais na largura do card.
+// Desenha a linha de redes sociais/site do card: um selo colorido com o
+// logotipo real da rede (ícone, não sigla/emoji) seguido do valor cadastrado
+// (ex.: "@rbnbrasil"), quebrando para a linha seguinte quando não cabe mais
+// na largura do card. Fonte e tamanho do texto são configuráveis pelo usuário.
 function drawSocialLinksRow(
   context: CanvasRenderingContext2D,
   entries: SocialBadgeEntry[],
+  iconImages: Partial<Record<SocialPlatformKey, HTMLImageElement>>,
   startX: number,
   startY: number,
   maxWidth: number,
-  textColor: string
+  textColor: string,
+  fontFamily: string,
+  fontSize: number
 ) {
   if (entries.length === 0) {
     return;
   }
 
-  const badgeHeight = 40;
-  const badgeFont = '700 20px Arial, sans-serif';
-  const textFont = '600 28px Arial, sans-serif';
-  const badgePaddingX = 16;
-  const gapBadgeText = 12;
-  const gapItems = 28;
-  const lineHeight = 52;
+  const safeFontSize = Math.max(16, Math.min(64, fontSize));
+  const badgeSize = safeFontSize * 1.55;
+  const iconSize = badgeSize * 0.56;
+  const textFont = `600 ${safeFontSize}px ${fontFamily}`;
+  const gapBadgeText = safeFontSize * 0.42;
+  const gapItems = safeFontSize * 1.05;
+  const lineHeight = badgeSize + safeFontSize * 0.5;
 
   let cursorX = startX;
   let cursorY = startY;
 
   entries.forEach((entry) => {
-    context.font = badgeFont;
-    const badgeTextWidth = entry.badge ? context.measureText(entry.badge).width : 0;
-    const badgeWidth = entry.badge ? Math.max(badgeHeight, badgeTextWidth + badgePaddingX * 2) : 0;
-    const badgeGap = badgeWidth > 0 ? gapBadgeText : 0;
     context.font = textFont;
     const textWidth = context.measureText(entry.text).width;
-    const itemWidth = badgeWidth + badgeGap + textWidth;
+    const itemWidth = badgeSize + gapBadgeText + textWidth;
 
     if (cursorX > startX && cursorX + itemWidth > startX + maxWidth) {
       cursorX = startX;
       cursorY += lineHeight;
     }
 
-    if (badgeWidth > 0) {
-      context.fillStyle = entry.color;
-      drawRoundedRect(context, cursorX, cursorY, badgeWidth, badgeHeight, badgeHeight / 2);
-      context.fillStyle = '#FFFFFF';
-      context.font = badgeFont;
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(entry.badge, cursorX + badgeWidth / 2, cursorY + badgeHeight / 2 + 1);
-      context.textAlign = 'left';
+    context.fillStyle = entry.color;
+    drawRoundedRect(context, cursorX, cursorY, badgeSize, badgeSize, badgeSize / 2);
+
+    const icon = iconImages[entry.platform];
+    if (icon) {
+      context.drawImage(icon, cursorX + (badgeSize - iconSize) / 2, cursorY + (badgeSize - iconSize) / 2, iconSize, iconSize);
     }
 
     context.fillStyle = textColor;
     context.font = textFont;
     context.textBaseline = 'middle';
-    context.fillText(entry.text, cursorX + badgeWidth + badgeGap, cursorY + badgeHeight / 2 + 1);
+    context.fillText(entry.text, cursorX + badgeSize + gapBadgeText, cursorY + badgeSize / 2 + 1);
     context.textBaseline = 'alphabetic';
 
     cursorX += itemWidth + gapItems;
@@ -768,7 +790,12 @@ function drawTemplate(
   titleAlign: TitleAlign,
   introAnimation: IntroAnimation,
   animationProgress: number,
-  socialBadges: SocialBadgeEntry[]
+  socialBadges: SocialBadgeEntry[],
+  socialIconImages: Partial<Record<SocialPlatformKey, HTMLImageElement>>,
+  socialFont: TitleFont,
+  socialFontSize: number,
+  socialOffsetX: number,
+  socialOffsetY: number
 ) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const titleFontFamily = getFontFamily(titleFont);
@@ -877,10 +904,20 @@ function drawTemplate(
   if (socialBadges.length > 0) {
     const socialTextColor = footerGradient === 'light' ? '#111111' : '#FFFFFF';
     const socialStartY = Math.min(
-      titleStartY + wrappedTitle.lines.length * wrappedTitle.lineHeight + 36,
+      titleStartY + wrappedTitle.lines.length * wrappedTitle.lineHeight + 36 + socialOffsetY,
       CANVAS_HEIGHT - 86
     );
-    drawSocialLinksRow(context, socialBadges, categoryX, socialStartY, CANVAS_WIDTH - categoryX * 2, socialTextColor);
+    drawSocialLinksRow(
+      context,
+      socialBadges,
+      socialIconImages,
+      categoryX + socialOffsetX,
+      socialStartY,
+      CANVAS_WIDTH - categoryX * 2,
+      socialTextColor,
+      getFontFamily(socialFont),
+      socialFontSize
+    );
   }
 
   context.restore();
@@ -1133,6 +1170,11 @@ export default function GeradorCardPage() {
   const [cardOverlayStart, setCardOverlayStart] = useState(0);
   const [cardOverlayEnd, setCardOverlayEnd] = useState(5);
   const [socialLinks, setSocialLinks] = useState<SocialLinksState>(() => readSocialLinksFromStorage());
+  const [socialFont, setSocialFont] = useState<TitleFont>('montserrat-semibold');
+  const [socialFontSize, setSocialFontSize] = useState(28);
+  const [socialOffsetX, setSocialOffsetX] = useState(0);
+  const [socialOffsetY, setSocialOffsetY] = useState(0);
+  const [socialIconImages, setSocialIconImages] = useState<Partial<Record<SocialPlatformKey, HTMLImageElement>>>({});
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1296,6 +1338,20 @@ export default function GeradorCardPage() {
     writeSocialLinksToStorage(socialLinks);
   }, [socialLinks]);
 
+  useEffect(() => {
+    let isMounted = true;
+    loadSocialIconImages()
+      .then((images) => {
+        if (isMounted) {
+          setSocialIconImages(images);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const categoryLabel = customCategory.trim() || (selectedArticle ? getCategoryDisplayName(selectedArticle.category) : 'Geral');
   const isColumnCard = cardKind === 'column';
   const isMemorialCard = cardKind === 'memorial';
@@ -1324,15 +1380,11 @@ export default function GeradorCardPage() {
   const socialBadgeEntries = useMemo<SocialBadgeEntry[]>(
     () =>
       SOCIAL_PLATFORM_ORDER.filter((platform) => socialLinks[platform].enabled && socialLinks[platform].value.trim().length > 0).map(
-        (platform) => {
-          const meta = SOCIAL_PLATFORM_META[platform];
-          const value = socialLinks[platform].value.trim();
-          return {
-            badge: platform === 'other' ? (socialLinks.otherLabel.trim() || 'Contato').toUpperCase().slice(0, 4) : meta.badge,
-            text: value,
-            color: meta.color,
-          };
-        }
+        (platform) => ({
+          platform,
+          text: socialLinks[platform].value.trim(),
+          color: SOCIAL_PLATFORM_META[platform].color,
+        })
       ),
     [socialLinks]
   );
@@ -1705,7 +1757,12 @@ export default function GeradorCardPage() {
         titleAlign,
         introAnimation,
         animationProgress,
-        socialBadgeEntries
+        socialBadgeEntries,
+        socialIconImages,
+        socialFont,
+        socialFontSize,
+        socialOffsetX,
+        socialOffsetY
       );
     },
     [
@@ -1746,6 +1803,11 @@ export default function GeradorCardPage() {
       selectedColumnist,
       selectedTemplate,
       socialBadgeEntries,
+      socialIconImages,
+      socialFont,
+      socialFontSize,
+      socialOffsetX,
+      socialOffsetY,
       titleFont,
       titleFontStyle,
       titleAlign,
@@ -2967,6 +3029,75 @@ export default function GeradorCardPage() {
                         ? `Aparecerão no card: ${socialBadgeEntries.map((item) => item.text).join(' · ')}`
                         : 'Nenhuma rede marcada para aparecer no card.'}
                     </p>
+
+                    <div className="grid gap-4 border-t border-gray-200 pt-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <label htmlFor="socialFont" className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                          Fonte das redes sociais
+                        </label>
+                        <select
+                          id="socialFont"
+                          value={socialFont}
+                          onChange={(event) => setSocialFont(event.target.value as TitleFont)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                        >
+                          {fontOptions.map((font) => (
+                            <option key={font.id} value={font.id}>
+                              {font.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                        Tamanho ({socialFontSize}px)
+                        <input
+                          type="range"
+                          min={16}
+                          max={48}
+                          step={1}
+                          value={socialFontSize}
+                          onChange={(event) => setSocialFontSize(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                      </label>
+                      <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                        Posição horizontal
+                        <input
+                          type="range"
+                          min={-200}
+                          max={200}
+                          step={2}
+                          value={socialOffsetX}
+                          onChange={(event) => setSocialOffsetX(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                      </label>
+                      <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                        Posição vertical
+                        <input
+                          type="range"
+                          min={-200}
+                          max={200}
+                          step={2}
+                          value={socialOffsetY}
+                          onChange={(event) => setSocialOffsetY(Number(event.target.value))}
+                          className="w-full accent-[#991B1B]"
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSocialFont('montserrat-semibold');
+                        setSocialFontSize(28);
+                        setSocialOffsetX(0);
+                        setSocialOffsetY(0);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-[#991B1B] hover:text-[#991B1B]"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Restaurar fonte e posição
+                    </button>
                   </div>
                 ) : null}
 
