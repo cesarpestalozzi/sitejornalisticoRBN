@@ -23,10 +23,43 @@ function headers() {
   return { apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json', 'Content-Type': 'application/json' };
 }
 
+// Cache curto em memória para a listagem completa de usuários. Essa lista é
+// consultada a cada chamada a resolveAdminUser()/getAdminDirectory() em quase
+// todas as rotas administrativas; sem cache, cada clique no painel repetia
+// uma varredura completa da tabela pz_news_users no Supabase, aumentando o
+// I/O de disco. O TTL é curto o bastante para não atrasar a propagação de
+// mudanças (criação de usuário, permissão, etc.) além de alguns segundos, e
+// é invalidado imediatamente após qualquer gravação.
+const USERS_CACHE_TTL_MS = 8_000;
+let usersCache: { at: number; rows: StoredUserRow[] } | null = null;
+
+export function invalidateStoredUsersCache() {
+  usersCache = null;
+}
+
 export async function listStoredUsers(): Promise<StoredUserRow[]> {
+  if (usersCache && Date.now() - usersCache.at < USERS_CACHE_TTL_MS) {
+    return usersCache.rows;
+  }
   const response = await fetch(`${table}?select=id,payload,updated_at&order=updated_at.desc`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase recusou a consulta de usuários (${response.status}).`);
-  return (await response.json()) as StoredUserRow[];
+  const rows = (await response.json()) as StoredUserRow[];
+  usersCache = { at: Date.now(), rows };
+  return rows;
+}
+
+// Consulta indexada por chave primária (id), usada pela autenticação do
+// painel. Evita baixar a tabela inteira de usuários só para validar a sessão
+// de um único administrador a cada requisição.
+export async function getStoredUserById(id: string): Promise<StoredUserRow | null> {
+  if (!id) return null;
+  if (usersCache && Date.now() - usersCache.at < USERS_CACHE_TTL_MS) {
+    return usersCache.rows.find((row) => String(row.id) === id) ?? null;
+  }
+  const response = await fetch(`${table}?select=id,payload,updated_at&id=eq.${encodeURIComponent(id)}&limit=1`, { headers: headers(), cache: 'no-store' });
+  if (!response.ok) throw new Error(`Supabase recusou a consulta de usuário (${response.status}).`);
+  const rows = (await response.json()) as StoredUserRow[];
+  return rows[0] ?? null;
 }
 
 export async function saveStoredUser(id: string, payload: Record<string, unknown>) {
@@ -37,5 +70,6 @@ export async function saveStoredUser(id: string, payload: Record<string, unknown
     cache: 'no-store',
   });
   if (!response.ok) throw new Error(`Supabase recusou o usuário (${response.status}).`);
+  invalidateStoredUsersCache();
   return NextResponse.json({ ok: true, id });
 }

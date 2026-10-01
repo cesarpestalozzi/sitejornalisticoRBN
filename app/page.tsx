@@ -1,3 +1,7 @@
+// A home precisa permanecer dinâmica porque tem fallback para backend Python
+// (fetch no-store) quando o armazenamento principal não está configurado.
+// O ganho de I/O no Supabase vem do cache curto em memória de
+// listStoredArticles() em app/api/_lib/articleStore.ts.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 

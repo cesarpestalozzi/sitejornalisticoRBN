@@ -244,3 +244,25 @@ create index if not exists idx_pz_news_team_document_audit_document on public.pz
 alter table public.pz_news_team_document_audit enable row level security;
 drop policy if exists "service_role_team_document_audit_access" on public.pz_news_team_document_audit;
 create policy "service_role_team_document_audit_access" on public.pz_news_team_document_audit for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+
+-- Auditoria de performance (set/2026) — ver
+-- supabase/migrations/20260930120000_performance_indexes_and_grants.sql
+-- para o contexto completo de cada índice e GRANT abaixo.
+create index if not exists idx_pz_news_articles_status on public.pz_news_articles ((payload->>'status'));
+create index if not exists idx_pz_news_articles_slug on public.pz_news_articles ((payload->>'slug'));
+create index if not exists idx_pz_news_articles_category on public.pz_news_articles ((payload->>'category'));
+create index if not exists idx_pz_news_comments_article on public.pz_news_comments ((payload->>'articleId'));
+
+grant usage on schema public to anon, service_role;
+grant select on public.pz_news_articles to anon;
+grant select, insert, update, delete on public.pz_news_articles to service_role;
+grant select, insert, update, delete on public.pz_news_users to service_role;
+grant select, insert, update, delete on public.pz_news_settings to service_role;
+grant select, insert, update, delete on public.pz_news_comments to service_role;
+grant select, insert, update, delete on public.pz_news_analytics_events to service_role;
+grant select, insert, update, delete on public.pz_news_user_integrations to service_role;
+grant select, insert, update, delete on public.rbn_message_conversations to service_role;
+grant select, insert, update, delete on public.rbn_messages to service_role;
+grant select, insert, update, delete on public.rbn_message_notifications to service_role;
+grant select, insert, update, delete on public.pz_news_team_documents to service_role;
+grant select, insert, update, delete on public.pz_news_team_document_audit to service_role;

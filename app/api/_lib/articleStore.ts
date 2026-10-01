@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 
 export type ArticleRow = {
   id: string;
@@ -53,6 +54,34 @@ function isMissingPayloadLiteColumn(status: number, body: string) {
   return status >= 400 && /payload_lite/i.test(body);
 }
 
+// Cache curto em memória para consultas de listagem. O painel administrativo
+// monta várias páginas (dashboard, artigos, analytics, comentários,
+// colunistas, manchetes...) que cada uma chama useArticles() de forma
+// independente; sem cache, navegar entre elas repetia a mesma leitura
+// completa da tabela pz_news_articles no Supabase em poucos segundos. O TTL
+// é curto o bastante para não atrasar a visibilidade de uma publicação além
+// de alguns segundos, e é descartado imediatamente após qualquer gravação.
+const ARTICLE_ROWS_CACHE_TTL_MS = 6_000;
+const articleRowsCache = new Map<string, { at: number; rows: ArticleRow[] }>();
+
+export function invalidateStoredArticlesCache() {
+  articleRowsCache.clear();
+}
+
+// Depois de qualquer gravação (publicar, editar, excluir), força a home a
+// buscar dados novos imediatamente no próximo acesso, em vez de esperar a
+// renovação automática por tempo. Isso permite usar cache por tempo na home
+// (menos I/O no Supabase) sem atrasar a publicação de notícias.
+async function revalidatePublicArticlePages() {
+  try {
+    revalidatePath('/');
+  } catch {
+    // revalidatePath só funciona dentro do contexto de uma requisição do
+    // Next.js; se for chamado fora desse contexto (ex.: scripts locais),
+    // ignoramos silenciosamente em vez de quebrar o salvamento.
+  }
+}
+
 async function fetchArticleRows(params: URLSearchParams, lite?: boolean): Promise<ArticleRow[]> {
   const effectiveLite = Boolean(lite) && payloadLiteSupported;
   const requestParams = new URLSearchParams(params);
@@ -60,7 +89,13 @@ async function fetchArticleRows(params: URLSearchParams, lite?: boolean): Promis
     requestParams.set('select', requestParams.get('select')!.replace('payload', 'payload:payload_lite'));
   }
 
-  const response = await fetch(`${tableUrl}?${requestParams.toString()}`, { headers: headers(), cache: 'no-store' });
+  const cacheKey = requestParams.toString();
+  const cached = articleRowsCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < ARTICLE_ROWS_CACHE_TTL_MS) {
+    return cached.rows;
+  }
+
+  const response = await fetch(`${tableUrl}?${cacheKey}`, { headers: headers(), cache: 'no-store' });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
     if (effectiveLite && isMissingPayloadLiteColumn(response.status, body)) {
@@ -71,12 +106,13 @@ async function fetchArticleRows(params: URLSearchParams, lite?: boolean): Promis
     }
     throw new Error(`Supabase retornou ${response.status} ao consultar notícias.`);
   }
-  const rows = (await response.json()) as ArticleRow[];
-  return rows.filter((row) =>
+  const rows = ((await response.json()) as ArticleRow[]).filter((row) =>
     !row.id.startsWith('__analytics__:') &&
     !row.id.startsWith('__comment__:') &&
     !row.id.startsWith('__videoconference:')
   );
+  articleRowsCache.set(cacheKey, { at: Date.now(), rows });
+  return rows;
 }
 
 export async function listStoredArticles(id?: string, options?: {
@@ -156,6 +192,8 @@ export async function saveStoredArticle(article: Record<string, unknown>, delete
     const detail = await response.text();
     throw new Error(`Supabase recusou o salvamento (${response.status}): ${detail.slice(0, 300)}`);
   }
+  invalidateStoredArticlesCache();
+  await revalidatePublicArticlePages();
   return NextResponse.json({ ok: true, id });
 }
 
@@ -163,6 +201,8 @@ export async function permanentlyDeleteStoredArticle(id: string) {
   if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
   const response = await fetch(`${tableUrl}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: { ...headers(), Prefer: 'return=minimal' }, cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase recusou a exclusão permanente (${response.status}).`);
+  invalidateStoredArticlesCache();
+  await revalidatePublicArticlePages();
   return NextResponse.json({ ok: true, id });
 }
 
@@ -170,5 +210,7 @@ export async function permanentlyDeleteStoredTrash() {
   if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
   const response = await fetch(`${tableUrl}?deleted=eq.true`, { method: 'DELETE', headers: { ...headers(), Prefer: 'return=minimal' }, cache: 'no-store' });
   if (!response.ok) throw new Error(`Supabase recusou a limpeza permanente (${response.status}).`);
+  invalidateStoredArticlesCache();
+  await revalidatePublicArticlePages();
   return NextResponse.json({ ok: true });
 }

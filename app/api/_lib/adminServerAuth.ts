@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { hasUserStoreConfig, listStoredUsers } from '@/app/api/_lib/userStore';
+import { getStoredUserById, hasUserStoreConfig, listStoredUsers } from '@/app/api/_lib/userStore';
 
 export type ServerAdminUser = {
   id: string;
@@ -133,7 +133,13 @@ export async function resolveAdminUser(request: NextRequest): Promise<ServerAdmi
   const userId = verifyAdminSessionToken(request.cookies.get('rbn_admin_user')?.value?.trim() || '');
   if (!userId) return null;
   try {
-    const row = (await getAdminDirectory()).find((item) => String(item.id) === userId);
+    // Autenticação roda em praticamente toda rota do painel. Buscar apenas
+    // o registro do usuário pela chave primária (em vez de baixar a tabela
+    // inteira de usuários a cada requisição) elimina a maior fonte de I/O
+    // repetido no Supabase.
+    const row = hasUserStoreConfig()
+      ? await getStoredUserById(userId)
+      : (await getAdminDirectory()).find((item) => String(item.id) === userId) ?? null;
     if (!row || !isActive(row.payload ?? {})) return null;
     const role = normalizeRole(row.payload.role);
     const name = [row.payload.name, row.payload.publicName]

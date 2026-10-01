@@ -136,11 +136,29 @@ async function normalizeRemoteRows(rows: SupabaseArticleRow[]) {
   return { active, deleted };
 }
 
+type RemoteArticlesSnapshot = Awaited<ReturnType<typeof normalizeRemoteRows>>;
+const REMOTE_ARTICLES_CACHE_TTL_MS = 6_000;
+let remoteArticlesCache: { at: number; data: RemoteArticlesSnapshot } | null = null;
+let remoteArticlesInFlight: Promise<RemoteArticlesSnapshot | null> | null = null;
+
+function invalidateRemoteArticlesCache() {
+  remoteArticlesCache = null;
+  remoteArticlesInFlight = null;
+}
+
 async function readRemoteArticles() {
   if (!hasSupabaseConfig && typeof window === 'undefined') {
     return null;
   }
 
+  if (remoteArticlesCache && Date.now() - remoteArticlesCache.at < REMOTE_ARTICLES_CACHE_TTL_MS) {
+    return remoteArticlesCache.data;
+  }
+  if (remoteArticlesInFlight) {
+    return remoteArticlesInFlight;
+  }
+
+  const loadPromise = (async (): Promise<RemoteArticlesSnapshot | null> => {
   try {
     const response = await fetch('/api/articles?includeDeleted=true', {
       method: 'GET',
@@ -149,7 +167,9 @@ async function readRemoteArticles() {
     });
     if (response.ok) {
       const rows = (await response.json()) as SupabaseArticleRow[];
-      return normalizeRemoteRows(rows);
+      const normalized = await normalizeRemoteRows(rows);
+      remoteArticlesCache = { at: Date.now(), data: normalized };
+      return normalized;
     }
   } catch (error) {
     console.warn('API interna de artigos indisponível; tentando Supabase direto.', error);
@@ -169,7 +189,9 @@ async function readRemoteArticles() {
       throw new Error(`Erro ao ler artigos remotos: ${error.message}`);
     }
 
-    return normalizeRemoteRows((data ?? []) as SupabaseArticleRow[]);
+    const normalized = await normalizeRemoteRows((data ?? []) as SupabaseArticleRow[]);
+    remoteArticlesCache = { at: Date.now(), data: normalized };
+    return normalized;
   }
 
   const response = await fetch(
@@ -185,7 +207,19 @@ async function readRemoteArticles() {
   }
 
   const rows = (await response.json()) as SupabaseArticleRow[];
-  return normalizeRemoteRows(rows);
+  const normalized = await normalizeRemoteRows(rows);
+  remoteArticlesCache = { at: Date.now(), data: normalized };
+  return normalized;
+  })();
+
+  remoteArticlesInFlight = loadPromise;
+  try {
+    return await loadPromise;
+  } finally {
+    if (remoteArticlesInFlight === loadPromise) {
+      remoteArticlesInFlight = null;
+    }
+  }
 }
 
 async function upsertRemoteArticle(article: Article, deleted: boolean) {
@@ -204,6 +238,7 @@ async function upsertRemoteArticle(article: Article, deleted: boolean) {
     });
 
     if (response.ok) {
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -233,6 +268,7 @@ async function upsertRemoteArticle(article: Article, deleted: boolean) {
         throw new Error(`Erro ao salvar artigo remoto: ${supabaseError.message}`);
       }
 
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -261,6 +297,7 @@ async function updateRemoteArticle(article: Article, deleted: boolean) {
     });
 
     if (response.ok) {
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -293,6 +330,7 @@ async function updateRemoteArticle(article: Article, deleted: boolean) {
         throw new Error('Artigo não encontrado para atualização remota.');
       }
 
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -316,6 +354,7 @@ async function deleteRemoteArticleById(id: string) {
       cache: 'no-store',
     });
     if (response.ok) {
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -333,6 +372,7 @@ async function deleteRemoteArticleById(id: string) {
 
         throw new Error(`Erro ao apagar artigo remoto: ${supabaseError.message}`);
       }
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -351,6 +391,7 @@ async function deleteRemoteTrash() {
       cache: 'no-store',
     });
     if (response.ok) {
+      invalidateRemoteArticlesCache();
       return;
     }
 
@@ -368,6 +409,7 @@ async function deleteRemoteTrash() {
 
         throw new Error(`Erro ao limpar lixeira remota: ${supabaseError.message}`);
       }
+      invalidateRemoteArticlesCache();
       return;
     }
 

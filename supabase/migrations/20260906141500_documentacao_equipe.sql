@@ -40,3 +40,8 @@ create index if not exists idx_pz_news_team_document_audit_document on public.pz
 alter table public.pz_news_team_document_audit enable row level security;
 drop policy if exists "service_role_team_document_audit_access" on public.pz_news_team_document_audit;
 create policy "service_role_team_document_audit_access" on public.pz_news_team_document_audit for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
+
+-- Essas tabelas privadas são acessadas somente pelo backend com service_role.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on public.pz_news_team_documents to service_role;
+grant select, insert, update, delete on public.pz_news_team_document_audit to service_role;

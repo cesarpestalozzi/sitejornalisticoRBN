@@ -17,21 +17,12 @@ interface CategoryArticle {
   subtitle: string;
   category: string;
   author: string;
-  content: string;
   excerpt: string;
+  readingTimeMinutes?: number;
   image?: string;
   status: 'rascunho' | 'agendado' | 'publicado';
   createdAt: string;
   updatedAt: string;
-}
-
-function stripHtml(content: string) {
-  return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function estimateReadingTimeMinutes(content: string) {
-  const words = stripHtml(content).split(' ').filter(Boolean).length;
-  return Math.max(1, Math.round(words / 220));
 }
 
 export default function CategoryPage() {
@@ -48,23 +39,26 @@ export default function CategoryPage() {
     const loadArticles = async () => {
       try {
         setIsLoaded(false);
-        const response = await fetch(`/api/articles?category=${encodeURIComponent(currentSlug)}`, {
+        // Usa o endpoint público leve e cacheado (CDN cache de 30s) em vez
+        // do endpoint administrativo, que trazia o payload completo (com
+        // imagens em base64) de toda a tabela a cada visita à categoria.
+        const response = await fetch(`/api/homepage/articles?category=${encodeURIComponent(currentSlug)}`, {
           method: 'GET',
           headers: { Accept: 'application/json' },
-          cache: 'no-store',
         });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const rows = (await response.json()) as Array<{ payload?: CategoryArticle }>; 
-        const nextArticles = rows
-          .map((row) => row.payload)
-          .filter((article): article is CategoryArticle => Boolean(article && article.id));
+        const nextArticles = (await response.json()) as CategoryArticle[];
 
         if (isActive) {
-          setArticles(nextArticles.filter((article) => article.status === 'publicado').sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()));
+          setArticles(
+            nextArticles
+              .filter((article) => article.status === 'publicado')
+              .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+          );
         }
       } catch (error) {
         console.warn('Erro ao carregar categoria:', error);
@@ -142,7 +136,7 @@ export default function CategoryPage() {
                       {getCategoryDisplayName(featuredArticle.category)}
                     </span>
                     <h2 className="mt-3 text-2xl font-bold text-gray-900 transition group-hover:text-[#991B1B]">{featuredArticle.title}</h2>
-                    <p className="mt-2 text-gray-600">{featuredArticle.excerpt || stripHtml(featuredArticle.content).slice(0, 180)}</p>
+                    <p className="mt-2 text-gray-600">{featuredArticle.excerpt}</p>
                     <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
                       <span>{formatArticleAuthor(featuredArticle.author)}</span>
                       <span>{formatDate(new Date(featuredArticle.updatedAt || featuredArticle.createdAt))}</span>
@@ -162,10 +156,10 @@ export default function CategoryPage() {
                         </div>
                         <div className="p-4">
                           <h4 className="line-clamp-2 text-lg font-bold text-gray-900 transition group-hover:text-[#991B1B]">{article.title}</h4>
-                          <p className="mt-2 line-clamp-2 text-sm text-gray-600">{article.excerpt || stripHtml(article.content).slice(0, 140)}</p>
+                          <p className="mt-2 line-clamp-2 text-sm text-gray-600">{article.excerpt}</p>
                           <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                             <span>{formatArticleAuthor(article.author)}</span>
-                            <span>{estimateReadingTimeMinutes(article.content)} min</span>
+                            <span>{article.readingTimeMinutes ?? 1} min</span>
                           </div>
                         </div>
                       </Link>

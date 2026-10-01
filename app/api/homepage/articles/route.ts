@@ -26,14 +26,40 @@ function resolveArticleImage(id: string, payload: Record<string, unknown>) {
     : value;
 }
 
+function stripHtmlForExcerpt(content: string) {
+  return content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function estimateReadingTimeMinutes(content: string) {
+  const words = stripHtmlForExcerpt(content).split(' ').filter(Boolean).length;
+  return Math.max(1, Math.round(words / 220));
+}
+
+function normalizeCategoryValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 export async function GET(request: NextRequest) {
   if (hasArticleStoreConfig()) {
     try {
+      const category = new URL(request.url).searchParams.get('category')?.trim();
+      // O filtro de categoria é aplicado aqui (em memória), e não como
+      // igualdade exata no Supabase: o valor salvo no payload pode ter
+      // acentuação/maiúsculas diferentes do slug usado na URL.
       const rows = await listStoredArticles(undefined, { publishedOnly: true, lite: true });
+      const normalizedCategory = category ? normalizeCategoryValue(category) : null;
       const articles = rows
         .filter((row) => !row.deleted && isPublishedArticle(row.payload.status))
+        .filter((row) => !normalizedCategory || normalizeCategoryValue(String(row.payload.category ?? '')) === normalizedCategory)
         .map((row) => {
           const payload = row.payload;
+          const content = String(payload.content ?? '');
+          const excerpt = String(payload.excerpt ?? '') || stripHtmlForExcerpt(content).slice(0, 180);
           return {
             id: row.id,
             slug: typeof payload.slug === 'string' && payload.slug.trim() ? payload.slug.trim() : undefined,
@@ -41,10 +67,12 @@ export async function GET(request: NextRequest) {
             subtitle: String(payload.subtitle ?? ''),
             category: String(payload.category ?? ''),
             author: String(payload.author ?? ''),
-            excerpt: String(payload.excerpt ?? ''),
+            excerpt,
+            readingTimeMinutes: estimateReadingTimeMinutes(content || excerpt),
             image: resolveArticleImage(row.id, payload),
             featured: Boolean(payload.featured),
             status: String(payload.status ?? 'publicado'),
+            createdAt: String(payload.createdAt ?? row.updated_at),
             updatedAt: String(payload.updatedAt ?? row.updated_at),
             views: Number(payload.views ?? 0),
           };
