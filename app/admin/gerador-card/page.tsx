@@ -637,7 +637,7 @@ function drawRoundedRect(
 // Desenha a linha de redes sociais/site do card: um selo colorido com o
 // logotipo real da rede (ícone, não sigla/emoji) seguido do valor cadastrado
 // (ex.: "@rbnbrasil"), quebrando para a linha seguinte quando não cabe mais
-// na largura do card. Fonte e tamanho do texto são configuráveis pelo usuário.
+// na largura do card. Fonte, tamanho e alinhamento são configuráveis.
 function drawSocialLinksRow(
   context: CanvasRenderingContext2D,
   entries: SocialBadgeEntry[],
@@ -647,7 +647,8 @@ function drawSocialLinksRow(
   maxWidth: number,
   textColor: string,
   fontFamily: string,
-  fontSize: number
+  fontSize: number,
+  align: TitleAlign
 ) {
   if (entries.length === 0) {
     return;
@@ -661,34 +662,56 @@ function drawSocialLinksRow(
   const gapItems = safeFontSize * 1.05;
   const lineHeight = badgeSize + safeFontSize * 0.5;
 
-  let cursorX = startX;
-  let cursorY = startY;
+  context.font = textFont;
+
+  // Primeiro agrupa os itens em linhas (respeitando a largura máxima) para
+  // então poder alinhar cada linha à esquerda, ao centro ou à direita.
+  const lines: Array<Array<{ entry: SocialBadgeEntry; itemWidth: number }>> = [[]];
+  let currentLineWidth = 0;
 
   entries.forEach((entry) => {
-    context.font = textFont;
     const textWidth = context.measureText(entry.text).width;
     const itemWidth = badgeSize + gapBadgeText + textWidth;
+    const currentLine = lines[lines.length - 1];
 
-    if (cursorX > startX && cursorX + itemWidth > startX + maxWidth) {
-      cursorX = startX;
-      cursorY += lineHeight;
+    if (currentLine.length > 0 && currentLineWidth + gapItems + itemWidth > maxWidth) {
+      lines.push([{ entry, itemWidth }]);
+      currentLineWidth = itemWidth;
+      return;
     }
 
-    context.fillStyle = entry.color;
-    drawRoundedRect(context, cursorX, cursorY, badgeSize, badgeSize, badgeSize / 2);
+    currentLine.push({ entry, itemWidth });
+    currentLineWidth += (currentLine.length > 1 ? gapItems : 0) + itemWidth;
+  });
 
-    const icon = iconImages[entry.platform];
-    if (icon) {
-      context.drawImage(icon, cursorX + (badgeSize - iconSize) / 2, cursorY + (badgeSize - iconSize) / 2, iconSize, iconSize);
-    }
+  lines.forEach((line, lineIndex) => {
+    const lineWidth = line.reduce((total, item, index) => total + item.itemWidth + (index > 0 ? gapItems : 0), 0);
+    const lineStartX =
+      align === 'center'
+        ? startX + (maxWidth - lineWidth) / 2
+        : align === 'right'
+          ? startX + maxWidth - lineWidth
+          : startX;
+    const cursorY = startY + lineIndex * lineHeight;
+    let cursorX = lineStartX;
 
-    context.fillStyle = textColor;
-    context.font = textFont;
-    context.textBaseline = 'middle';
-    context.fillText(entry.text, cursorX + badgeSize + gapBadgeText, cursorY + badgeSize / 2 + 1);
-    context.textBaseline = 'alphabetic';
+    line.forEach(({ entry, itemWidth }) => {
+      context.fillStyle = entry.color;
+      drawRoundedRect(context, cursorX, cursorY, badgeSize, badgeSize, badgeSize / 2);
 
-    cursorX += itemWidth + gapItems;
+      const icon = iconImages[entry.platform];
+      if (icon) {
+        context.drawImage(icon, cursorX + (badgeSize - iconSize) / 2, cursorY + (badgeSize - iconSize) / 2, iconSize, iconSize);
+      }
+
+      context.fillStyle = textColor;
+      context.font = textFont;
+      context.textBaseline = 'middle';
+      context.fillText(entry.text, cursorX + badgeSize + gapBadgeText, cursorY + badgeSize / 2 + 1);
+      context.textBaseline = 'alphabetic';
+
+      cursorX += itemWidth + gapItems;
+    });
   });
 }
 
@@ -795,7 +818,8 @@ function drawTemplate(
   socialFont: TitleFont,
   socialFontSize: number,
   socialOffsetX: number,
-  socialOffsetY: number
+  socialOffsetY: number,
+  socialAlign: TitleAlign
 ) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const titleFontFamily = getFontFamily(titleFont);
@@ -916,7 +940,8 @@ function drawTemplate(
       CANVAS_WIDTH - categoryX * 2,
       socialTextColor,
       getFontFamily(socialFont),
-      socialFontSize
+      socialFontSize,
+      socialAlign
     );
   }
 
@@ -1174,6 +1199,7 @@ export default function GeradorCardPage() {
   const [socialFontSize, setSocialFontSize] = useState(28);
   const [socialOffsetX, setSocialOffsetX] = useState(0);
   const [socialOffsetY, setSocialOffsetY] = useState(0);
+  const [socialAlign, setSocialAlign] = useState<TitleAlign>('left');
   const [socialIconImages, setSocialIconImages] = useState<Partial<Record<SocialPlatformKey, HTMLImageElement>>>({});
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null);
@@ -1762,7 +1788,8 @@ export default function GeradorCardPage() {
         socialFont,
         socialFontSize,
         socialOffsetX,
-        socialOffsetY
+        socialOffsetY,
+        socialAlign
       );
     },
     [
@@ -1808,6 +1835,7 @@ export default function GeradorCardPage() {
       socialFontSize,
       socialOffsetX,
       socialOffsetY,
+      socialAlign,
       titleFont,
       titleFontStyle,
       titleAlign,
@@ -3085,6 +3113,29 @@ export default function GeradorCardPage() {
                         />
                       </label>
                     </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">Alinhamento</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {([
+                          { id: 'left', label: 'Esquerda' },
+                          { id: 'center', label: 'Centro' },
+                          { id: 'right', label: 'Direita' },
+                        ] as Array<{ id: TitleAlign; label: string }>).map((option) => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSocialAlign(option.id)}
+                            className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                              socialAlign === option.id
+                                ? 'border-[#991B1B] bg-[#991B1B]/10 text-[#991B1B]'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-[#991B1B]/40'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -3092,6 +3143,7 @@ export default function GeradorCardPage() {
                         setSocialFontSize(28);
                         setSocialOffsetX(0);
                         setSocialOffsetY(0);
+                        setSocialAlign('left');
                       }}
                       className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-[#991B1B] hover:text-[#991B1B]"
                     >
