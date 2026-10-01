@@ -176,9 +176,33 @@ function buildSocialIconDataUrl(platform: SocialPlatformKey) {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+// Logotipo real do Instagram (quadrado arredondado com o gradiente oficial),
+// desenhado por inteiro no lugar do selo de cor sólida + ícone branco usado
+// pelas demais redes, para ficar fiel ao app.
+function buildInstagramLogoDataUrl() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <defs>
+      <linearGradient id="ig-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#FFDD55"/>
+        <stop offset="28%" stop-color="#FF543E"/>
+        <stop offset="55%" stop-color="#C837AB"/>
+        <stop offset="100%" stop-color="#5B51D8"/>
+      </linearGradient>
+    </defs>
+    <rect width="24" height="24" rx="6.5" fill="url(#ig-gradient)"/>
+    <rect x="6" y="6" width="12" height="12" rx="4" fill="none" stroke="#FFFFFF" stroke-width="1.7"/>
+    <circle cx="12" cy="12" r="3.1" fill="none" stroke="#FFFFFF" stroke-width="1.7"/>
+    <circle cx="16.3" cy="7.7" r="1" fill="#FFFFFF"/>
+  </svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 function loadSocialIconImages() {
   return Promise.all(
-    SOCIAL_PLATFORM_ORDER.map(async (platform) => [platform, await loadImage(buildSocialIconDataUrl(platform))] as const)
+    SOCIAL_PLATFORM_ORDER.map(async (platform) => {
+      const dataUrl = platform === 'instagram' ? buildInstagramLogoDataUrl() : buildSocialIconDataUrl(platform);
+      return [platform, await loadImage(dataUrl)] as const;
+    })
   ).then((pairs) => Object.fromEntries(pairs) as Record<SocialPlatformKey, HTMLImageElement>);
 }
 
@@ -696,12 +720,24 @@ function drawSocialLinksRow(
     let cursorX = lineStartX;
 
     line.forEach(({ entry, itemWidth }) => {
-      context.fillStyle = entry.color;
-      drawRoundedRect(context, cursorX, cursorY, badgeSize, badgeSize, badgeSize / 2);
-
       const icon = iconImages[entry.platform];
-      if (icon) {
-        context.drawImage(icon, cursorX + (badgeSize - iconSize) / 2, cursorY + (badgeSize - iconSize) / 2, iconSize, iconSize);
+
+      if (entry.platform === 'instagram') {
+        // O logotipo do Instagram já traz seu próprio fundo em gradiente,
+        // então é desenhado sozinho (sem o selo de cor sólida) e um pouco
+        // menor que o selo das demais redes, para não ficar grande demais.
+        const logoSize = badgeSize * 0.8;
+        const logoOffset = (badgeSize - logoSize) / 2;
+        if (icon) {
+          context.drawImage(icon, cursorX + logoOffset, cursorY + logoOffset, logoSize, logoSize);
+        }
+      } else {
+        context.fillStyle = entry.color;
+        drawRoundedRect(context, cursorX, cursorY, badgeSize, badgeSize, badgeSize / 2);
+
+        if (icon) {
+          context.drawImage(icon, cursorX + (badgeSize - iconSize) / 2, cursorY + (badgeSize - iconSize) / 2, iconSize, iconSize);
+        }
       }
 
       context.fillStyle = textColor;
