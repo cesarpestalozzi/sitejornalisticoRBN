@@ -963,9 +963,14 @@ function drawTemplate(
 
   if (socialBadges.length > 0) {
     const socialTextColor = footerGradient === 'light' ? '#111111' : '#FFFFFF';
+    // A margem inferior considera a altura do selo (badge) para a linha não
+    // ser cortada, mesmo quando o usuário arrasta o controle de posição
+    // vertical para o valor máximo (mais perto da borda do card).
+    const socialBadgeSize = Math.max(16, Math.min(64, socialFontSize)) * 1.55;
+    const socialBottomMargin = socialBadgeSize + 24;
     const socialStartY = Math.min(
       titleStartY + wrappedTitle.lines.length * wrappedTitle.lineHeight + 36 + socialOffsetY,
-      CANVAS_HEIGHT - 86
+      CANVAS_HEIGHT - socialBottomMargin
     );
     drawSocialLinksRow(
       context,
@@ -3141,7 +3146,7 @@ export default function GeradorCardPage() {
                         <input
                           type="range"
                           min={-200}
-                          max={200}
+                          max={400}
                           step={2}
                           value={socialOffsetY}
                           onChange={(event) => setSocialOffsetY(Number(event.target.value))}
