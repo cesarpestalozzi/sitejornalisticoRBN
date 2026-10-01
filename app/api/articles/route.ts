@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { hasArticleStoreConfig, listStoredArticles, permanentlyDeleteStoredArticle, permanentlyDeleteStoredTrash, saveStoredArticle } from '../_lib/articleStore';
+import { hasArticleStoreConfig, listStoredArticleSummaries, listStoredArticles, permanentlyDeleteStoredArticle, permanentlyDeleteStoredTrash, saveStoredArticle } from '../_lib/articleStore';
 import { resolveAdminUser } from '../_lib/adminServerAuth';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +43,39 @@ function liteArticlePayload(id: string, payload: Record<string, unknown>) {
         })
       : payload.images,
   };
+}
+
+function adminArticleSummary(id: string, payload: Record<string, unknown>) {
+  const fields = [
+    'slug',
+    'metaDescription',
+    'title',
+    'subtitle',
+    'category',
+    'author',
+    'authorUserIds',
+    'columnistUserId',
+    'showColumnist',
+    'excerpt',
+    'image',
+    'featured',
+    'status',
+    'scheduledDate',
+    'scheduledTime',
+    'location',
+    'publishedAt',
+    'lastUpdatedAt',
+    'createdAt',
+    'updatedAt',
+    'views',
+    'shares',
+    'podcastId',
+  ] as const;
+  const summary: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (Object.hasOwn(payload, field)) summary[field] = payload[field];
+  }
+  return liteArticlePayload(id, summary);
 }
 
 function samePerson(left: unknown, right: unknown) {
@@ -104,37 +137,53 @@ export async function GET(request: NextRequest) {
       const id = searchParams.get('id') || undefined;
       const category = searchParams.get('category')?.trim().toLowerCase();
       const includeDeleted = searchParams.get('includeDeleted') === 'true';
-      if (includeDeleted) {
-        const user = await resolveAdminUser(request);
-        if (!user || (user.role !== 'admin' && !user.permissions.includes('articles:view:all'))) {
-          return NextResponse.json({ error: 'Sem permissão para consultar o acervo administrativo.' }, { status: 403 });
-        }
+      const hasSession = Boolean(request.cookies.get('rbn_admin_user')?.value?.trim());
+      const user = hasSession ? await resolveAdminUser(request) : null;
+      const canViewAll = Boolean(
+        user && (user.role === 'admin' || user.permissions.includes('articles:view:all'))
+      );
+      if (!id && !user) {
+        return NextResponse.json({ error: 'É necessário estar autenticado para consultar o acervo.' }, { status: 403 });
       }
-      // Importante: esta listagem alimenta o useArticles() no painel, cujo
-      // estado em memória é reaproveitado por ações parciais (marcar
-      // destaque, somar visualizações/compartilhamentos, excluir) que
-      // regravam a matéria inteira. Por isso NÃO usamos payload_lite aqui
-      // — usar a versão sem a galeria de imagens apagaria "images" ao
-      // salvar essas ações. A resposta ao navegador já é enxuta via
-      // liteArticlePayload() abaixo; o que muda é a origem no Postgres.
-      const rows = await listStoredArticles(id);
+      if (includeDeleted && !canViewAll) {
+        return NextResponse.json({ error: 'Sem permissão para consultar a lixeira de notícias.' }, { status: 403 });
+      }
+      // Listagem resumida: payload_lite impede que imagens em base64 saiam do
+      // Postgres, e a projeção abaixo remove conteúdo/vídeos e campos que as
+      // tabelas administrativas não exibem. A edição individual segue usando
+      // ?id=... e recebe o payload integral.
+      const requestedLimit = Number(searchParams.get('limit') ?? 10000);
+      const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 10000) : 10000;
+      const rows = id
+        ? await listStoredArticles(id)
+        : await listStoredArticleSummaries({ includeDeleted: Boolean(includeDeleted && canViewAll), limit });
       const visibleRows = rows.filter((row) => {
-        if (!includeDeleted && row.deleted) {
+        if (row.deleted && !(includeDeleted && canViewAll)) {
           return false;
+        }
+        if (id && !canViewAll) {
+          const status = String(row.payload.status ?? '').trim().toLowerCase();
+          const isPublished = ['publicado', 'published', 'publish', 'online'].includes(status);
+          const isOwn = Boolean(user) && String(row.payload.author ?? '').trim().toLowerCase() === user?.name.trim().toLowerCase();
+          if (!isPublished && !isOwn) return false;
+        }
+        if (!id && user && !canViewAll) {
+          const status = String(row.payload.status ?? '').trim().toLowerCase();
+          const isPublished = ['publicado', 'published', 'publish', 'online'].includes(status);
+          const isOwn = String(row.payload.author ?? '').trim().toLowerCase() === user.name.trim().toLowerCase();
+          if (!isPublished && !isOwn) return false;
         }
         if (!category) {
           return true;
         }
         return normalizeCategory(String(row.payload.category ?? '')) === normalizeCategory(category);
       });
-      // A listagem completa (sem id) é usada para montar a visão geral do
-      // painel. Enviar as imagens em base64 de todas as matérias de uma vez
-      // gera respostas de dezenas de megabytes e derruba a rota com 502 na
-      // Vercel. Trocamos por uma referência leve; a edição de uma matéria
-      // específica (com "id") continua recebendo os dados originais.
+      // As listas retornam somente campos resumidos; imagens embutidas são
+      // substituídas por URLs leves. A edição individual (?id=...) continua
+      // recebendo o payload completo da matéria.
       const responseRows = id
         ? visibleRows
-        : visibleRows.map((row) => ({ ...row, payload: liteArticlePayload(row.id, row.payload) }));
+        : visibleRows.map((row) => ({ ...row, payload: adminArticleSummary(row.id, row.payload) }));
       return NextResponse.json(responseRows, {
         headers: { 'Cache-Control': 'no-store' },
       });
@@ -193,18 +242,45 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const user = await resolveAdminUser(request);
-  if (!user || (!user.permissions.includes('articles:edit:any') && !user.permissions.includes('articles:edit:own') && user.role !== 'admin')) return NextResponse.json({ error: 'Sem permissão para editar notícias.' }, { status: 403 });
+  if (!user || (
+    !user.permissions.includes('articles:edit:any') &&
+    !user.permissions.includes('articles:edit:own') &&
+    !user.permissions.includes('articles:trash:manage') &&
+    user.role !== 'admin'
+  )) return NextResponse.json({ error: 'Sem permissão para editar notícias.' }, { status: 403 });
   if (hasArticleStoreConfig()) {
     try {
-      const body = (await request.json()) as { article?: Record<string, unknown>; deleted?: boolean };
+      const body = (await request.json()) as {
+        id?: string;
+        updates?: Record<string, unknown>;
+        deleted?: boolean;
+        article?: Record<string, unknown>;
+      };
       const article = body.article || {};
-      if (!canEditArticle(user, article.author)) {
+      const id = String(body.id || article.id || '').trim();
+      if (!id) return NextResponse.json({ error: 'ID da notícia é obrigatório.' }, { status: 400 });
+      const existingRows = await listStoredArticles(id);
+      const existing = existingRows.find((row) => row.id === id) ?? existingRows[0];
+      if (!existing) return NextResponse.json({ error: 'Notícia não encontrada.' }, { status: 404 });
+      if (
+        existing.deleted &&
+        user.role !== 'admin' &&
+        !user.permissions.includes('articles:trash:manage')
+      ) {
+        return NextResponse.json({ error: 'Sem permissão para restaurar notícias da lixeira.' }, { status: 403 });
+      }
+      const updates = body.updates ?? article;
+      const mergedArticle: Record<string, unknown> = { ...existing.payload, ...updates, id: existing.id };
+      if (!existing.deleted && !canEditArticle(user, existing.payload.author)) {
         return NextResponse.json({ error: 'Você só pode editar suas próprias matérias.' }, { status: 403 });
       }
-      if (['publicado', 'agendado'].includes(String(article.status ?? '')) && !canPublishArticle(user, article.author)) {
+      if (
+        ['publicado', 'agendado'].includes(String(mergedArticle.status ?? '')) &&
+        !canPublishArticle(user, mergedArticle.author)
+      ) {
         return NextResponse.json({ error: 'Você só pode publicar suas próprias matérias.' }, { status: 403 });
       }
-      return await saveStoredArticle(article, Boolean(body.deleted));
+      return await saveStoredArticle(mergedArticle, body.deleted ?? existing.deleted);
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Falha ao atualizar notícia.' }, { status: 502 });
     }

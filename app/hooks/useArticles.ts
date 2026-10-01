@@ -67,8 +67,6 @@ export interface Article {
 
 const ARTICLES_KEY = 'pz_news_articles';
 const DELETED_ARTICLES_KEY = 'pz_news_deleted_articles';
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const SUPABASE_TABLE = 'pz_news_articles';
 
 type SupabaseArticleRow = {
@@ -77,20 +75,6 @@ type SupabaseArticleRow = {
   deleted: boolean;
   updated_at?: string;
 };
-
-function getSupabaseEndpoint(query = '') {
-  return `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}${query}`;
-}
-
-function getSupabaseHeaders() {
-  const key = SUPABASE_ANON_KEY ?? '';
-  const headers: Record<string, string> = {
-    apikey: key,
-    'Content-Type': 'application/json',
-  };
-  if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
-  return headers;
-}
 
 function isSupabaseRlsViolation(error: unknown) {
   if (!error || typeof error !== 'object') return false;
@@ -138,8 +122,8 @@ async function normalizeRemoteRows(rows: SupabaseArticleRow[]) {
 
 type RemoteArticlesSnapshot = Awaited<ReturnType<typeof normalizeRemoteRows>>;
 const REMOTE_ARTICLES_CACHE_TTL_MS = 6_000;
-let remoteArticlesCache: { at: number; data: RemoteArticlesSnapshot } | null = null;
-let remoteArticlesInFlight: Promise<RemoteArticlesSnapshot | null> | null = null;
+let remoteArticlesCache: { at: number; key: string; data: RemoteArticlesSnapshot } | null = null;
+let remoteArticlesInFlight: { key: string; promise: Promise<RemoteArticlesSnapshot | null> } | null = null;
 
 function invalidateRemoteArticlesCache() {
   remoteArticlesCache = null;
@@ -151,72 +135,46 @@ async function readRemoteArticles() {
     return null;
   }
 
-  if (remoteArticlesCache && Date.now() - remoteArticlesCache.at < REMOTE_ARTICLES_CACHE_TTL_MS) {
+  const currentUser = getCurrentAdminUser();
+  const canViewDeletedArticles = Boolean(
+    currentUser && (currentUser.role === 'admin' || (currentUser.permissions ?? []).includes('articles:view:all'))
+  );
+  const cacheKey = `${currentUser?.id ?? 'anonymous'}:${canViewDeletedArticles}`;
+  if (
+    remoteArticlesCache?.key === cacheKey &&
+    Date.now() - remoteArticlesCache.at < REMOTE_ARTICLES_CACHE_TTL_MS
+  ) {
     return remoteArticlesCache.data;
   }
-  if (remoteArticlesInFlight) {
-    return remoteArticlesInFlight;
+  if (remoteArticlesInFlight?.key === cacheKey) {
+    return remoteArticlesInFlight.promise;
   }
 
   const loadPromise = (async (): Promise<RemoteArticlesSnapshot | null> => {
-  try {
-    const response = await fetch('/api/articles?includeDeleted=true', {
+    const query = canViewDeletedArticles ? '?includeDeleted=true' : '';
+    const response = await fetch(`/api/articles${query}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store',
     });
-    if (response.ok) {
-      const rows = (await response.json()) as SupabaseArticleRow[];
-      const normalized = await normalizeRemoteRows(rows);
-      remoteArticlesCache = { at: Date.now(), data: normalized };
-      return normalized;
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const error = new Error(payload.error ?? `Falha ao carregar artigos (HTTP ${response.status}).`);
+      Object.assign(error, { status: response.status });
+      throw error;
     }
-  } catch (error) {
-    console.warn('API interna de artigos indisponível; tentando Supabase direto.', error);
-  }
-
-  if (!hasSupabaseConfig) {
-    return null;
-  }
-
-  if (supabase) {
-    const { data, error } = await supabase
-      .from('pz_news_articles')
-      .select('id, payload, deleted, updated_at')
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      throw new Error(`Erro ao ler artigos remotos: ${error.message}`);
-    }
-
-    const normalized = await normalizeRemoteRows((data ?? []) as SupabaseArticleRow[]);
-    remoteArticlesCache = { at: Date.now(), data: normalized };
+    const rows = (await response.json()) as SupabaseArticleRow[];
+    const normalized = await normalizeRemoteRows(rows);
+    remoteArticlesCache = { at: Date.now(), key: cacheKey, data: normalized };
     return normalized;
-  }
-
-  const response = await fetch(
-    getSupabaseEndpoint('?select=id,payload,deleted,updated_at&order=updated_at.desc'),
-    {
-      method: 'GET',
-      headers: getSupabaseHeaders(),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Erro ao ler artigos remotos: ${response.status}`);
-  }
-
-  const rows = (await response.json()) as SupabaseArticleRow[];
-  const normalized = await normalizeRemoteRows(rows);
-  remoteArticlesCache = { at: Date.now(), data: normalized };
-  return normalized;
   })();
 
-  remoteArticlesInFlight = loadPromise;
+  const request = { key: cacheKey, promise: loadPromise };
+  remoteArticlesInFlight = request;
   try {
     return await loadPromise;
   } finally {
-    if (remoteArticlesInFlight === loadPromise) {
+    if (remoteArticlesInFlight === request) {
       remoteArticlesInFlight = null;
     }
   }
@@ -281,7 +239,7 @@ async function upsertRemoteArticle(article: Article, deleted: boolean) {
   }
 }
 
-async function updateRemoteArticle(article: Article, deleted: boolean) {
+async function patchRemoteArticle(id: string, updates: Partial<Article>, deleted?: boolean) {
   if (!hasSupabaseConfig && typeof window === 'undefined') {
     return;
   }
@@ -293,7 +251,7 @@ async function updateRemoteArticle(article: Article, deleted: boolean) {
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
-      body: JSON.stringify({ article, deleted }),
+      body: JSON.stringify({ id, updates, deleted }),
     });
 
     if (response.ok) {
@@ -306,14 +264,25 @@ async function updateRemoteArticle(article: Article, deleted: boolean) {
     throw new Error(message);
   } catch (error) {
     if (hasSupabaseConfig && supabase) {
+      const { data: existing, error: readError } = await supabase
+        .from(SUPABASE_TABLE)
+        .select('payload, deleted')
+        .eq('id', id)
+        .maybeSingle();
+      if (readError) {
+        throw new Error(`Erro ao ler artigo para atualização: ${readError.message}`);
+      }
+      if (!existing || !existing.payload || typeof existing.payload !== 'object') {
+        throw new Error('Artigo não encontrado para atualização remota.');
+      }
       const { data, error: supabaseError } = await supabase
         .from(SUPABASE_TABLE)
         .update({
-          payload: article,
-          deleted,
+          payload: { ...(existing.payload as Record<string, unknown>), ...updates, id },
+          deleted: deleted ?? existing.deleted,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', article.id)
+        .eq('id', id)
         .select('id')
         .limit(1);
 
@@ -652,6 +621,15 @@ export function useArticles() {
           }
         } catch (error) {
           console.error(`Erro ao carregar artigos remotos (tentativa ${attempt}/${attempts}):`, error);
+          const status = error && typeof error === 'object' && 'status' in error
+            ? Number(error.status)
+            : undefined;
+          if (status !== undefined && status >= 400 && status < 500) {
+            if (!isActive) return;
+            setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar as matérias.');
+            setIsLoaded(true);
+            return;
+          }
           if (attempt === attempts) {
             if (!isActive) {
               return;
@@ -787,11 +765,25 @@ export function useArticles() {
           updatedAt: new Date().toISOString(),
         } as Article);
 
+        const persistedUpdates: Partial<Article> = {
+          ...updates,
+          author: nextAuthor,
+          scheduledDate: nextStatus === 'agendado' ? nextScheduledDate : undefined,
+          scheduledTime: nextStatus === 'agendado' ? nextScheduledTime : undefined,
+          publishedAt: nextPublishedAt,
+          lastUpdatedAt: nextArticle.lastUpdatedAt,
+          updatedAt: nextArticle.updatedAt,
+        };
+        if (Object.hasOwn(updates, 'images') || Object.hasOwn(updates, 'image')) {
+          persistedUpdates.images = nextImages;
+          persistedUpdates.image = nextImage;
+        }
+
         if (nextStatus === 'publicado' && article.status !== 'publicado') {
           maybeSendBrowserNotification(nextArticle);
         }
 
-        void upsertRemoteArticle(nextArticle, false).catch((error) => {
+        void patchRemoteArticle(id, persistedUpdates, false).catch((error) => {
           warnSupabaseWriteIssue('sincronizar atualização do artigo', error);
         });
         return nextArticle;
@@ -819,7 +811,7 @@ export function useArticles() {
     setDeletedArticles(nextDeletedArticles);
     syncLocalStorageSnapshot(nextArticles, nextDeletedArticles);
 
-    void upsertRemoteArticle(deletedVersion, true).catch((error) => {
+    void patchRemoteArticle(id, { updatedAt: deletedVersion.updatedAt }, true).catch((error) => {
       warnSupabaseWriteIssue('sincronizar envio para lixeira', error);
     });
   };
@@ -843,7 +835,7 @@ export function useArticles() {
     setArticles(nextArticles);
     syncLocalStorageSnapshot(nextArticles, nextDeletedArticles);
 
-    void upsertRemoteArticle(articleToRestore, false).catch((error) => {
+    void patchRemoteArticle(id, { updatedAt: new Date().toISOString() }, false).catch((error) => {
       warnSupabaseWriteIssue('sincronizar restauração de artigo', error);
     });
   };
@@ -889,7 +881,7 @@ export function useArticles() {
         views: (baseArticle.views ?? 0) + 1,
       };
 
-      void upsertRemoteArticle(nextArticle, false).catch((error) => {
+      void patchRemoteArticle(id, { views: nextArticle.views }).catch((error) => {
         warnSupabaseWriteIssue('sincronizar visualização da matéria', error);
       });
 
@@ -913,7 +905,7 @@ export function useArticles() {
         shares: (baseArticle.shares ?? 0) + 1,
       };
 
-      void upsertRemoteArticle(nextArticle, false).catch((error) => {
+      void patchRemoteArticle(id, { shares: nextArticle.shares }).catch((error) => {
         warnSupabaseWriteIssue('sincronizar compartilhamento da matéria', error);
       });
 

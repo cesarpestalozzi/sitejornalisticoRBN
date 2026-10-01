@@ -162,6 +162,104 @@ export async function listStoredArticles(id?: string, options?: {
   return rows;
 }
 
+const ARTICLE_LIST_FIELDS = [
+  'slug',
+  'metaDescription',
+  'title',
+  'subtitle',
+  'category',
+  'author',
+  'authorUserIds',
+  'columnistUserId',
+  'showColumnist',
+  'excerpt',
+  'image',
+  'featured',
+  'status',
+  'scheduledDate',
+  'scheduledTime',
+  'location',
+  'publishedAt',
+  'lastUpdatedAt',
+  'createdAt',
+  'updatedAt',
+  'views',
+  'shares',
+  'podcastId',
+] as const;
+
+// Select only fields used by the admin lists and dashboards. In particular,
+// this avoids reading/transferring article bodies, embedded galleries, and
+// videos for every row when only the list summary is displayed. Opening an
+// article by ID still uses listStoredArticles(id) to fetch its complete data.
+export async function listStoredArticleSummaries(options?: {
+  includeDeleted?: boolean;
+  limit?: number;
+}): Promise<ArticleRow[]> {
+  if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
+  const params = new URLSearchParams({
+    select: [
+      'id',
+      'deleted',
+      'updated_at',
+      ...ARTICLE_LIST_FIELDS.map((field) =>
+        field === 'image' ? 'image:payload_lite->image' : `${field}:payload->${field}`
+      ),
+    ].join(','),
+    order: 'updated_at.desc',
+    limit: String(Math.min(Math.max(options?.limit ?? 10000, 1), 10000)),
+  });
+  if (!options?.includeDeleted) params.set('deleted', 'eq.false');
+
+  const cacheKey = `summary:${params.toString()}`;
+  const cached = articleRowsCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < ARTICLE_ROWS_CACHE_TTL_MS) return cached.rows;
+
+  const response = await fetch(`${tableUrl}?${params.toString()}`, { headers: headers(), cache: 'no-store' });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    if (/payload_lite/i.test(body)) {
+      const fullRows = await listStoredArticles(undefined, {
+        limit: options?.limit,
+        lite: true,
+      });
+      const summaries = fullRows
+        .filter((row) => options?.includeDeleted || !row.deleted)
+        .map((row) => {
+          const payload: Record<string, unknown> = {};
+          for (const field of ARTICLE_LIST_FIELDS) {
+            if (Object.hasOwn(row.payload, field)) payload[field] = row.payload[field];
+          }
+          return { ...row, payload };
+        });
+      return summaries;
+    }
+    throw new Error(`Supabase retornou ${response.status} ao consultar o resumo das notícias.`);
+  }
+  const rows = (await response.json()) as Array<Record<string, unknown>>;
+  const summaries = rows
+    .filter((row) =>
+      typeof row.id === 'string' &&
+      !row.id.startsWith('__analytics__:') &&
+      !row.id.startsWith('__comment__:') &&
+      !row.id.startsWith('__videoconference:')
+    )
+    .map((row) => {
+      const payload: Record<string, unknown> = {};
+      for (const field of ARTICLE_LIST_FIELDS) {
+        if (Object.hasOwn(row, field)) payload[field] = row[field];
+      }
+      return {
+        id: String(row.id),
+        deleted: Boolean(row.deleted),
+        updated_at: typeof row.updated_at === 'string' ? row.updated_at : undefined,
+        payload,
+      };
+    });
+  articleRowsCache.set(cacheKey, { at: Date.now(), rows: summaries });
+  return summaries;
+}
+
 export async function getStoredArticleImages(id: string): Promise<ArticleImageRow | null> {
   if (!tableUrl || !supabaseKey) throw new Error('Supabase não configurado para armazenar notícias.');
   const params = new URLSearchParams({

@@ -32,9 +32,12 @@ function headers() {
 // é invalidado imediatamente após qualquer gravação.
 const USERS_CACHE_TTL_MS = 8_000;
 let usersCache: { at: number; rows: StoredUserRow[] } | null = null;
+const userByIdCache = new Map<string, { at: number; row: StoredUserRow | null }>();
+const userByIdInFlight = new Map<string, Promise<StoredUserRow | null>>();
 
 export function invalidateStoredUsersCache() {
   usersCache = null;
+  userByIdCache.clear();
 }
 
 export async function listStoredUsers(): Promise<StoredUserRow[]> {
@@ -45,6 +48,9 @@ export async function listStoredUsers(): Promise<StoredUserRow[]> {
   if (!response.ok) throw new Error(`Supabase recusou a consulta de usuários (${response.status}).`);
   const rows = (await response.json()) as StoredUserRow[];
   usersCache = { at: Date.now(), rows };
+  for (const row of rows) {
+    userByIdCache.set(String(row.id), { at: usersCache.at, row });
+  }
   return rows;
 }
 
@@ -53,13 +59,29 @@ export async function listStoredUsers(): Promise<StoredUserRow[]> {
 // de um único administrador a cada requisição.
 export async function getStoredUserById(id: string): Promise<StoredUserRow | null> {
   if (!id) return null;
+  const cachedById = userByIdCache.get(id);
+  if (cachedById && Date.now() - cachedById.at < USERS_CACHE_TTL_MS) return cachedById.row;
+  const inFlight = userByIdInFlight.get(id);
+  if (inFlight) return inFlight;
   if (usersCache && Date.now() - usersCache.at < USERS_CACHE_TTL_MS) {
-    return usersCache.rows.find((row) => String(row.id) === id) ?? null;
+    const row = usersCache.rows.find((item) => String(item.id) === id) ?? null;
+    userByIdCache.set(id, { at: usersCache.at, row });
+    return row;
   }
-  const response = await fetch(`${table}?select=id,payload,updated_at&id=eq.${encodeURIComponent(id)}&limit=1`, { headers: headers(), cache: 'no-store' });
-  if (!response.ok) throw new Error(`Supabase recusou a consulta de usuário (${response.status}).`);
-  const rows = (await response.json()) as StoredUserRow[];
-  return rows[0] ?? null;
+  const request = (async () => {
+    const response = await fetch(`${table}?select=id,payload,updated_at&id=eq.${encodeURIComponent(id)}&limit=1`, { headers: headers(), cache: 'no-store' });
+    if (!response.ok) throw new Error(`Supabase recusou a consulta de usuário (${response.status}).`);
+    const rows = (await response.json()) as StoredUserRow[];
+    const row = rows[0] ?? null;
+    userByIdCache.set(id, { at: Date.now(), row });
+    return row;
+  })();
+  userByIdInFlight.set(id, request);
+  try {
+    return await request;
+  } finally {
+    if (userByIdInFlight.get(id) === request) userByIdInFlight.delete(id);
+  }
 }
 
 export async function saveStoredUser(id: string, payload: Record<string, unknown>) {
