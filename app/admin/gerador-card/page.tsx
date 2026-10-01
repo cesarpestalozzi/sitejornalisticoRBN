@@ -1616,7 +1616,20 @@ export default function GeradorCardPage() {
     });
 
     heroVideo.currentTime = effectiveVideoTrim.startTime;
+    // O elemento começa a tocar mudo (`muted = true`) porque os navegadores
+    // bloqueiam a reprodução programática de vídeo com som sem um gesto do
+    // usuário recente — e os `await`s acima (fontes, carregamento do vídeo)
+    // podem consumir essa permissão antes de chegarmos aqui. Assim que o
+    // `play()` é aceito, já estamos com o elemento conectado ao grafo de
+    // Web Audio (a rota direta para as caixas de som já foi cortada), então
+    // é seguro "desmutar" agora: isso não toca som nenhum pelo computador,
+    // mas libera o volume efetivo que alimenta o nó de áudio capturado —
+    // sem isso, a trilha gravada ficava sempre em silêncio.
     await heroVideo.play();
+    if (audioSourceNode) {
+      heroVideo.muted = false;
+      heroVideo.volume = 1;
+    }
     recorder.start(250);
 
     await new Promise<void>((resolve) => {
