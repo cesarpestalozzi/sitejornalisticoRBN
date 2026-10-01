@@ -1175,15 +1175,15 @@ export default function GeradorCardPage() {
   const [imageScale, setImageScale] = useState(1);
   const [imageOffsetX, setImageOffsetX] = useState(0);
   const [imageOffsetY, setImageOffsetY] = useState(0);
-  const [categoryBackgroundColor, setCategoryBackgroundColor] = useState('#FFFFFF');
+  const [categoryBackgroundColor, setCategoryBackgroundColor] = useState(CARD_ACCENT_RED);
   const [isCategoryBackgroundTransparent, setIsCategoryBackgroundTransparent] = useState(false);
-  const [categoryTextColor, setCategoryTextColor] = useState(CARD_ACCENT_RED);
+  const [categoryTextColor, setCategoryTextColor] = useState('#FFFFFF');
   const [categoryBorderColor, setCategoryBorderColor] = useState(CARD_ACCENT_RED);
-  const [categoryFont, setCategoryFont] = useState<TitleFont>('montserrat-extrabold');
+  const [categoryFont, setCategoryFont] = useState<TitleFont>('montserrat-semibold');
   const [categoryFontStyle, setCategoryFontStyle] = useState<TitleFontStyle>('regular');
   const [categoryFontSize, setCategoryFontSize] = useState(30);
   const [categoryPadding, setCategoryPadding] = useState(26);
-  const [categoryBorderRadius, setCategoryBorderRadius] = useState(29);
+  const [categoryBorderRadius, setCategoryBorderRadius] = useState(18);
   const [customImageDataUrl, setCustomImageDataUrl] = useState('');
   const [customImageName, setCustomImageName] = useState('');
   const [customVideoUrl, setCustomVideoUrl] = useState('');
@@ -2804,11 +2804,11 @@ export default function GeradorCardPage() {
                           setCategoryBackgroundColor(CARD_ACCENT_RED);
                           setCategoryTextColor('#FFFFFF');
                           setCategoryBorderColor(CARD_ACCENT_RED);
-                          setCategoryFont('montserrat-extrabold');
+                          setCategoryFont('montserrat-semibold');
                           setCategoryFontStyle('regular');
                           setCategoryFontSize(30);
                           setCategoryPadding(26);
-                          setCategoryBorderRadius(29);
+                          setCategoryBorderRadius(18);
                         }}
                         className="text-xs font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]"
                       >
