@@ -1,8 +1,24 @@
 'use client';
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, ComponentType, CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Montserrat } from 'next/font/google';
-import { Download, FolderOpen, ImageUp, Layers3, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react';
+import {
+  Clock,
+  Download,
+  Facebook,
+  FolderOpen,
+  Globe,
+  ImageUp,
+  Instagram,
+  Layers3,
+  Link2,
+  Music2,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Trash2,
+  Youtube,
+} from 'lucide-react';
 import AdminSidebar from '@/app/components/AdminSidebar';
 import { useArticles } from '@/app/hooks/useArticles';
 import { useUsers } from '@/app/hooks/useUsers';
@@ -43,6 +59,14 @@ type TitleFont =
 type TitleFontStyle = 'regular' | 'bold' | 'italic' | 'bold-italic';
 type IntroAnimation = 'fade-up' | 'slide-left' | 'zoom-in';
 type PreviewKind = 'image' | 'video';
+// Controla, no vídeo exportado, se a logo/categoria/manchete/redes sociais
+// ficam visíveis durante todo o clipe ("full") ou só numa janela de tempo
+// escolhida pelo usuário ("custom", com cardOverlayStart/cardOverlayEnd).
+type CardOverlayMode = 'full' | 'custom';
+type SocialPlatformKey = 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'website' | 'other';
+type SocialLinkEntry = { value: string; enabled: boolean };
+type SocialLinksState = Record<SocialPlatformKey, SocialLinkEntry> & { otherLabel: string };
+type SocialBadgeEntry = { badge: string; text: string; color: string };
 type CardGeneratorPreset = {
   id: string;
   name: string;
@@ -97,6 +121,41 @@ const VIDEO_EXPORT_EXTENSION = 'webm';
 const VIDEO_EXPORT_MAX_DURATION_SECONDS = 180;
 const VIDEO_INTRO_DURATION_SECONDS = 1.15;
 const CARD_PRESETS_STORAGE_KEY = 'rbn-card-generator-presets';
+// As redes sociais/site são informações de marca que o usuário costuma
+// cadastrar uma única vez e reaproveitar em muitos cards, por isso ficam
+// salvas no navegador (como as predefinições) em vez de resetar a cada
+// notícia selecionada.
+const CARD_SOCIAL_LINKS_STORAGE_KEY = 'rbn-card-generator-social-links';
+
+const SOCIAL_PLATFORM_ORDER: SocialPlatformKey[] = ['instagram', 'tiktok', 'youtube', 'facebook', 'website', 'other'];
+
+const DEFAULT_SOCIAL_LINKS: SocialLinksState = {
+  instagram: { value: '', enabled: false },
+  tiktok: { value: '', enabled: false },
+  youtube: { value: '', enabled: false },
+  facebook: { value: '', enabled: false },
+  website: { value: '', enabled: false },
+  other: { value: '', enabled: false },
+  otherLabel: 'Contato',
+};
+
+const SOCIAL_PLATFORM_META: Record<
+  SocialPlatformKey,
+  {
+    label: string;
+    badge: string;
+    color: string;
+    placeholder: string;
+    Icon: ComponentType<{ className?: string; style?: CSSProperties }>;
+  }
+> = {
+  instagram: { label: 'Instagram', badge: 'IG', color: '#D6249F', placeholder: '@rbnbrasil', Icon: Instagram },
+  tiktok: { label: 'TikTok', badge: 'TT', color: '#111111', placeholder: '@rbnbrasil', Icon: Music2 },
+  youtube: { label: 'YouTube', badge: 'YT', color: '#CC0000', placeholder: '@rbnbrasil', Icon: Youtube },
+  facebook: { label: 'Facebook', badge: 'FB', color: '#1877F2', placeholder: '/rbnbrasil', Icon: Facebook },
+  website: { label: 'Site', badge: 'WEB', color: '#1F2937', placeholder: 'rbnbrasil.com.br', Icon: Globe },
+  other: { label: 'Outro contato', badge: '', color: '#374151', placeholder: 'Ex.: WhatsApp (11) 99999-9999', Icon: Link2 },
+};
 
 const templateOptions: Array<{
   id: CardTemplate;
@@ -302,6 +361,17 @@ function clampVideoTrim(startTime: number, clipDuration: number, totalDuration: 
   };
 }
 
+// Janela de tempo (dentro do clipe já cortado) em que a logo, a categoria, a
+// manchete e as redes sociais ficam visíveis no vídeo exportado. Garante
+// sempre 0 <= start <= end <= clipDuration, mesmo que o usuário tenha
+// configurado a janela para um vídeo mais longo antes de reduzir o corte.
+function clampOverlayWindow(start: number, end: number, clipDuration: number) {
+  const safeTotal = Number.isFinite(clipDuration) && clipDuration > 0 ? clipDuration : 0;
+  const safeStart = Math.max(0, Math.min(start, safeTotal));
+  const safeEnd = Math.max(safeStart, Math.min(end, safeTotal));
+  return { start: safeStart, end: safeEnd };
+}
+
 function formatSecondsLabel(totalSeconds: number) {
   const safeSeconds = Math.max(0, Math.round(totalSeconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -378,6 +448,59 @@ function writeCardPresetsToStorage(presets: CardGeneratorPreset[]) {
   }
 
   window.localStorage.setItem(CARD_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+}
+
+function isSocialLinkEntry(value: unknown): value is SocialLinkEntry {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const entry = value as SocialLinkEntry;
+  return typeof entry.value === 'string' && typeof entry.enabled === 'boolean';
+}
+
+function readSocialLinksFromStorage(): SocialLinksState {
+  if (typeof window === 'undefined') {
+    return DEFAULT_SOCIAL_LINKS;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(CARD_SOCIAL_LINKS_STORAGE_KEY);
+    if (!stored) {
+      return DEFAULT_SOCIAL_LINKS;
+    }
+
+    const parsedValue: unknown = JSON.parse(stored);
+    if (!parsedValue || typeof parsedValue !== 'object') {
+      return DEFAULT_SOCIAL_LINKS;
+    }
+
+    const parsedRecord = parsedValue as Partial<Record<keyof SocialLinksState, unknown>>;
+    const nextState = { ...DEFAULT_SOCIAL_LINKS };
+
+    SOCIAL_PLATFORM_ORDER.forEach((key) => {
+      const parsedEntry = parsedRecord[key];
+      if (isSocialLinkEntry(parsedEntry)) {
+        nextState[key] = parsedEntry;
+      }
+    });
+
+    if (typeof parsedRecord.otherLabel === 'string' && parsedRecord.otherLabel.trim()) {
+      nextState.otherLabel = parsedRecord.otherLabel;
+    }
+
+    return nextState;
+  } catch {
+    return DEFAULT_SOCIAL_LINKS;
+  }
+}
+
+function writeSocialLinksToStorage(state: SocialLinksState) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(CARD_SOCIAL_LINKS_STORAGE_KEY, JSON.stringify(state));
 }
 
 function drawCoverImage(
@@ -486,6 +609,67 @@ function drawRoundedRect(
   context.fill();
 }
 
+// Desenha a linha de redes sociais/site do card: um selo colorido com a
+// sigla da rede (ex.: "IG") seguido do valor cadastrado (ex.: "@rbnbrasil"),
+// quebrando para a linha seguinte quando não cabe mais na largura do card.
+function drawSocialLinksRow(
+  context: CanvasRenderingContext2D,
+  entries: SocialBadgeEntry[],
+  startX: number,
+  startY: number,
+  maxWidth: number,
+  textColor: string
+) {
+  if (entries.length === 0) {
+    return;
+  }
+
+  const badgeHeight = 40;
+  const badgeFont = '700 20px Arial, sans-serif';
+  const textFont = '600 28px Arial, sans-serif';
+  const badgePaddingX = 16;
+  const gapBadgeText = 12;
+  const gapItems = 28;
+  const lineHeight = 52;
+
+  let cursorX = startX;
+  let cursorY = startY;
+
+  entries.forEach((entry) => {
+    context.font = badgeFont;
+    const badgeTextWidth = entry.badge ? context.measureText(entry.badge).width : 0;
+    const badgeWidth = entry.badge ? Math.max(badgeHeight, badgeTextWidth + badgePaddingX * 2) : 0;
+    const badgeGap = badgeWidth > 0 ? gapBadgeText : 0;
+    context.font = textFont;
+    const textWidth = context.measureText(entry.text).width;
+    const itemWidth = badgeWidth + badgeGap + textWidth;
+
+    if (cursorX > startX && cursorX + itemWidth > startX + maxWidth) {
+      cursorX = startX;
+      cursorY += lineHeight;
+    }
+
+    if (badgeWidth > 0) {
+      context.fillStyle = entry.color;
+      drawRoundedRect(context, cursorX, cursorY, badgeWidth, badgeHeight, badgeHeight / 2);
+      context.fillStyle = '#FFFFFF';
+      context.font = badgeFont;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(entry.badge, cursorX + badgeWidth / 2, cursorY + badgeHeight / 2 + 1);
+      context.textAlign = 'left';
+    }
+
+    context.fillStyle = textColor;
+    context.font = textFont;
+    context.textBaseline = 'middle';
+    context.fillText(entry.text, cursorX + badgeWidth + badgeGap, cursorY + badgeHeight / 2 + 1);
+    context.textBaseline = 'alphabetic';
+
+    cursorX += itemWidth + gapItems;
+  });
+}
+
 function makeNearBlackTransparent(image: HTMLImageElement) {
   const canvas = document.createElement('canvas');
   canvas.width = image.naturalWidth;
@@ -583,7 +767,8 @@ function drawTemplate(
   titleFontStyle: TitleFontStyle,
   titleAlign: TitleAlign,
   introAnimation: IntroAnimation,
-  animationProgress: number
+  animationProgress: number,
+  socialBadges: SocialBadgeEntry[]
 ) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   const titleFontFamily = getFontFamily(titleFont);
@@ -688,6 +873,16 @@ function drawTemplate(
     context.fillText(line, titleAlignX, titleStartY + index * wrappedTitle.lineHeight);
   });
   context.textAlign = 'start';
+
+  if (socialBadges.length > 0) {
+    const socialTextColor = footerGradient === 'light' ? '#111111' : '#FFFFFF';
+    const socialStartY = Math.min(
+      titleStartY + wrappedTitle.lines.length * wrappedTitle.lineHeight + 36,
+      CANVAS_HEIGHT - 86
+    );
+    drawSocialLinksRow(context, socialBadges, categoryX, socialStartY, CANVAS_WIDTH - categoryX * 2, socialTextColor);
+  }
+
   context.restore();
 }
 
@@ -934,6 +1129,10 @@ export default function GeradorCardPage() {
   const [videoSourceDuration, setVideoSourceDuration] = useState(0);
   const [videoTrimStart, setVideoTrimStart] = useState(0);
   const [videoTrimDuration, setVideoTrimDuration] = useState(15);
+  const [cardOverlayMode, setCardOverlayMode] = useState<CardOverlayMode>('full');
+  const [cardOverlayStart, setCardOverlayStart] = useState(0);
+  const [cardOverlayEnd, setCardOverlayEnd] = useState(5);
+  const [socialLinks, setSocialLinks] = useState<SocialLinksState>(() => readSocialLinksFromStorage());
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -998,6 +1197,9 @@ export default function GeradorCardPage() {
       setVideoSourceDuration(0);
       setVideoTrimStart(0);
       setVideoTrimDuration(15);
+      setCardOverlayMode('full');
+      setCardOverlayStart(0);
+      setCardOverlayEnd(5);
       return;
     }
 
@@ -1029,6 +1231,9 @@ export default function GeradorCardPage() {
     setVideoSourceDuration(0);
     setVideoTrimStart(0);
     setVideoTrimDuration(15);
+    setCardOverlayMode('full');
+    setCardOverlayStart(0);
+    setCardOverlayEnd(5);
     setPreviewUrl('');
     setPreviewKind(null);
     setImageScale(1);
@@ -1052,6 +1257,9 @@ export default function GeradorCardPage() {
       setVideoSourceDuration(0);
       setVideoTrimStart(0);
       setVideoTrimDuration(15);
+      setCardOverlayMode('full');
+      setCardOverlayStart(0);
+      setCardOverlayEnd(5);
       setPreviewKind(null);
       setErrorMessage('');
     }
@@ -1084,6 +1292,10 @@ export default function GeradorCardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    writeSocialLinksToStorage(socialLinks);
+  }, [socialLinks]);
+
   const categoryLabel = customCategory.trim() || (selectedArticle ? getCategoryDisplayName(selectedArticle.category) : 'Geral');
   const isColumnCard = cardKind === 'column';
   const isMemorialCard = cardKind === 'memorial';
@@ -1102,6 +1314,28 @@ export default function GeradorCardPage() {
   const effectiveVideoTrimEnd = Math.min(videoSourceDuration, effectiveVideoTrim.startTime + effectiveVideoTrim.clipDuration);
   const trimStartPercent = videoSourceDuration > 0 ? (effectiveVideoTrim.startTime / videoSourceDuration) * 100 : 0;
   const trimEndPercent = videoSourceDuration > 0 ? (effectiveVideoTrimEnd / videoSourceDuration) * 100 : 0;
+  const effectiveCardOverlayWindow = useMemo(
+    () =>
+      cardOverlayMode === 'full'
+        ? { start: 0, end: effectiveVideoTrim.clipDuration }
+        : clampOverlayWindow(cardOverlayStart, cardOverlayEnd, effectiveVideoTrim.clipDuration),
+    [cardOverlayMode, cardOverlayStart, cardOverlayEnd, effectiveVideoTrim.clipDuration]
+  );
+  const socialBadgeEntries = useMemo<SocialBadgeEntry[]>(
+    () =>
+      SOCIAL_PLATFORM_ORDER.filter((platform) => socialLinks[platform].enabled && socialLinks[platform].value.trim().length > 0).map(
+        (platform) => {
+          const meta = SOCIAL_PLATFORM_META[platform];
+          const value = socialLinks[platform].value.trim();
+          return {
+            badge: platform === 'other' ? (socialLinks.otherLabel.trim() || 'Contato').toUpperCase().slice(0, 4) : meta.badge,
+            text: value,
+            color: meta.color,
+          };
+        }
+      ),
+    [socialLinks]
+  );
   const videoTimelineMarkers = useMemo(() => {
     if (videoSourceDuration <= 0) {
       return [];
@@ -1334,11 +1568,17 @@ export default function GeradorCardPage() {
           setVideoSourceDuration(safeDuration);
           setVideoTrimStart(0);
           setVideoTrimDuration(Math.min(15, Math.max(1, safeDuration)));
+          setCardOverlayMode('full');
+          setCardOverlayStart(0);
+          setCardOverlayEnd(5);
         })
         .catch(() => {
           setVideoSourceDuration(0);
           setVideoTrimStart(0);
           setVideoTrimDuration(15);
+          setCardOverlayMode('full');
+          setCardOverlayStart(0);
+          setCardOverlayEnd(5);
         });
       return;
     }
@@ -1353,6 +1593,9 @@ export default function GeradorCardPage() {
     setVideoSourceDuration(0);
     setVideoTrimStart(0);
     setVideoTrimDuration(15);
+    setCardOverlayMode('full');
+    setCardOverlayStart(0);
+    setCardOverlayEnd(5);
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -1461,7 +1704,8 @@ export default function GeradorCardPage() {
         titleFontStyle,
         titleAlign,
         introAnimation,
-        animationProgress
+        animationProgress,
+        socialBadgeEntries
       );
     },
     [
@@ -1501,6 +1745,7 @@ export default function GeradorCardPage() {
       selectedArticle,
       selectedColumnist,
       selectedTemplate,
+      socialBadgeEntries,
       titleFont,
       titleFontStyle,
       titleAlign,
@@ -1637,8 +1882,31 @@ export default function GeradorCardPage() {
 
       const renderFrame = (now: number) => {
         const elapsedSeconds = (now - start) / 1000;
-        const introProgress = Math.min(elapsedSeconds / VIDEO_INTRO_DURATION_SECONDS, 1);
-        drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, null, introProgress);
+        const withinOverlayWindow =
+          elapsedSeconds >= effectiveCardOverlayWindow.start && elapsedSeconds <= effectiveCardOverlayWindow.end;
+
+        if (withinOverlayWindow) {
+          const introProgress = Math.min(
+            (elapsedSeconds - effectiveCardOverlayWindow.start) / VIDEO_INTRO_DURATION_SECONDS,
+            1
+          );
+          drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, null, introProgress);
+        } else {
+          context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+          drawCoverImage(
+            context,
+            heroVideo,
+            heroVideo.videoWidth,
+            heroVideo.videoHeight,
+            0,
+            0,
+            CANVAS_WIDTH,
+            CANVAS_HEIGHT,
+            imageScale,
+            imageOffsetX,
+            imageOffsetY
+          );
+        }
 
         if (elapsedSeconds < durationSeconds && heroVideo.currentTime < effectiveVideoTrim.startTime + durationSeconds) {
           requestAnimationFrame(renderFrame);
@@ -1660,7 +1928,18 @@ export default function GeradorCardPage() {
     }
 
     return videoBlobPromise;
-  }, [customVideoUrl, drawCurrentFrame, effectiveVideoTrim.clipDuration, effectiveVideoTrim.startTime, selectedArticle]);
+  }, [
+    customVideoUrl,
+    drawCurrentFrame,
+    effectiveCardOverlayWindow.end,
+    effectiveCardOverlayWindow.start,
+    effectiveVideoTrim.clipDuration,
+    effectiveVideoTrim.startTime,
+    imageOffsetX,
+    imageOffsetY,
+    imageScale,
+    selectedArticle,
+  ]);
 
   const generateCardPreview = useCallback(
     async (showLoading = false) => {
@@ -2344,6 +2623,71 @@ export default function GeradorCardPage() {
                   </p>
                 </div>
 
+                {isNewsCard && isVideoSource && videoSourceDuration > 0 ? (
+                  <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-[#991B1B]" />
+                      <p className="text-sm font-semibold text-gray-800">Tempo de exibição do Card</p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Defina quando a logo, a categoria, a manchete e as redes sociais ficam visíveis sobre o vídeo. Fora desse período, o vídeo continua rodando sem as informações do card.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCardOverlayMode('full')}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          cardOverlayMode === 'full'
+                            ? 'border-[#991B1B] bg-[#991B1B] text-white'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-[#991B1B] hover:text-[#991B1B]'
+                        }`}
+                      >
+                        Vídeo inteiro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCardOverlayMode('custom')}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                          cardOverlayMode === 'custom'
+                            ? 'border-[#991B1B] bg-[#991B1B] text-white'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-[#991B1B] hover:text-[#991B1B]'
+                        }`}
+                      >
+                        Alguns segundos
+                      </button>
+                    </div>
+
+                    {cardOverlayMode === 'custom' ? (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                          Início ({formatSecondsLabel(effectiveCardOverlayWindow.start)})
+                          <input
+                            type="range"
+                            min={0}
+                            max={effectiveVideoTrim.clipDuration}
+                            step={0.5}
+                            value={cardOverlayStart}
+                            onChange={(event) => setCardOverlayStart(Number(event.target.value))}
+                            className="w-full accent-[#991B1B]"
+                          />
+                        </label>
+                        <label className="space-y-2 text-xs font-semibold uppercase tracking-[0.12em] text-gray-600">
+                          Fim ({formatSecondsLabel(effectiveCardOverlayWindow.end)})
+                          <input
+                            type="range"
+                            min={0}
+                            max={effectiveVideoTrim.clipDuration}
+                            step={0.5}
+                            value={cardOverlayEnd}
+                            onChange={(event) => setCardOverlayEnd(Number(event.target.value))}
+                            className="w-full accent-[#991B1B]"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -2558,6 +2902,74 @@ export default function GeradorCardPage() {
                   Logo fixa do card: <span className="font-semibold text-gray-900">RBN com fundo tratado como transparente</span>. A logo fica sobre a mídia, sem frase e sem nome do autor na base, com posicao ajustavel entre esquerda, centro e direita.
                 </div>
 
+                {isNewsCard ? (
+                  <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">Redes sociais e site</p>
+                      <p className="text-xs text-gray-500">
+                        Cadastre seus contatos (tudo opcional) e marque quais devem aparecer no card. As informações ficam salvas neste navegador para reutilizar em outros cards.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {SOCIAL_PLATFORM_ORDER.map((platform) => {
+                        const meta = SOCIAL_PLATFORM_META[platform];
+                        const entry = socialLinks[platform];
+                        const Icon = meta.Icon;
+                        return (
+                          <div key={platform} className="space-y-2 rounded-xl border border-gray-200 bg-white px-3 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-gray-600">
+                                <Icon className="h-4 w-4" style={{ color: meta.color }} />
+                                {platform === 'other' ? (
+                                  <input
+                                    type="text"
+                                    value={socialLinks.otherLabel}
+                                    onChange={(event) =>
+                                      setSocialLinks((previous) => ({ ...previous, otherLabel: event.target.value }))
+                                    }
+                                    placeholder="Nome do contato"
+                                    className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-xs font-normal normal-case text-gray-900 outline-none focus:border-[#991B1B]"
+                                  />
+                                ) : (
+                                  meta.label
+                                )}
+                              </label>
+                              <input
+                                type="checkbox"
+                                checked={entry.enabled}
+                                onChange={(event) =>
+                                  setSocialLinks((previous) => ({
+                                    ...previous,
+                                    [platform]: { ...previous[platform], enabled: event.target.checked },
+                                  }))
+                                }
+                                className="h-4 w-4 accent-[#991B1B]"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={entry.value}
+                              onChange={(event) =>
+                                setSocialLinks((previous) => ({
+                                  ...previous,
+                                  [platform]: { ...previous[platform], value: event.target.value },
+                                }))
+                              }
+                              placeholder={meta.placeholder}
+                              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#991B1B] focus:ring-2 focus:ring-[#991B1B]/10"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {socialBadgeEntries.length > 0
+                        ? `Aparecerão no card: ${socialBadgeEntries.map((item) => item.text).join(' · ')}`
+                        : 'Nenhuma rede marcada para aparecer no card.'}
+                    </p>
+                  </div>
+                ) : null}
+
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <label htmlFor="cardImage" className="text-sm font-semibold text-gray-800">
@@ -2578,6 +2990,9 @@ export default function GeradorCardPage() {
                           setVideoSourceDuration(0);
                           setVideoTrimStart(0);
                           setVideoTrimDuration(15);
+                          setCardOverlayMode('full');
+                          setCardOverlayStart(0);
+                          setCardOverlayEnd(5);
                           setPreviewKind(null);
                         }}
                         className="text-xs font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]"
