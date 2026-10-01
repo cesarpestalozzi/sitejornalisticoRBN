@@ -1571,6 +1571,37 @@ export default function GeradorCardPage() {
     const durationSeconds = effectiveVideoTrim.clipDuration;
 
     const stream = canvas.captureStream(30);
+
+    // O vídeo de origem fica silenciado (`video.muted = true`) para que o
+    // usuário não ouça o áudio tocando durante a geração do card, mas o
+    // `canvas.captureStream()` só carrega a trilha de vídeo — o áudio nunca
+    // era incluído no stream gravado, por isso o card exportado saía mudo.
+    // Para capturar o áudio sem precisar "des-silenciar" o elemento (e sem
+    // reproduzi-lo pelas caixas de som), usamos o Web Audio API: conectamos
+    // o vídeo a um nó de destino de stream sem ligá-lo à saída de áudio do
+    // navegador, e anexamos a trilha de áudio resultante ao stream do canvas
+    // antes de iniciar a gravação.
+    let audioContext: AudioContext | null = null;
+    let audioSourceNode: MediaElementAudioSourceNode | null = null;
+    let audioDestinationNode: MediaStreamAudioDestinationNode | null = null;
+
+    try {
+      const AudioContextClass = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AudioContextClass) {
+        audioContext = new AudioContextClass();
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume().catch(() => undefined);
+        }
+        audioSourceNode = audioContext.createMediaElementSource(heroVideo);
+        audioDestinationNode = audioContext.createMediaStreamDestination();
+        audioSourceNode.connect(audioDestinationNode);
+        audioDestinationNode.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
+      }
+    } catch {
+      // Se o navegador não suportar o Web Audio API (ou o vídeo não tiver
+      // áudio), a exportação segue normalmente, apenas sem som.
+    }
+
     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 });
     const chunks: BlobPart[] = [];
 
@@ -1608,6 +1639,12 @@ export default function GeradorCardPage() {
 
       requestAnimationFrame(renderFrame);
     });
+
+    audioSourceNode?.disconnect();
+    audioDestinationNode?.disconnect();
+    if (audioContext) {
+      await audioContext.close().catch(() => undefined);
+    }
 
     return videoBlobPromise;
   }, [customVideoUrl, drawCurrentFrame, effectiveVideoTrim.clipDuration, effectiveVideoTrim.startTime, selectedArticle]);
