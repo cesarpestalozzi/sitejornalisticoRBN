@@ -117,7 +117,7 @@ const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1350;
 const CARD_LOGO_SRC = '/rbn-card-logo.png';
 const CARD_ACCENT_RED = '#C1121F';
-const VIDEO_EXPORT_EXTENSION = 'webm';
+const VIDEO_EXPORT_EXTENSION = 'mp4';
 const VIDEO_EXPORT_MAX_DURATION_SECONDS = 180;
 const VIDEO_INTRO_DURATION_SECONDS = 1.15;
 const CARD_PRESETS_STORAGE_KEY = 'rbn-card-generator-presets';
@@ -368,6 +368,81 @@ function getVideoMimeType() {
   // no vídeo exportado. O VP8 é muito mais leve de codificar e evita isso.
   const mimeTypes = ['video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'];
   return mimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? null;
+}
+
+// O `MediaRecorder` do navegador só grava de forma confiável em WebM
+// (VP8/VP9), mas o Instagram não aceita esse contêiner — só MP4 (H.264 +
+// AAC). Por isso, depois de gravar o WebM, convertemos para MP4 inteiramente
+// no navegador com o ffmpeg.wasm (via WebAssembly), sem precisar de nenhum
+// servidor de conversão. O núcleo do ffmpeg é carregado sob demanda (só
+// quando o usuário gera um vídeo) a partir de `/public/ffmpeg`, então não
+// pesa no carregamento normal do site.
+let ffmpegInstancePromise: Promise<import('@ffmpeg/ffmpeg').FFmpeg> | null = null;
+
+async function getFfmpegInstance(onLog?: (message: string) => void) {
+  if (!ffmpegInstancePromise) {
+    ffmpegInstancePromise = (async () => {
+      const [{ FFmpeg }, { toBlobURL }] = await Promise.all([import('@ffmpeg/ffmpeg'), import('@ffmpeg/util')]);
+      const ffmpeg = new FFmpeg();
+      const baseURL = '/ffmpeg';
+      const [coreURL, wasmURL] = await Promise.all([
+        toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      ]);
+      await ffmpeg.load({ coreURL, wasmURL });
+      return ffmpeg;
+    })().catch((error) => {
+      ffmpegInstancePromise = null;
+      throw error;
+    });
+  }
+
+  const ffmpeg = await ffmpegInstancePromise;
+  if (onLog) {
+    ffmpeg.on('log', ({ message }) => onLog(message));
+  }
+  return ffmpeg;
+}
+
+async function convertWebmToMp4(webmBlob: Blob, onProgress?: (ratio: number) => void): Promise<Blob> {
+  const { fetchFile } = await import('@ffmpeg/util');
+  const ffmpeg = await getFfmpegInstance();
+
+  const progressHandler = ({ progress }: { progress: number }) => {
+    if (onProgress && Number.isFinite(progress)) {
+      onProgress(Math.min(1, Math.max(0, progress)));
+    }
+  };
+  ffmpeg.on('progress', progressHandler);
+
+  const inputName = 'input.webm';
+  const outputName = 'output.mp4';
+
+  try {
+    await ffmpeg.writeFile(inputName, await fetchFile(webmBlob));
+    // H.264 + AAC dentro de um contêiner MP4 com `+faststart` (metadados no
+    // início do arquivo) é exatamente o formato que o Instagram espera.
+    // CRF 23 mantém boa qualidade visual com um arquivo bem mais compacto
+    // do que a gravação original em WebM.
+    await ffmpeg.exec([
+      '-i', inputName,
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '23',
+      '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-movflags', '+faststart',
+      outputName,
+    ]);
+    const data = await ffmpeg.readFile(outputName);
+    const bytes = data instanceof Uint8Array ? data : new TextEncoder().encode(String(data));
+    return new Blob([bytes.slice().buffer], { type: 'video/mp4' });
+  } finally {
+    ffmpeg.off('progress', progressHandler);
+    await ffmpeg.deleteFile(inputName).catch(() => undefined);
+    await ffmpeg.deleteFile(outputName).catch(() => undefined);
+  }
 }
 
 function easeOutCubic(progress: number) {
@@ -1250,6 +1325,7 @@ export default function GeradorCardPage() {
   const [previewUrl, setPreviewUrl] = useState('');
   const [previewKind, setPreviewKind] = useState<PreviewKind | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [videoTranscodeProgress, setVideoTranscodeProgress] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [savedPresets, setSavedPresets] = useState<CardGeneratorPreset[]>(() => readCardPresetsFromStorage());
   const [presetName, setPresetName] = useState('');
@@ -1924,7 +2000,7 @@ export default function GeradorCardPage() {
     return canvas.toDataURL(mimeType, quality);
   }, [currentImageSource, customVideoUrl, drawCurrentFrame, effectiveVideoTrim.startTime, exportFormat, isColumnCard, isMemorialCard, isVideoSource, selectedColumnist]);
 
-  const generateVideoPreview = useCallback(async () => {
+  const generateVideoPreview = useCallback(async (onTranscodeProgress?: (ratio: number) => void) => {
     if (!customVideoUrl || !selectedArticle) {
       throw new Error('Envie um vídeo para gerar a versão em movimento do card.');
     }
@@ -2077,7 +2153,8 @@ export default function GeradorCardPage() {
       await audioContext.close().catch(() => undefined);
     }
 
-    return videoBlobPromise;
+    const webmBlob = await videoBlobPromise;
+    return convertWebmToMp4(webmBlob, onTranscodeProgress);
   }, [
     customVideoUrl,
     drawCurrentFrame,
@@ -2129,7 +2206,12 @@ export default function GeradorCardPage() {
         }
 
         if (isVideoSource && showLoading) {
-          const videoBlob = await generateVideoPreview();
+          setVideoTranscodeProgress(0);
+          const videoBlob = await generateVideoPreview((ratio) => {
+            if (previewRequestId === previewRequestIdRef.current) {
+              setVideoTranscodeProgress(ratio);
+            }
+          });
           if (previewRequestId !== previewRequestIdRef.current) {
             return;
           }
@@ -2161,6 +2243,7 @@ export default function GeradorCardPage() {
       } finally {
         if (previewRequestId === previewRequestIdRef.current) {
           setIsGenerating(false);
+          setVideoTranscodeProgress(null);
         }
       }
     },
@@ -3618,6 +3701,19 @@ export default function GeradorCardPage() {
                     {isVideoSource ? 'Baixar vídeo' : 'Baixar card'}
                   </button>
                 </div>
+                {isVideoSource && videoTranscodeProgress !== null && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-xs font-semibold text-gray-600">
+                      Convertendo para MP4 (compatível com Instagram)... {Math.round(videoTranscodeProgress * 100)}%
+                    </p>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className="h-full rounded-full bg-[#991B1B] transition-all"
+                        style={{ width: `${Math.round(videoTranscodeProgress * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </section>
 
               <section className="rounded-2xl bg-white p-5 shadow-sm xl:sticky xl:top-6 xl:h-fit xl:self-start">
