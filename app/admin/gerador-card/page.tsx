@@ -424,14 +424,27 @@ async function convertWebmToMp4(webmBlob: Blob, onProgress?: (ratio: number) => 
     // início do arquivo) é exatamente o formato que o Instagram espera.
     // CRF 23 mantém boa qualidade visual com um arquivo bem mais compacto
     // do que a gravação original em WebM.
+    //
+    // O `canvas.captureStream()` gera uma trilha com taxa de quadros
+    // variável (VFR): cada quadro carrega o timestamp exato em que foi
+    // desenhado, e não um intervalo fixo. Ao simplesmente copiar esses
+    // timestamps para o MP4, o resultado reproduz com soluços (o player
+    // não consegue tocar em uma cadência constante). `-r 30` + `-fps_mode
+    // cfr` força a saída a uma taxa de quadros constante de 30fps,
+    // duplicando ou descartando quadros conforme necessário — isso é o
+    // que elimina o travamento durante a reprodução do arquivo final.
     await ffmpeg.exec([
       '-i', inputName,
+      '-r', '30',
+      '-fps_mode', 'cfr',
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-crf', '23',
       '-pix_fmt', 'yuv420p',
       '-c:a', 'aac',
       '-b:a', '128k',
+      '-ar', '44100',
+      '-af', 'aresample=async=1:first_pts=0',
       '-movflags', '+faststart',
       outputName,
     ]);
