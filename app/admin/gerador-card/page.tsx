@@ -361,7 +361,12 @@ function getVideoMimeType() {
     return null;
   }
 
-  const mimeTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  // VP8 é priorizado sobre o VP9: embora o VP9 comprima um pouco melhor, a
+  // codificação por software é bem mais pesada para a CPU em tempo real.
+  // Com o canvas em 1080x1350 a 30fps, o VP9 costumava disputar CPU com o
+  // próprio desenho do frame, o que causava o travamento/engasgo relatado
+  // no vídeo exportado. O VP8 é muito mais leve de codificar e evita isso.
+  const mimeTypes = ['video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'];
   return mimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? null;
 }
 
@@ -2010,33 +2015,47 @@ export default function GeradorCardPage() {
 
     await new Promise<void>((resolve) => {
       const start = performance.now();
+      // O canvas é capturado a 30fps (`canvas.captureStream(30)`), mas sem
+      // um limite o `requestAnimationFrame` tentava redesenhar a cada
+      // atualização de tela do navegador (normalmente 60fps ou mais). Como
+      // cada frame refaz cálculos pesados (quebra de texto, selos de redes
+      // sociais, gradientes), isso sobrecarregava a CPU e disputava tempo
+      // com o codificador do `MediaRecorder`, causando o travamento/engasgo
+      // percebido no vídeo exportado. Limitar o desenho a ~30fps alivia essa
+      // disputa e elimina os engasgos.
+      const targetFrameIntervalMs = 1000 / 30;
+      let lastDrawTime = -Infinity;
 
       const renderFrame = (now: number) => {
         const elapsedSeconds = (now - start) / 1000;
-        const withinOverlayWindow =
-          elapsedSeconds >= effectiveCardOverlayWindow.start && elapsedSeconds <= effectiveCardOverlayWindow.end;
 
-        if (withinOverlayWindow) {
-          const introProgress = Math.min(
-            (elapsedSeconds - effectiveCardOverlayWindow.start) / VIDEO_INTRO_DURATION_SECONDS,
-            1
-          );
-          drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, null, introProgress);
-        } else {
-          context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-          drawCoverImage(
-            context,
-            heroVideo,
-            heroVideo.videoWidth,
-            heroVideo.videoHeight,
-            0,
-            0,
-            CANVAS_WIDTH,
-            CANVAS_HEIGHT,
-            imageScale,
-            imageOffsetX,
-            imageOffsetY
-          );
+        if (now - lastDrawTime >= targetFrameIntervalMs) {
+          lastDrawTime = now;
+          const withinOverlayWindow =
+            elapsedSeconds >= effectiveCardOverlayWindow.start && elapsedSeconds <= effectiveCardOverlayWindow.end;
+
+          if (withinOverlayWindow) {
+            const introProgress = Math.min(
+              (elapsedSeconds - effectiveCardOverlayWindow.start) / VIDEO_INTRO_DURATION_SECONDS,
+              1
+            );
+            drawCurrentFrame(context, heroVideo, heroVideo.videoWidth, heroVideo.videoHeight, maybeLogoImage, null, introProgress);
+          } else {
+            context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+            drawCoverImage(
+              context,
+              heroVideo,
+              heroVideo.videoWidth,
+              heroVideo.videoHeight,
+              0,
+              0,
+              CANVAS_WIDTH,
+              CANVAS_HEIGHT,
+              imageScale,
+              imageOffsetX,
+              imageOffsetY
+            );
+          }
         }
 
         if (elapsedSeconds < durationSeconds && heroVideo.currentTime < effectiveVideoTrim.startTime + durationSeconds) {
