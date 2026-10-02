@@ -844,7 +844,23 @@ function drawSocialLinksRow(
   });
 }
 
+// `makeNearBlackTransparent` lê e reescreve todos os pixels do logotipo
+// (getImageData/putImageData), uma operação pesada de CPU. Durante a
+// exportação de vídeo, `drawTemplate` é chamado a cada frame (até 30x por
+// segundo) com a MESMA instância de `logoImage`, então recalcular esse
+// processamento em todo frame concorria diretamente com a gravação do
+// vídeo e era a principal causa do travamento/engasgo — tanto na prévia
+// quanto no arquivo final. Este cache memoriza o resultado por imagem
+// (reaproveitado em todos os frames) e só é recalculado se a imagem de
+// origem mudar.
+const nearBlackTransparentCache = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
+
 function makeNearBlackTransparent(image: HTMLImageElement) {
+  const cached = nearBlackTransparentCache.get(image);
+  if (cached) {
+    return cached;
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = image.naturalWidth;
   canvas.height = image.naturalHeight;
@@ -869,6 +885,7 @@ function makeNearBlackTransparent(image: HTMLImageElement) {
   }
 
   context.putImageData(imageData, 0, 0);
+  nearBlackTransparentCache.set(image, canvas);
   return canvas;
 }
 
