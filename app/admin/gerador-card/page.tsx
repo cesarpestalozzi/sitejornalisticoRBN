@@ -975,7 +975,7 @@ function drawTemplate(
   const categoryFontStyleParts = getEffectiveFontStyleParts(categoryFont, categoryFontStyle);
   const introFrameStyle = getIntroFrameStyle(introAnimation, animationProgress);
   if (isUrgentTemplate && 'filter' in context) {
-    context.filter = 'grayscale(100%) contrast(135%) brightness(0.86)';
+    context.filter = 'grayscale(100%) contrast(115%) brightness(1.08)';
   }
   drawCoverImage(
     context,
