@@ -93,6 +93,7 @@ type CardGeneratorPreset = {
     categoryFontSize?: number;
     categoryPadding?: number;
     categoryBorderRadius?: number;
+    categoryTitleGap?: number;
     logoSize?: number;
     logoOffsetX?: number;
     logoOffsetY?: number;
@@ -954,6 +955,7 @@ function drawTemplate(
   categoryFontSize: number,
   categoryPadding: number,
   categoryBorderRadius: number,
+  categoryTitleGap: number,
   titleFont: TitleFont,
   titleFontStyle: TitleFontStyle,
   titleAlign: TitleAlign,
@@ -1064,7 +1066,7 @@ function drawTemplate(
     context.textBaseline = 'middle';
     context.fillText(categoryLabel.toUpperCase(), categoryX + safeCategoryPadding, categoryY + categoryHeight / 2 + 1);
     context.textBaseline = 'alphabetic';
-    titleStartY = categoryY + categoryHeight + 68;
+    titleStartY = categoryY + categoryHeight + categoryTitleGap;
   }
 
   const wrappedTitle = wrapText(context, title, CANVAS_WIDTH - 144, 320, titleFontFamily, titleFontStyle, undefined, titleFont);
@@ -1342,6 +1344,7 @@ export default function GeradorCardPage() {
   const [categoryFontSize, setCategoryFontSize] = useState(30);
   const [categoryPadding, setCategoryPadding] = useState(26);
   const [categoryBorderRadius, setCategoryBorderRadius] = useState(18);
+  const [categoryTitleGap, setCategoryTitleGap] = useState(88);
   const [customImageDataUrl, setCustomImageDataUrl] = useState('');
   const [customImageName, setCustomImageName] = useState('');
   const [customVideoUrl, setCustomVideoUrl] = useState('');
@@ -1618,6 +1621,7 @@ export default function GeradorCardPage() {
       categoryFontSize,
       categoryPadding,
       categoryBorderRadius,
+      categoryTitleGap,
       imageScale,
       imageOffsetX,
       imageOffsetY,
@@ -1651,6 +1655,7 @@ export default function GeradorCardPage() {
       categoryFontSize,
       categoryPadding,
       categoryBorderRadius,
+      categoryTitleGap,
       imageScale,
       imageOffsetX,
       imageOffsetY,
@@ -1700,6 +1705,7 @@ export default function GeradorCardPage() {
     setCategoryFontSize(typeof preset.config.categoryFontSize === 'number' && Number.isFinite(preset.config.categoryFontSize) ? preset.config.categoryFontSize : 30);
     setCategoryPadding(typeof preset.config.categoryPadding === 'number' && Number.isFinite(preset.config.categoryPadding) ? preset.config.categoryPadding : 26);
     setCategoryBorderRadius(typeof preset.config.categoryBorderRadius === 'number' && Number.isFinite(preset.config.categoryBorderRadius) ? preset.config.categoryBorderRadius : 29);
+    setCategoryTitleGap(typeof preset.config.categoryTitleGap === 'number' && Number.isFinite(preset.config.categoryTitleGap) ? preset.config.categoryTitleGap : 88);
     setImageScale(preset.config.imageScale);
     setImageOffsetX(preset.config.imageOffsetX);
     setImageOffsetY(preset.config.imageOffsetY);
@@ -1937,6 +1943,7 @@ export default function GeradorCardPage() {
         categoryFontSize,
         categoryPadding,
         categoryBorderRadius,
+        categoryTitleGap,
         titleFont,
         titleFontStyle,
         titleAlign,
@@ -1961,6 +1968,7 @@ export default function GeradorCardPage() {
       categoryFontSize,
       categoryPadding,
       categoryBorderRadius,
+      categoryTitleGap,
       columnAccentOffsetX,
       columnAccentOffsetY,
       columnTitleOffsetX,
@@ -2989,6 +2997,7 @@ export default function GeradorCardPage() {
                           setCategoryFontSize(30);
                           setCategoryPadding(26);
                           setCategoryBorderRadius(18);
+                          setCategoryTitleGap(88);
                         }}
                         className="text-xs font-semibold text-[#991B1B] transition hover:text-[#7F1D1D]"
                       >
@@ -3075,6 +3084,24 @@ export default function GeradorCardPage() {
                       <span className="block text-xs font-normal normal-case text-gray-500">{categoryBorderRadius}px {categoryBorderRadius >= (categoryFontSize + categoryPadding) / 2 ? '(cápsula)' : ''}</span>
                     </label>
                   </div>
+
+                  <label className={`block space-y-2 text-xs font-semibold uppercase tracking-[0.12em] ${showCategory ? 'text-gray-600' : 'text-gray-400'}`}>
+                    Distância entre categoria e manchete
+                    <input
+                      id="categoryTitleGap"
+                      type="range"
+                      min="40"
+                      max="180"
+                      step="4"
+                      value={categoryTitleGap}
+                      disabled={!showCategory}
+                      onChange={(event) => setCategoryTitleGap(Number(event.target.value))}
+                      className="w-full accent-[#991B1B] disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                    <span className="block text-xs font-normal normal-case text-gray-500">
+                      {categoryTitleGap}px {!showCategory && '— ative a categoria para ajustar'}
+                    </span>
+                  </label>
 
                   <div className="grid gap-4 sm:grid-cols-3">
                     <div className="space-y-2">
