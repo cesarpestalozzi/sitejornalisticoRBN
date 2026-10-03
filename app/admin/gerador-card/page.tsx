@@ -212,7 +212,7 @@ const templateOptions: Array<{
   description: string;
 }> = [
   { id: 'editorial', name: 'Editorial', description: 'Visual principal do portal, forte e equilibrado.' },
-  { id: 'urgente', name: 'Urgente', description: 'Mais impacto, com tarjas e contraste forte.' },
+  { id: 'urgente', name: 'Urgente', description: 'Preto e branco, tarja de urgência e contraste máximo.' },
   { id: 'clean', name: 'Clean', description: 'Leitura limpa, com composição elegante e minimalista.' },
 ];
 
@@ -968,11 +968,15 @@ function drawTemplate(
   socialAlign: TitleAlign
 ) {
   context.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  const isUrgentTemplate = template === 'urgente';
   const titleFontFamily = getFontFamily(titleFont);
   const fontStyleParts = getEffectiveFontStyleParts(titleFont, titleFontStyle);
   const categoryFontFamily = getFontFamily(categoryFont);
   const categoryFontStyleParts = getEffectiveFontStyleParts(categoryFont, categoryFontStyle);
   const introFrameStyle = getIntroFrameStyle(introAnimation, animationProgress);
+  if (isUrgentTemplate && 'filter' in context) {
+    context.filter = 'grayscale(100%) contrast(135%) brightness(0.86)';
+  }
   drawCoverImage(
     context,
     heroMedia,
@@ -986,9 +990,16 @@ function drawTemplate(
     imageOffsetX,
     imageOffsetY
   );
+  if (isUrgentTemplate && 'filter' in context) {
+    context.filter = 'none';
+  }
 
   const bottomGradient = context.createLinearGradient(0, CANVAS_HEIGHT - 520, 0, CANVAS_HEIGHT);
-  if (footerGradient === 'light') {
+  if (isUrgentTemplate) {
+    bottomGradient.addColorStop(0, 'rgba(0,0,0,0)');
+    bottomGradient.addColorStop(0.28, 'rgba(0,0,0,0.36)');
+    bottomGradient.addColorStop(1, 'rgba(0,0,0,0.98)');
+  } else if (footerGradient === 'light') {
     bottomGradient.addColorStop(0, 'rgba(255,255,255,0)');
     bottomGradient.addColorStop(0.34, 'rgba(255,255,255,0.62)');
     bottomGradient.addColorStop(1, 'rgba(255,255,255,0.98)');
@@ -1029,13 +1040,35 @@ function drawTemplate(
     const logoX = Math.max(12, Math.min(CANVAS_WIDTH - logoWidth - 12, baseLogoX + logoOffsetX));
 
     const logoY = Math.max(12, 38 + logoOffsetY);
+    if (isUrgentTemplate && 'filter' in context) {
+      context.filter = 'grayscale(100%) contrast(125%)';
+    }
     context.drawImage(preparedLogo, logoX, logoY, logoWidth, logoHeight);
+    if (isUrgentTemplate && 'filter' in context) {
+      context.filter = 'none';
+    }
   }
 
   context.save();
   context.globalAlpha = introFrameStyle.alpha;
   context.translate(introFrameStyle.translateX, introFrameStyle.translateY);
   context.scale(introFrameStyle.scale, introFrameStyle.scale);
+  if (isUrgentTemplate) {
+    context.fillStyle = 'rgba(0,0,0,0.88)';
+    context.fillRect(48, 772, 286, 74);
+    context.strokeStyle = '#FFFFFF';
+    context.lineWidth = 4;
+    context.strokeRect(50, 774, 282, 70);
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(48, 772, 10, 74);
+    context.fillStyle = '#FFFFFF';
+    context.font = `900 44px ${getFontFamily('impact')}`;
+    context.textAlign = 'left';
+    context.textBaseline = 'middle';
+    context.fillText('URGENTE', 76, 809);
+    context.textBaseline = 'alphabetic';
+    context.fillRect(48, 858, CANVAS_WIDTH - 96, 4);
+  }
   const categoryX = 72;
   const categoryY = template === 'clean' ? 860 : 900;
   let titleStartY = categoryY + 68;
@@ -1048,12 +1081,16 @@ function drawTemplate(
     const categoryHeight = safeCategoryFontSize + safeCategoryPadding;
     const measuredCategoryWidth = context.measureText(categoryLabel.toUpperCase()).width + safeCategoryPadding * 2;
     const categoryWidth = Math.max(categoryHeight, Math.min(CANVAS_WIDTH - categoryX * 2, measuredCategoryWidth));
-    context.fillStyle = isCategoryBackgroundTransparent ? 'rgba(255,255,255,0)' : categoryBackgroundColor;
+    context.fillStyle = isUrgentTemplate
+      ? '#FFFFFF'
+      : isCategoryBackgroundTransparent
+        ? 'rgba(255,255,255,0)'
+        : categoryBackgroundColor;
     drawRoundedRect(context, categoryX, categoryY, categoryWidth, categoryHeight, safeCategoryRadius);
     context.lineWidth = 3;
-    context.strokeStyle = categoryBorderColor;
+    context.strokeStyle = isUrgentTemplate ? '#FFFFFF' : categoryBorderColor;
     context.stroke();
-    context.fillStyle = categoryTextColor;
+    context.fillStyle = isUrgentTemplate ? '#050505' : categoryTextColor;
     context.textBaseline = 'middle';
     context.fillText(categoryLabel.toUpperCase(), categoryX + safeCategoryPadding, categoryY + categoryHeight / 2 + 1);
     context.textBaseline = 'alphabetic';
@@ -1061,18 +1098,28 @@ function drawTemplate(
   }
 
   const wrappedTitle = wrapText(context, title, CANVAS_WIDTH - 144, 320, titleFontFamily, titleFontStyle, undefined, titleFont);
-  context.fillStyle = footerGradient === 'light' ? '#111111' : '#FFFFFF';
-  context.font = `${fontStyleParts.fontStyle} ${fontStyleParts.fontWeight} ${wrappedTitle.fontSize}px ${titleFontFamily}`;
+  context.fillStyle = isUrgentTemplate ? '#FFFFFF' : footerGradient === 'light' ? '#111111' : '#FFFFFF';
+  context.font = `${fontStyleParts.fontStyle} ${isUrgentTemplate ? 900 : fontStyleParts.fontWeight} ${wrappedTitle.fontSize}px ${titleFontFamily}`;
 
   const titleAlignX = titleAlign === 'center' ? CANVAS_WIDTH / 2 : titleAlign === 'right' ? CANVAS_WIDTH - 72 : 72;
   context.textAlign = titleAlign === 'center' ? 'center' : titleAlign === 'right' ? 'right' : 'left';
   wrappedTitle.lines.forEach((line, index) => {
+    if (isUrgentTemplate) {
+      context.shadowColor = 'rgba(0,0,0,0.95)';
+      context.shadowBlur = 12;
+      context.shadowOffsetX = 2;
+      context.shadowOffsetY = 3;
+    }
     context.fillText(line, titleAlignX, titleStartY + index * wrappedTitle.lineHeight);
   });
+  context.shadowColor = 'transparent';
+  context.shadowBlur = 0;
+  context.shadowOffsetX = 0;
+  context.shadowOffsetY = 0;
   context.textAlign = 'start';
 
   if (socialBadges.length > 0) {
-    const socialTextColor = footerGradient === 'light' ? '#111111' : '#FFFFFF';
+    const socialTextColor = isUrgentTemplate ? '#FFFFFF' : footerGradient === 'light' ? '#111111' : '#FFFFFF';
     // A margem inferior considera a altura do selo (badge) para a linha não
     // ser cortada, mesmo quando o usuário arrasta o controle de posição
     // vertical para o valor máximo (mais perto da borda do card).
@@ -1082,6 +1129,9 @@ function drawTemplate(
       titleStartY + wrappedTitle.lines.length * wrappedTitle.lineHeight + 36 + socialOffsetY,
       CANVAS_HEIGHT - socialBottomMargin
     );
+    if (isUrgentTemplate && 'filter' in context) {
+      context.filter = 'grayscale(100%) contrast(125%)';
+    }
     drawSocialLinksRow(
       context,
       socialBadges,
@@ -1094,6 +1144,9 @@ function drawTemplate(
       socialFontSize,
       socialAlign
     );
+    if (isUrgentTemplate && 'filter' in context) {
+      context.filter = 'none';
+    }
   }
 
   context.restore();
